@@ -84,13 +84,13 @@ FetchContent_Declare(
       )
 FetchContent_MakeAvailable(Boost)
 
-message(STATUS "TaskFlow")
-set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(taskflow 
-URL https://github.com/taskflow/taskflow/archive/refs/tags/v4.0.0.tar.gz
-)
-FetchContent_MakeAvailable(taskflow)
+#message(STATUS "TaskFlow")
+#set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+#set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+#FetchContent_Declare(taskflow 
+#URL https://github.com/taskflow/taskflow/archive/refs/tags/v4.0.0.tar.gz
+#)
+#FetchContent_MakeAvailable(taskflow)
 
 
 # Fetch Kokkos
@@ -107,3 +107,7 @@ FetchContent_Declare(
     URL https://github.com/skypjack/entt/archive/refs/tags/v3.16.0.tar.gz
 )
 FetchContent_MakeAvailable(ENTT)
+
+message(STATUS "Nlohmann Json")
+FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
+FetchContent_MakeAvailable(nlohmann_json)

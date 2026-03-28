@@ -2,10 +2,11 @@
 
 #include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
-int main()
-{
-   /*  AtlasNet::JobSystem::Init();
-    AtlasNet::MessageSystem::Init();
-    std::this_thread::sleep_for(std::chrono::seconds(5)); */
-    return 0;
-}   
+#include <thread>
+#include <chrono>
+int main(int argc, char** argv) {
+
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}

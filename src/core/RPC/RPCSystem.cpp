@@ -1,4 +1,4 @@
-#include "atlasnet/core/RPC/RPC.hpp"
+#include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/assert.hpp"
 #include "atlasnet/core/job/JobHandle.hpp"
@@ -8,7 +8,7 @@
 #include <shared_mutex>
 #include <utility>
 
-AtlasNet::RPC::RPC(const Config& config) : config_(config)
+AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
 {
   AN_ASSERT(config_.messageSystem != nullptr,
             "RPC requires a valid MessageSystem");
@@ -31,7 +31,7 @@ AtlasNet::RPC::RPC(const Config& config) : config_(config)
           { OnRPCError(msg, address); });
 }
 
-void AtlasNet::RPC::OnRPCRequest(const RpcRequestMessage& msg,
+void AtlasNet::RPCSystem::OnRPCRequest(const RpcRequestMessage& msg,
                                  const SocketAddress& address)
 {
     std::cerr << std::format("Received RPC request for methodId {} callId {} from {}",
@@ -51,9 +51,9 @@ void AtlasNet::RPC::OnRPCRequest(const RpcRequestMessage& msg,
   handler(address, msg.callID, msg.payload);
 }
 
-void AtlasNet::RPC::Shutdown() {}
+void AtlasNet::RPCSystem::Shutdown() {}
 
-void AtlasNet::RPC::SendError(const RPCTarget& target,
+void AtlasNet::RPCSystem::SendError(const RPCTarget& target,
                               RPC_Internal::MethodID methodId,
                               RPC_Internal::CallID callID, std::string errorMsg)
 {
@@ -66,7 +66,7 @@ void AtlasNet::RPC::SendError(const RPCTarget& target,
     //NewActiveJob(sendErrorHandle);
 }
 
-void AtlasNet::RPC::OnRPCError(const RpcErrorMessage& msg,
+void AtlasNet::RPCSystem::OnRPCError(const RpcErrorMessage& msg,
                                const SocketAddress& address)
 {
     std::cerr << std::format("Received RPC error for methodId {} callId {} from {}: {}",
@@ -94,7 +94,7 @@ void AtlasNet::RPC::OnRPCError(const RpcErrorMessage& msg,
   }
 }
 
-void AtlasNet::RPC::OnRPCResponse(const RpcResponseMessage& msg,
+void AtlasNet::RPCSystem::OnRPCResponse(const RpcResponseMessage& msg,
                                   const SocketAddress& address)
 {
     std::cerr << std::format("Received RPC response for methodId {} callId {} from {}",

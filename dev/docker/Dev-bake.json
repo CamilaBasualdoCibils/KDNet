@@ -1,25 +1,61 @@
 {
   "group": {
     "default": {
-      "targets": [ "watchdog", "proxy"]
+      "targets": [
+        "atlasnet-controller-dev",
+        "atlasnet-agent-dev",
+        "atlasnet-proxy-dev",
+        "atlasnet-web-dev",
+        "atlasnet-dummy-dev"
+      ]
     }
   },
   "target": {
-   
-    "watchdog": {
+    "atlasnet-controller-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Dev.Dockerfile",
-      "target": "watchdog",
+      "dockerfile": "dev/docker/Production.Dockerfile",
+      "target": "atlasnet-controller-dev",
       "load": true,
-      "tags": ["watchdog:latest"]
+      "tags": [
+        "atlasnet-controller-dev"
+      ]
     },
-    "proxy": {
+    "atlasnet-agent-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Dev.Dockerfile",
-      "target": "proxy",
+      "dockerfile": "dev/docker/Production.Dockerfile",
+      "target": "atlasnet-agent-dev",
       "load": true,
-      "tags": ["proxy:latest"]
+      "tags": [
+        "atlasnet-agent-dev"
+      ]
+    },
+    "atlasnet-proxy-dev": {
+      "context": ".",
+      "dockerfile": "dev/docker/Production.Dockerfile",
+      "target": "atlasnet-proxy-dev",
+      "load": true,
+      "tags": [
+        "atlasnet-proxy-dev"
+      ]
+    },
+    "atlasnet-web-dev": {
+      "context": ".",
+      "dockerfile": "dev/docker/Production.Dockerfile",
+      "target": "atlasnet-web-dev",
+      "load": true,
+      "tags": [
+        "atlasnet-web-dev"
+      ]
+    },
+    "atlasnet-dummy-dev": {
+      "context": ".",
+      "dockerfile": "dev/docker/Production.Dockerfile",
+      "target": "atlasnet-dummy-dev",
+      "load": true,
+      "tags": [
+        "atlasnet-dummy-dev"
+      ]
     }
-  
+
   }
 }

@@ -65,6 +65,7 @@ Boost::uuid
 glm::glm
 #Taskflow::Taskflow
 EnTT
+nlohmann_json::nlohmann_json
 )
 
 
@@ -169,3 +170,14 @@ target_include_directories(AtlasNetClientAPI_s
 )
 add_dependencies(AtlasNetClientAPI AtlasNetCore)
 add_dependencies(AtlasNetClientAPI_s AtlasNetCore)
+
+file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy/*.cpp"
+)
+add_executable(AtlasNetDummy ${_dummy_sources})
+# Optional, but common: local includes
+target_include_directories(AtlasNetDummy
+      PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy"
+)
+target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)

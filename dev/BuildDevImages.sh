@@ -8,11 +8,7 @@ BAKE_FILE="$ROOT_DIR/dev/docker/Dev-bake.json"
 DOCKERFILE_PATH="$ROOT_DIR/dev/docker/Dev.DockerFile"
 BUILDER="${BUILDER:-atlasnet-builder}"
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <arch> [arch ...]" >&2
-  echo "Example: $0 amd64 arm64" >&2
-  exit 1
-fi
+PRELAUNCH_CMD_TEMPLATE="${1:-{EXE}}"
 
 if [[ ! -f "$BAKE_FILE" ]]; then
   echo "Missing bake file: $BAKE_FILE" >&2
@@ -23,25 +19,6 @@ if [[ ! -f "$DOCKERFILE_PATH" ]]; then
   echo "Missing Dockerfile: $DOCKERFILE_PATH" >&2
   exit 1
 fi
-
-PLATFORMS=()
-for arch in "$@"; do
-  case "$arch" in
-    amd64|arm64|arm/v7|arm/v6|386)
-      PLATFORMS+=("linux/$arch")
-      ;;
-    linux/*)
-      PLATFORMS+=("$arch")
-      ;;
-    *)
-      echo "Unsupported arch: $arch" >&2
-      echo "Use values like: amd64, arm64, arm/v7, 386, or full linux/<arch>" >&2
-      exit 1
-      ;;
-  esac
-done
-
-PLATFORM_CSV="$(IFS=,; echo "${PLATFORMS[*]}")"
 
 if ! docker buildx inspect "$BUILDER" >/dev/null 2>&1; then
   docker buildx create --name "$BUILDER" --use
@@ -54,4 +31,5 @@ docker buildx inspect --bootstrap >/dev/null
 docker buildx bake \
   --file "$BAKE_FILE" \
   --set "*.dockerfile=$DOCKERFILE_PATH" \
-  --set "*.platform=$PLATFORM_CSV"
+  --set "*.args.PRELAUNCH_CMD=$PRELAUNCH_CMD_TEMPLATE" \
+  --set "*.output=type=docker" 

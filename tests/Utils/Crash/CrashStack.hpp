@@ -6,7 +6,7 @@
 #include <format>
 #include <iostream>
 #include <boost/stacktrace.hpp>
-class CrashStack : public Singleton<CrashStack>
+class CrashStack : public AtlasNet::Singleton<CrashStack>
 {
 public:
   CrashStack()

@@ -42,17 +42,17 @@ namespace AtlasNet
 {
 
 using RPCTarget = SocketAddress;
-class RPC
+class RPCSystem
 {
 public:
   struct Config
   {
-    PortType port;
+    PortType port = 12345;
     MessageSystem* messageSystem = nullptr;
   };
 
-  RPC(const Config& config);
-  ~RPC()
+  RPCSystem(const Config& config);
+  ~RPCSystem()
   {
     /* {
       std::cerr << "RPC destructor called, shutting down RPC and waiting for "
@@ -174,7 +174,7 @@ private:
 template <typename MethodType, typename... Args>
 inline std::pair<AtlasNet::RPC_Internal::MethodID,
                  AtlasNet::RPC_Internal::CallID>
-AtlasNet::RPC::SendRequest(const RPCTarget& target, Args&&... args)
+AtlasNet::RPCSystem::SendRequest(const RPCTarget& target, Args&&... args)
 {
   ByteWriter writeArgs;
   writeArgs(std::forward<Args>(args)...);
@@ -193,7 +193,7 @@ AtlasNet::RPC::SendRequest(const RPCTarget& target, Args&&... args)
 
 template <typename MethodType>
 inline void
-AtlasNet::RPC::SendResponse(const RPCTarget& target,
+AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
                             RPC_Internal::CallID callID,
                             const typename MethodType::ReturnType& ret)
 {
@@ -216,7 +216,7 @@ AtlasNet::RPC::SendResponse(const RPCTarget& target,
 
 template <typename MethodType, typename... Args>
   requires(std::is_void_v<typename MethodType::ReturnType>)
-inline void AtlasNet::RPC::Call(const RPCTarget& target, Args&&... args)
+inline void AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
 {
   SendRequest<MethodType>(target, std::forward<Args>(args)...);
 }
@@ -224,7 +224,7 @@ inline void AtlasNet::RPC::Call(const RPCTarget& target, Args&&... args)
 template <typename MethodType, typename... Args>
   requires(!std::is_void_v<typename MethodType::ReturnType>)
 std::future<typename MethodType::ReturnType>
-AtlasNet::RPC::Call(const RPCTarget& target, Args&&... args)
+AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
 {
   using ReturnType = typename MethodType::ReturnType;
 
@@ -281,7 +281,7 @@ AtlasNet::RPC::Call(const RPCTarget& target, Args&&... args)
 
 template <typename MethodType, typename Func>
   requires AtlasNet::RPC_Internal::BindableRpcHandler<MethodType, Func>
-inline void AtlasNet::RPC::Bind(Func&& func)
+inline void AtlasNet::RPCSystem::Bind(Func&& func)
 {
   using ReturnType = typename MethodType::ReturnType;
   using ArgsTuple = typename MethodType::ArgsTuple;

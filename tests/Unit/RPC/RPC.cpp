@@ -1,6 +1,6 @@
 #pragma once
-#include "atlasnet/core/RPC/RPC.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
+#include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
@@ -19,10 +19,21 @@ int main(int argc, char** argv)
   return RUN_ALL_TESTS();
 }
 
-ATLASNET_RPC(TESTRpc, ATLASNET_RPC_METHOD(TestMethod, void, int, float);
+ATLASNET_RPC(TESTRpc,
+             // TestMethod(int,float) -> void
+             ATLASNET_RPC_METHOD(TestMethod, void, int, float);
+             // TestMethod_Ret() -> int
              ATLASNET_RPC_METHOD(TestMethod_Ret, int);
+             // TestMethod_Ret_String(std::string_view) -> std::string
              ATLASNET_RPC_METHOD(TestMethod_Ret_String, std::string,
                                  std::string_view););
+
+ATLASNET_RPC(MyOtherRPC,
+             // OtherMethod(std::string) -> void
+             ATLASNET_RPC_METHOD(OtherMethod, void, std::string);
+             // OtherMethod_Ret_iota(std::vector<int>) -> int
+             ATLASNET_RPC_METHOD(OtherMethod_Ret_iota, std::vector<int>, int));
+
 TEST(RPC, BaseMessage)
 {
   JobSystem jobsystem(JobSystem::Config{});
@@ -70,13 +81,16 @@ TEST(RPC, SelfReceive)
 {
   JobSystem jobSystem(JobSystem::Config{});
   const PortType port = 41001;
-
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
-  RPC rpc(RPC::Config{.port = port, .messageSystem = &msgSystem});
-
   bool success = false;
   std::mutex mutex;
   std::condition_variable cv;
+  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+
+  RPCSystem rpc(RPCSystem::Config{
+    .port = port, 
+    .messageSystem = &msgSystem}
+  );
+
   rpc.Bind<TESTRpc::TestMethod>(
       [&](int a, float b)
       {
@@ -85,6 +99,7 @@ TEST(RPC, SelfReceive)
         success = true;
         cv.notify_one();
       });
+
   rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), port), 42,
                                 3.14f);
 
@@ -98,8 +113,11 @@ TEST(RPC, SelfReceiveAndReply)
 
   MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
   const PortType port = 41001;
-  RPC rpc(RPC::Config{.port = port, .messageSystem = &msgSystem});
   bool success = false;
+
+
+
+  RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
   rpc.Bind<TESTRpc::TestMethod_Ret_String>(
       [&](std::string_view str) -> std::string
@@ -111,11 +129,18 @@ TEST(RPC, SelfReceiveAndReply)
         std::string strCopy(str);
         return strCopy + " world";
       });
+
+
+
   std::cout << std::format("Request Hash ID: {}", RpcRequestMessage::TypeIdHash)
             << std::endl;
   std::cout << std::format("Response Hash ID: {}",
                            RpcResponseMessage::TypeIdHash)
             << std::endl;
+
+
+
+
   std::future<std::string> result = rpc.Call<TESTRpc::TestMethod_Ret_String>(
       SocketAddress(IPv4(127, 0, 0, 1), port), "Hello");
 
@@ -127,7 +152,7 @@ TEST(RPC, SelfReceiveAndReply)
   }
   else
   {
-    FAIL() << "Future did not become ready in time";
+    FAIL() << "RPC call did not complete in time";
   }
 
   EXPECT_TRUE(success);
@@ -138,7 +163,7 @@ TEST(RPC, SelfReceiveWrongPort)
   const PortType port = 41001;
 
   MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
-  RPC rpc(RPC::Config{.port = port, .messageSystem = &msgSystem});
+  RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
   bool success = false;
   std::mutex mutex;
@@ -180,8 +205,8 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
     JobSystem childJobSystem(JobSystem::Config{});
     MessageSystem childMsgSystem(
         MessageSystem::Config{.jobSystem = &childJobSystem});
-    RPC childRpc(
-        RPC::Config{.port = childPort, .messageSystem = &childMsgSystem});
+    RPCSystem childRpc(
+        RPCSystem::Config{.port = childPort, .messageSystem = &childMsgSystem});
 
     std::mutex mutex;
     std::condition_variable cv;
@@ -223,8 +248,8 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   JobSystem parentJobSystem(JobSystem::Config{});
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.jobSystem = &parentJobSystem});
-  RPC parentRpc(
-      RPC::Config{.port = parentPort, .messageSystem = &parentMsgSystem});
+  RPCSystem parentRpc(
+      RPCSystem::Config{.port = parentPort, .messageSystem = &parentMsgSystem});
 
   std::future<int> result = parentRpc.Call<TESTRpc::TestMethod_Ret>(
       SocketAddress(IPv4(127, 0, 0, 1), childPort));

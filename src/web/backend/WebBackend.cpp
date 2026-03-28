@@ -1,7 +1,11 @@
 
 #include <drogon/drogon.h>
 
-int main()
-{
-    return 0;
+#include <thread>
+#include <chrono>
+int main(int argc, char** argv) {
+
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 }

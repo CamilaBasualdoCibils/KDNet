@@ -7,7 +7,7 @@
 namespace AtlasNet::Database
 {
 
-class InternalDB : public Singleton<InternalDB>
+class InternalDB
 {
   std::unique_ptr<RedisConn> Redis;
 
@@ -22,6 +22,11 @@ public:
     settings.port = EnvVars::InternalDBPort;
 
     Redis = RedisConn::Connect(settings);
+  }
+
+  RedisConn* operator->() const
+  {
+    return Redis.get();
   }
 };
 

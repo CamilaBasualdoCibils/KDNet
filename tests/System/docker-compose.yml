@@ -39,7 +39,7 @@ services:
     image: atlasnet-cartograph-dev
     networks: [AtlasNetTestNet]
     ports:
-      - target: 3000
+      - target: 4173
         published: 3000
         protocol: tcp
         mode: ingress

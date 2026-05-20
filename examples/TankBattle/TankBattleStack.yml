@@ -27,7 +27,7 @@ services:
       restart_policy:
         condition: on-failure
 
-  InternalDB:
+  atlasnet-database:
     image: valkey/valkey:latest
     command: ["valkey-server", "--appendonly", "yes", "--port", "6379"]
     networks: [TankBattleNet]
@@ -41,16 +41,38 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
-  atlasnet-cartograph:
-    image: atlasnet-cartograph-dev
+  atlasnet-cartograph-frontend:
+    image: atlasnet-cartograph-frontend-dev
+    networks: [TankBattleNet]
+    environment:
+      - FRONTEND_PORT=4173
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+  atlasnet-cartograph-proxy:
+    image: atlasnet-cartograph-proxy-dev
     networks: [TankBattleNet]
     ports:
-      - "3000:3000"   # Next.js default
-      - "9229:9229"   # Node inspector
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+    environment:
+      - FRONTEND_HOST=atlasnet-cartograph-frontend:4173
+      - BACKEND_HOST=atlasnet-cartograph-backend:2000
     deploy:
-      placement:
-          constraints:
-            - 'node.role == manager'
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+  atlasnet-cartograph-backend:
+    image: atlasnet-cartograph-backend-dev
+    networks: [TankBattleNet]
+    environment:
+      - BACKEND_PORT=2000
+    deploy:
       mode: replicated
       replicas: 1
       restart_policy:

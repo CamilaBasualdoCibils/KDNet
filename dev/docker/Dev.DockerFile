@@ -3,14 +3,14 @@ FROM debian:trixie-slim AS runner
 WORKDIR /atlasnet
 RUN apt-get update && apt-get install -y libatomic1 binutils gdb
 
-FROM runner AS web-runner
-RUN apt-get update && apt-get install -y libjsoncpp-dev
-
 
 FROM scratch AS atlasnetstage
 COPY ./dev/.stage /atlasnet
-FROM scratch AS atlasnetstage-cartograph-frontend
-COPY ./web .
+
+FROM scratch AS atlasnet-scr
+COPY ./src /atlasnet/src
+COPY ./include /atlasnet/include
+
 
 FROM runner AS atlasnet-controller-dev
 COPY --from=atlasnetstage /atlasnet/AtlasNetController /atlasnet/AtlasNetController
@@ -39,22 +39,33 @@ ARG PRELAUNCH_CMD="{EXE}"
 ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
 ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetDummy; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
-FROM web-runner AS atlasnet-cartograph-dev
-RUN apt-get update && apt-get install -y curl ca-certificates gnupg \
- && curl -fsSL https://deb.nodesource.com/setup_current.x | bash - \
- && apt-get install -y nodejs \
- && node -v && npm -v
-COPY --from=atlasnetstage-cartograph-frontend ./package.json /atlasnet/AtlasNetCartographFrontend/package.json
+FROM node:lts-alpine AS atlasnet-cartograph-frontend-dev
+# -------------------------
+# Frontend build
+# -------------------------
+COPY --from=atlasnet-scr /atlasnet/src/web/frontend /atlasnet/AtlasNetCartographFrontend
 WORKDIR /atlasnet/AtlasNetCartographFrontend
-RUN npm install -g pnpm@latest-11
-RUN pnpm install
+RUN npm install && npm run build
+ENV FRONTEND_PORT=4173
+ENTRYPOINT npm run preview -- --host --port $FRONTEND_PORT
 
 
-COPY --from=atlasnetstage-cartograph-frontend . /atlasnet/AtlasNetCartographFrontend
+FROM runner AS atlasnet-cartograph-backend-dev
+RUN apt-get update && apt-get install -y libjsoncpp-dev
+
+
+# -------------------------
+# Backend
+# -------------------------
 WORKDIR /
 COPY --from=atlasnetstage /atlasnet/AtlasNetCartographBackend /atlasnet/AtlasNetCartographBackend
-ARG PRELAUNCH_CMD="{EXE}"
-ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-WORKDIR /atlasnet/AtlasNetCartographFrontend
-ENTRYPOINT [ "pnpm","run", "start" ]
-#ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetCartographBackend; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
+
+ENTRYPOINT ["/atlasnet/AtlasNetCartographBackend"]
+
+FROM nginx:alpine AS atlasnet-cartograph-proxy-dev
+RUN apk add --no-cache gettext
+
+COPY --from=atlasnet-scr /atlasnet/src/web/proxy/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=atlasnet-scr /atlasnet/src/web/proxy/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

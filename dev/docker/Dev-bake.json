@@ -3,9 +3,11 @@
     "default": {
       "targets": [
         "atlasnet-controller-dev",
+        "atlasnet-cartograph-frontend-dev",
+        "atlasnet-cartograph-proxy-dev",
+        "atlasnet-cartograph-backend-dev",
         "atlasnet-agent-dev",
         "atlasnet-proxy-dev",
-        "atlasnet-cartograph-dev",
         "atlasnet-dummy-dev"
       ]
     }
@@ -13,7 +15,7 @@
   "target": {
     "atlasnet-controller-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Production.Dockerfile",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
       "target": "atlasnet-controller-dev",
       "load": true,
       "tags": [
@@ -22,7 +24,7 @@
     },
     "atlasnet-agent-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Production.Dockerfile",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
       "target": "atlasnet-agent-dev",
       "load": true,
       "tags": [
@@ -31,25 +33,43 @@
     },
     "atlasnet-proxy-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Production.Dockerfile",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
       "target": "atlasnet-proxy-dev",
       "load": true,
       "tags": [
         "atlasnet-proxy-dev"
       ]
     },
-    "atlasnet-cartograph-dev": {
+    "atlasnet-cartograph-frontend-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Production.Dockerfile",
-      "target": "atlasnet-cartograph-dev",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
+      "target": "atlasnet-cartograph-frontend-dev",
       "load": true,
       "tags": [
-        "atlasnet-cartograph-dev"
+        "atlasnet-cartograph-frontend-dev"
+      ]
+    },
+        "atlasnet-cartograph-proxy-dev": {
+      "context": ".",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
+      "target": "atlasnet-cartograph-proxy-dev",
+      "load": true,
+      "tags": [
+        "atlasnet-cartograph-proxy-dev"
+      ]
+    },
+    "atlasnet-cartograph-backend-dev": {
+      "context": ".",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
+      "target": "atlasnet-cartograph-backend-dev",
+      "load": true,
+      "tags": [
+        "atlasnet-cartograph-backend-dev"
       ]
     },
     "atlasnet-dummy-dev": {
       "context": ".",
-      "dockerfile": "dev/docker/Production.Dockerfile",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
       "target": "atlasnet-dummy-dev",
       "load": true,
       "tags": [

@@ -25,9 +25,10 @@ enum class ContainerType
   Controller,
   Agent,
   Shard,
-  Proxy
+  Proxy,
+  WebBackend
 };
-BOOST_DESCRIBE_ENUM(ContainerType, Controller, Agent, Shard, Proxy);
+BOOST_DESCRIBE_ENUM(ContainerType, Controller, Agent, Shard, Proxy, WebBackend);
 
 class IContainer
 {

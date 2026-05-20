@@ -61,7 +61,7 @@ std::string get_container_ip_on_network(
                     container_id));
   }
 
-  auto doc = Json::parse(res.body());
+  auto doc = _Json::parse(res.body());
 
   if (!doc.contains("NetworkSettings") ||
       !doc["NetworkSettings"].contains("Networks"))

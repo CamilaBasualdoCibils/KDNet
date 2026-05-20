@@ -1,5 +1,5 @@
 #pragma once
 #include <nlohmann/json.hpp>
 
-using Json = nlohmann::json;
-using JsonOrdered = nlohmann::ordered_json;
+using _Json= nlohmann::json;
+using _JsonOrdered= nlohmann::ordered_json;

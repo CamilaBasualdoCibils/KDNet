@@ -30,6 +30,10 @@ public:
     return boost::uuids::to_string(id);
   }
 
+  static UUID from_string(const std::string_view uuid_str)
+  {
+    return UUID(boost::uuids::string_generator()(uuid_str.data()));
+  }
   static UUID Generate()
   {
     static boost::uuids::random_generator generator;
@@ -60,6 +64,6 @@ template <typename Tag> struct StrongUUID : public UUID
 
   StrongUUID() = default;
   explicit StrongUUID(UUID v) : UUID(std::move(v)) {}
-
+  
   friend bool operator==(const StrongUUID&, const StrongUUID&) = default;
 };

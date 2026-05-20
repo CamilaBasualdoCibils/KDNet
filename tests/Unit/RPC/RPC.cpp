@@ -1,7 +1,7 @@
 #pragma once
-#include "atlasnet/core/RPC/RPC.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
+#include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 
@@ -19,15 +19,25 @@ int main(int argc, char** argv)
   return RUN_ALL_TESTS();
 }
 
-ATLASNET_RPC(TESTRpc, ATLASNET_RPC_METHOD(TestMethod, void, int, float);
+ATLASNET_RPC(TESTRpc,
+             // TestMethod(int,float) -> void
+             ATLASNET_RPC_METHOD(TestMethod, void, int, float);
+             // TestMethod_Ret() -> int
              ATLASNET_RPC_METHOD(TestMethod_Ret, int);
+             // TestMethod_Ret_String(std::string_view) -> std::string
              ATLASNET_RPC_METHOD(TestMethod_Ret_String, std::string,
                                  std::string_view););
+
+ATLASNET_RPC(MyOtherRPC,
+             // OtherMethod(std::string) -> void
+             ATLASNET_RPC_METHOD(OtherMethod, void, std::string);
+             // OtherMethod_Ret_iota(std::vector<int>) -> int
+             ATLASNET_RPC_METHOD(OtherMethod_Ret_iota, std::vector<int>, int));
+
 TEST(RPC, BaseMessage)
 {
   JobSystem jobsystem(JobSystem::Config{});
-  MessageSystem msgSystem(
-      MessageSystem::Config{.jobSystem = &jobsystem});
+  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobsystem});
   const PortType port = 41001;
   std::mutex mutex;
   bool success = false;
@@ -45,9 +55,9 @@ TEST(RPC, BaseMessage)
                 .callID = msg.callID,
                 .payload = std::vector<uint8_t>{1, 2, 3, 4, 5},
             };
-            msgSystem.SendMessage(
-                response, SocketAddress(IPv4(127, 0, 0, 1), port),
-                MessageSendMode::eReliableBatched);
+            msgSystem.SendMessage(response,
+                                  SocketAddress(IPv4(127, 0, 0, 1), port),
+                                  MessageSendMode::eReliableBatched);
           })
       .On<RpcResponseMessage>(
           [&](const RpcResponseMessage& msg, const SocketAddress&)
@@ -61,8 +71,7 @@ TEST(RPC, BaseMessage)
       .callID = 456,
       .payload = std::vector<uint8_t>{10, 20, 30},
   };
-  msgSystem.SendMessage(request,
-                        SocketAddress(IPv4(127, 0, 0, 1), port),
+  msgSystem.SendMessage(request, SocketAddress(IPv4(127, 0, 0, 1), port),
                         MessageSendMode::eReliableBatched);
   std::unique_lock lock(mutex);
   cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
@@ -72,15 +81,16 @@ TEST(RPC, SelfReceive)
 {
   JobSystem jobSystem(JobSystem::Config{});
   const PortType port = 41001;
-
-  MessageSystem msgSystem(
-      MessageSystem::Config{.jobSystem = &jobSystem});
-  RPC rpc(
-      RPC::Config{.port = port, .messageSystem = &msgSystem});
-
   bool success = false;
   std::mutex mutex;
   std::condition_variable cv;
+  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+
+  RPCSystem rpc(RPCSystem::Config{
+    .port = port, 
+    .messageSystem = &msgSystem}
+  );
+
   rpc.Bind<TESTRpc::TestMethod>(
       [&](int a, float b)
       {
@@ -89,8 +99,9 @@ TEST(RPC, SelfReceive)
         success = true;
         cv.notify_one();
       });
-  rpc.Call<TESTRpc::TestMethod>(
-      SocketAddress(IPv4(127, 0, 0, 1), port), 42, 3.14f);
+
+  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), port), 42,
+                                3.14f);
 
   std::unique_lock lock(mutex);
   cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
@@ -100,12 +111,13 @@ TEST(RPC, SelfReceiveAndReply)
 {
   JobSystem jobSystem(JobSystem::Config{});
 
-  MessageSystem msgSystem(
-      MessageSystem::Config{.jobSystem = &jobSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
   const PortType port = 41001;
-  RPC rpc(
-      RPC::Config{.port = port, .messageSystem = &msgSystem});
   bool success = false;
+
+
+
+  RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
   rpc.Bind<TESTRpc::TestMethod_Ret_String>(
       [&](std::string_view str) -> std::string
@@ -117,11 +129,18 @@ TEST(RPC, SelfReceiveAndReply)
         std::string strCopy(str);
         return strCopy + " world";
       });
+
+
+
   std::cout << std::format("Request Hash ID: {}", RpcRequestMessage::TypeIdHash)
             << std::endl;
   std::cout << std::format("Response Hash ID: {}",
                            RpcResponseMessage::TypeIdHash)
             << std::endl;
+
+
+
+
   std::future<std::string> result = rpc.Call<TESTRpc::TestMethod_Ret_String>(
       SocketAddress(IPv4(127, 0, 0, 1), port), "Hello");
 
@@ -133,7 +152,7 @@ TEST(RPC, SelfReceiveAndReply)
   }
   else
   {
-    FAIL() << "Future did not become ready in time";
+    FAIL() << "RPC call did not complete in time";
   }
 
   EXPECT_TRUE(success);
@@ -143,10 +162,8 @@ TEST(RPC, SelfReceiveWrongPort)
   JobSystem jobSystem(JobSystem::Config{});
   const PortType port = 41001;
 
-  MessageSystem msgSystem(
-      MessageSystem::Config{.jobSystem = &jobSystem});
-  RPC rpc(
-      RPC::Config{.port = port, .messageSystem = &msgSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+  RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
   bool success = false;
   std::mutex mutex;
@@ -159,8 +176,8 @@ TEST(RPC, SelfReceiveWrongPort)
         success = true;
         cv.notify_one();
       });
-  rpc.Call<TESTRpc::TestMethod>(
-      SocketAddress(IPv4(127, 0, 0, 1), port+1), 42, 3.14f);
+  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), port + 1), 42,
+                                3.14f);
 
   std::unique_lock lock(mutex);
   cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
@@ -175,7 +192,9 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   int readyPipe[2];
   ASSERT_EQ(pipe(readyPipe), 0) << "Failed to create pipe";
 
-  const int expectedResult = std::chrono::system_clock::now().time_since_epoch().count() % 10000; // Just some arbitrary value to return from child to parent
+  const int expectedResult =
+      std::chrono::system_clock::now().time_since_epoch().count() %
+      10000; // Just some arbitrary value to return from child to parent
   pid_t pid = fork();
   ASSERT_GE(pid, 0) << "fork() failed";
   if (pid == 0)
@@ -186,8 +205,8 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
     JobSystem childJobSystem(JobSystem::Config{});
     MessageSystem childMsgSystem(
         MessageSystem::Config{.jobSystem = &childJobSystem});
-    RPC childRpc(
-        RPC::Config{.port = childPort, .messageSystem = &childMsgSystem});
+    RPCSystem childRpc(
+        RPCSystem::Config{.port = childPort, .messageSystem = &childMsgSystem});
 
     std::mutex mutex;
     std::condition_variable cv;
@@ -200,7 +219,6 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
             std::lock_guard<std::mutex> lock(mutex);
             handled = true;
             std::cerr << "Child received TestMethod_Ret call" << std::endl;
-            
           }
           cv.notify_one();
           return expectedResult;
@@ -214,8 +232,8 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
     std::unique_lock<std::mutex> lock(mutex);
     const bool gotCall =
         cv.wait_for(lock, std::chrono::seconds(10), [&] { return handled; });
-       std::this_thread::sleep_for(std::chrono::seconds(2));
-        std::cerr << "Exiting child process" << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::cerr << "Exiting child process" << std::endl;
     _exit(gotCall ? 0 : 2);
   }
 
@@ -223,20 +241,22 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   close(readyPipe[1]);
 
   uint8_t ready = 0;
-  ASSERT_EQ(read(readyPipe[0], &ready, 1), 1) << "Parent failed waiting for child readiness";
+  ASSERT_EQ(read(readyPipe[0], &ready, 1), 1)
+      << "Parent failed waiting for child readiness";
   close(readyPipe[0]);
 
   JobSystem parentJobSystem(JobSystem::Config{});
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.jobSystem = &parentJobSystem});
-  RPC parentRpc(
-      RPC::Config{.port = parentPort, .messageSystem = &parentMsgSystem});
+  RPCSystem parentRpc(
+      RPCSystem::Config{.port = parentPort, .messageSystem = &parentMsgSystem});
 
   std::future<int> result = parentRpc.Call<TESTRpc::TestMethod_Ret>(
       SocketAddress(IPv4(127, 0, 0, 1), childPort));
 
   auto status = result.wait_for(std::chrono::seconds(10));
-  ASSERT_EQ(status, std::future_status::ready) << "RPC future not ready in time";
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
   EXPECT_EQ(result.get(), expectedResult);
 
   int childStatus = 0;
@@ -244,4 +264,3 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   ASSERT_TRUE(WIFEXITED(childStatus));
   EXPECT_EQ(WEXITSTATUS(childStatus), 0);
 }
-

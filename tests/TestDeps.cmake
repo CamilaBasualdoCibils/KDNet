@@ -1,12 +1,13 @@
 include(FetchContent)
 Set(FETCHCONTENT_QUIET FALSE)
-#Set(SKIP_DEMOS ON CACHE BOOL "Skip building testcontainers-cpp demos")
+
+#
 #FetchContent_Declare(
-#    testcontainers-cpp
-#    GIT_REPOSITORY https://github.com/testcontainers/testcontainers-native.git
+#    docker-cpp
+#    GIT_REPOSITORY https://github.com/perkss/docker-cpp.git
 #    GIT_TAG        main
 #)
-#FetchContent_MakeAvailable(testcontainers-cpp)
+#FetchContent_MakeAvailable(docker-cpp)
 
 if (NOT TARGET gtest)
 FetchContent_Declare(

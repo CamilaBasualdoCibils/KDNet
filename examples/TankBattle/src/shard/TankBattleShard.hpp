@@ -2,7 +2,7 @@
 #pragma once
 #include "atlasnet/API/shard/iatlasnetshard.hpp"
 
-class TankBattleShard : AtlasNet::IShard
+class TankBattleShard : AtlasNet::IAtlasNetShard
 {
 public:
     TankBattleShard() = default;

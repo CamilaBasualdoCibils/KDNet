@@ -28,6 +28,7 @@ requires build packages
 - libssl-dev
 - python3.13-venv
 - libuv1-dev
+- libdocker-cpp-dev # TESTS only
 ---
 ## Usage
 AtlasNet has enviroment variables that control how it functions

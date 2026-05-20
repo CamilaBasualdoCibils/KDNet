@@ -1,0 +1,74 @@
+version: "3.8"
+
+networks:
+  TankBattleNet:
+    driver: overlay
+services:
+  Atlasnet-Controller:
+    image: atlasnet-controller-dev
+    networks: [TankBattleNet]
+    deploy:
+      #labels:
+        #atlasnet.role: controller # REQUIRED
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  Atlasnet-Agent:
+    image: atlasnet-agent-dev
+    networks: [TankBattleNet]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # REQUIRED
+    deploy:
+      mode: global # REQUIRED. 1 per node
+      #labels:
+        #atlasnet.role: agent # OPTIONAL, determines which nodes can run shards
+      restart_policy:
+        condition: on-failure
+
+  InternalDB:
+    image: valkey/valkey:latest
+    command: ["valkey-server", "--appendonly", "yes", "--port", "6379"]
+    networks: [TankBattleNet]
+    ports:
+      - target: 6379
+        published: 6379
+        protocol: tcp
+        mode: ingress
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+  atlasnet-cartograph:
+    image: atlasnet-cartograph-dev
+    networks: [TankBattleNet]
+    ports:
+      - "3000:3000"   # Next.js default
+      - "9229:9229"   # Node inspector
+    deploy:
+      placement:
+          constraints:
+            - 'node.role == manager'
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+  AtlasNet-Proxy:
+    image: atlasnet-proxy-dev
+    networks: [TankBattleNet]
+    ports:
+      - target: 25568
+        published: 2555
+        protocol: tcp
+        mode: ingress
+      - target: 25568
+        published: 2555
+        protocol: udp
+        mode: ingress
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure

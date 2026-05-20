@@ -9,12 +9,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 ")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 ")
+set (CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(cmake/Deps.cmake)
 
 set(ATLASNET_EXAMPLES ON CACHE BOOL "Build AtlasNet examples")
 set(ATLASNET_TESTS ON CACHE BOOL "Build AtlasNet tests")
 set(ATLASNET_DEV ON CACHE BOOL "Build AtlasNet dev")
-set(ATLASNET_WEB ON CACHE BOOL "Build AtlasNet web interface")
+set(ATLASNET_CARTOGRAPH ON CACHE BOOL "Build AtlasNet web interface")
 
 if (ATLASNET_EXAMPLES)
     add_subdirectory(examples)
@@ -65,6 +66,7 @@ Boost::uuid
 glm::glm
 #Taskflow::Taskflow
 EnTT
+nlohmann_json::nlohmann_json
 )
 
 
@@ -84,34 +86,45 @@ target_link_libraries(AtlasNetProxy AtlasNetCore)
 
 
 
-file(GLOB_RECURSE _watchdog_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/watchdog/*.cpp"
+file(GLOB_RECURSE _controller_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/controller/*.cpp"
 )
 
-add_executable(AtlasNetWatchdog ${_watchdog_sources})
+add_executable(AtlasNetController ${_controller_sources})
 # Optional, but common: local includes
-target_include_directories(AtlasNetWatchdog
+target_include_directories(AtlasNetController
       PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/watchdog"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/controller"
 )
-target_link_libraries(AtlasNetWatchdog AtlasNetCore)
+target_link_libraries(AtlasNetController AtlasNetCore)
 
+file(GLOB_RECURSE _agent_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/agent/*.cpp"
+)
 
-if (ATLASNET_WEB)
+add_executable(AtlasNetAgent ${_agent_sources})
+# Optional, but common: local includes
+target_include_directories(AtlasNetAgent
+      PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent"
+)
+target_link_libraries(AtlasNetAgent AtlasNetCore)
+
+if (ATLASNET_CARTOGRAPH)
 include(cmake/WebDeps.cmake)
-    add_subdirectory(web)
+    #directory(web)
 
 file(GLOB_RECURSE _web_backend_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend/*.cpp"
 )
 
-add_executable(AtlasNetWebBackend ${_web_backend_sources})
+add_executable(AtlasNetCartographBackend ${_web_backend_sources})
 # Optional, but common: local includes
-target_include_directories(AtlasNetWebBackend
+target_include_directories(AtlasNetCartographBackend
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend"
 )
-target_link_libraries(AtlasNetWebBackend
+target_link_libraries(AtlasNetCartographBackend
 AtlasNetCore
 drogon
 )
@@ -158,3 +171,14 @@ target_include_directories(AtlasNetClientAPI_s
 )
 add_dependencies(AtlasNetClientAPI AtlasNetCore)
 add_dependencies(AtlasNetClientAPI_s AtlasNetCore)
+
+file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy/*.cpp"
+)
+add_executable(AtlasNetDummy ${_dummy_sources})
+# Optional, but common: local includes
+target_include_directories(AtlasNetDummy
+      PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy"
+)
+target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)

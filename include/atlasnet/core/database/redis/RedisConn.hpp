@@ -2,6 +2,7 @@
 
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
+#include "boost/describe/enum.hpp"
 #include "sw/redis++/command_options.h"
 #include "sw/redis++/connection.h"
 #include "sw/redis++/connection_pool.h"
@@ -32,11 +33,12 @@ class RedisConn
   friend class Redis::SetWrapper;
   friend class Redis::SortedSetWrapper;
 public:
-  enum RedisMode
+  enum class RedisMode
   {
     eCluster,
     eStandalone
   };
+  BOOST_DESCRIBE_NESTED_ENUM(RedisMode, eCluster, eStandalone);
   struct Settings
   {
 
@@ -45,6 +47,7 @@ public:
     RedisMode Mode;
     bool ExceptionOnFailure;
     uint32_t MaxConnectRetries;
+    std::chrono::milliseconds ConnectRetryDelay{1000};
 
     std::string user = "default";
     std::string password;

@@ -2,6 +2,9 @@
 #include <cassert>
 #include <mutex>
 #include <memory>
+namespace AtlasNet{
+
+
 template <typename Type>
 class Singleton
 {
@@ -69,3 +72,4 @@ public:
     }
 };
 
+}

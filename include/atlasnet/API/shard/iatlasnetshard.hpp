@@ -1,10 +1,10 @@
 #pragma once
 
 namespace AtlasNet {
-class IShard
+class IAtlasNetShard
 {
 public:
-    virtual ~IShard() = default;
+    virtual ~IAtlasNetShard() = default;
 
     void AtlasNet_Shard_Init() {
         // Initialization code for the shard

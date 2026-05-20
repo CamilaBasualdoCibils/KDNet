@@ -300,7 +300,7 @@ AtlasNet::MessageSystem::Connect(const SocketAddress& address)
         connIt->second.GetState() == ConnectionState::eConnected)
     {
       return config_.jobSystem->Submit(
-          [](JobContext&) {},
+          [](JobContext&) { },
           JobOpts::Name(std::format("MessageSystem::AlreadyConnected {}",
                                     address.to_string())),
           JobOpts::Notify<JobNotifyLevel::eNone>(),

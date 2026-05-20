@@ -94,6 +94,7 @@ FetchContent_MakeAvailable(Boost)
 
 
 # Fetch Kokkos
+set (Kokkos_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     kokkos
     URL https://github.com/kokkos/kokkos/archive/refs/tags/5.1.0.tar.gz

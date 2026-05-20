@@ -5,7 +5,7 @@
         "atlasnet-controller",
         "atlasnet-agent",
         "atlasnet-proxy",
-        "atlasnet-web",
+        "atlasnet-cartograph",
         "atlasnet-dummy"
       ]
     }
@@ -39,13 +39,13 @@
         "atlasnet-proxy:latest"
       ]
     },
-    "atlasnet-web": {
+    "atlasnet-cartograph": {
       "context": ".",
       "dockerfile": "dev/docker/Production.Dockerfile",
-      "target": "atlasnet-web",
+      "target": "atlasnet-cartograph",
       "load": true,
       "tags": [
-        "atlasnet-web:latest"
+        "atlasnet-cartograph:latest"
       ]
     },
     "atlasnet-dummy": {

@@ -3,6 +3,6 @@
 namespace AtlasNet {
 class ServerMessageSystem : public MessageSystem {
 
-    
+    public:
 };
 } // namespace AtlasNet

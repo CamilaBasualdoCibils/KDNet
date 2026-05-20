@@ -5,6 +5,8 @@
 #include "atlasnet/core/database/redis/KeyValWrapper.hpp"
 #include "atlasnet/core/database/redis/SetWrapper.hpp"
 #include "atlasnet/core/database/redis/SortedSetWrapper.hpp"
+#include "boost/describe/enum_to_string.hpp"
+#include <iostream>
 std::unique_ptr<AtlasNet::Database::RedisConn>
 AtlasNet::Database::RedisConn::Connect(const Settings& settings)
 {
@@ -28,18 +30,55 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
   {
     pool_opts.connection_idle_time = *settings.PoolConnectionIdleTimeout;
   }
-
-  if (settings.Mode == RedisMode::eCluster)
+  std::cerr
+      << std::format(
+             "Attempting to connect to Redis at {}:{} in {} mode with up to "
+             "{} retries...",
+             opts.host, opts.port,
+             boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
+             settings.MaxConnectRetries)
+      << std::endl;
+  for (uint32_t attempt = 1; attempt <= settings.MaxConnectRetries; ++attempt)
   {
+    try
+    {
+      if (settings.Mode == RedisMode::eCluster)
+      {
 
-    auto cluster = sw::redis::RedisCluster(opts, pool_opts);
-    return std::make_unique<RedisConn>(std::move(cluster), settings);
+        auto cluster = sw::redis::RedisCluster(opts, pool_opts);
+        cluster.redis("test").ping();
+        std::cout << "Successfully connected to Redis in Cluster mode."
+                  << std::endl;
+        return std::make_unique<RedisConn>(std::move(cluster), settings);
+      }
+      else
+      {
+        auto redis = sw::redis::Redis(opts, pool_opts);
+        redis.ping();
+        std::cout << "Successfully connected to Redis in Standalone mode."
+                  << std::endl;
+        return std::make_unique<RedisConn>(std::move(redis), settings);
+      }
+    }
+    catch (const sw::redis::Error& e)
+    {
+      std::cerr << std::format("Attempt {}/{}: Failed to connect to Redis: {}",
+                               attempt, settings.MaxConnectRetries, e.what())
+                << std::endl;
+      if (attempt < settings.MaxConnectRetries)
+      {
+        std::this_thread::sleep_for(settings.ConnectRetryDelay);
+      }
+    }
   }
-  else
-  {
-    auto redis = sw::redis::Redis(opts, pool_opts);
-    return std::make_unique<RedisConn>(std::move(redis), settings);
-  }
+  std::cerr
+      << std::format(
+             "Failed to connect to Redis at {}:{} in {} mode after {} attempts",
+             opts.host, opts.port,
+             boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
+             settings.MaxConnectRetries)
+      << std::endl;
+  return nullptr;
 }
 AtlasNet::Database::Redis::KeyValWrapper&
 AtlasNet::Database::RedisConn::KeyVal()

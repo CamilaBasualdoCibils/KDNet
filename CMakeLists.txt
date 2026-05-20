@@ -9,12 +9,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 ")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 ")
+set (CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(cmake/Deps.cmake)
 
 set(ATLASNET_EXAMPLES ON CACHE BOOL "Build AtlasNet examples")
 set(ATLASNET_TESTS ON CACHE BOOL "Build AtlasNet tests")
 set(ATLASNET_DEV ON CACHE BOOL "Build AtlasNet dev")
-set(ATLASNET_WEB ON CACHE BOOL "Build AtlasNet web interface")
+set(ATLASNET_CARTOGRAPH ON CACHE BOOL "Build AtlasNet web interface")
 
 if (ATLASNET_EXAMPLES)
     add_subdirectory(examples)
@@ -109,21 +110,21 @@ target_include_directories(AtlasNetAgent
 )
 target_link_libraries(AtlasNetAgent AtlasNetCore)
 
-if (ATLASNET_WEB)
+if (ATLASNET_CARTOGRAPH)
 include(cmake/WebDeps.cmake)
-    add_subdirectory(web)
+    #directory(web)
 
 file(GLOB_RECURSE _web_backend_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend/*.cpp"
 )
 
-add_executable(AtlasNetWebBackend ${_web_backend_sources})
+add_executable(AtlasNetCartographBackend ${_web_backend_sources})
 # Optional, but common: local includes
-target_include_directories(AtlasNetWebBackend
+target_include_directories(AtlasNetCartographBackend
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend"
 )
-target_link_libraries(AtlasNetWebBackend
+target_link_libraries(AtlasNetCartographBackend
 AtlasNetCore
 drogon
 )

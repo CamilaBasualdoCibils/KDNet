@@ -60,13 +60,13 @@ public:
     return s == JobState::ePending || s == JobState::eQueued;
   }
 
-  void wait() const
+  void wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) const
   {
     if (!runtime_)
       return;
 
     std::unique_lock lock(runtime_->mutex);
-    runtime_->cv.wait(lock,
+    runtime_->cv.wait_for(lock, timeout,
                       [&]
                       {
                         const auto s =

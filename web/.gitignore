@@ -1,22 +1,2 @@
-# Logs
-logs
-*.log
-
-# Node Files #
-/node_modules
-
-# Dist #
-/dist
-/dist/**
-
-# IDE #
-.idea/
-*.swp
-
-# Yarn #
-yarn.lock
-
-plopfile.js
-plop-templates/
-
+node_modules
 package-lock.json

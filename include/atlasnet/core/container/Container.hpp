@@ -1,13 +1,14 @@
 #pragma once
+#include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/Singleton.hpp"
-#include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/UUID.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "database/internal/InternalDB.hpp"
 #include <atomic>
 #include <boost/describe.hpp>
+#include <cassert>
 #include <condition_variable>
 #include <csignal>
 #include <iostream>
@@ -27,14 +28,16 @@ enum class ContainerType
   Proxy
 };
 BOOST_DESCRIBE_ENUM(ContainerType, Controller, Agent, Shard, Proxy);
+
 class IContainer
 {
-
 protected:
   IContainer(ContainerType type);
+  virtual ~IContainer() = default;
   bool ShutdownRequested() const;
   virtual void OnInit() = 0;
-  virtual void OnShutdown()  = 0;
+  virtual void OnUpdate() = 0;
+  virtual void OnShutdown() = 0;
 
   HostAddress GetOverlayAddressOfSelf() const;
 
@@ -50,6 +53,7 @@ protected:
   {
     return _jobSystem;
   }
+
 public:
   void Init();
 
@@ -62,6 +66,7 @@ private:
 
   JobSystem _jobSystem{JobSystem::Config{}};
   MessageSystem _messageSystem{MessageSystem::Config{.jobSystem = &_jobSystem}};
+  MessageSystem::ListenSocketHandle* _internalMessageSocket{nullptr};
   RPCSystem _rpcSystem{RPCSystem::Config{.messageSystem = &_messageSystem}};
 
   Database::InternalDB _internalDB;

@@ -60,22 +60,36 @@ public:
     return s == JobState::ePending || s == JobState::eQueued;
   }
 
-  void wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) const
-  {
-    if (!runtime_)
-      return;
+  void wait(
+    std::chrono::milliseconds timeout =
+        std::chrono::milliseconds::max()) const
+{
+  if (!runtime_)
+    return;
 
-    std::unique_lock lock(runtime_->mutex);
-    runtime_->cv.wait_for(lock, timeout,
-                      [&]
-                      {
-                        const auto s =
-                            runtime_->state.load(std::memory_order_acquire);
-                        return s == JobState::eCompleted ||
-                               s == JobState::eFailed ||
-                               s == JobState::eCancelled;
-                      });
+  std::unique_lock lock(runtime_->mutex);
+
+  auto finished =
+      [&]
+      {
+        const auto s =
+            runtime_->state.load(std::memory_order_acquire);
+
+        return s == JobState::eCompleted ||
+               s == JobState::eFailed ||
+               s == JobState::eCancelled;
+      };
+
+  // Infinite wait
+  if (timeout == std::chrono::milliseconds::max())
+  {
+    runtime_->cv.wait(lock, finished);
+    return;
   }
+
+  // Timed wait
+  runtime_->cv.wait_for(lock, timeout, finished);
+}
 
   void rethrow_if_failed() const
   {

@@ -441,4 +441,5 @@ private:
   uint64_t bitBuffer = 0;
   uint8_t bitPos = 0;
 };
+
 } // namespace AtlasNet

@@ -1,7 +1,7 @@
 # Minimal atlasnetsdk stage
 FROM debian:trixie-slim AS runner
 WORKDIR /atlasnet
-RUN apt-get update && apt-get install -y libatomic1 binutils gdb
+RUN apt-get update && apt-get install -y libatomic1 binutils gdb libc6-dbg
 
 
 FROM scratch AS atlasnetstage
@@ -39,16 +39,6 @@ ARG PRELAUNCH_CMD="{EXE}"
 ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
 ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetDummy; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
-FROM node:lts-alpine AS atlasnet-cartograph-frontend-dev
-# -------------------------
-# Frontend build
-# -------------------------
-COPY --from=atlasnet-scr /atlasnet/src/web/frontend /atlasnet/AtlasNetCartographFrontend
-WORKDIR /atlasnet/AtlasNetCartographFrontend
-RUN npm install && npm run build
-ENV FRONTEND_PORT=4173
-ENTRYPOINT npm run preview -- --host --port $FRONTEND_PORT
-
 
 FROM runner AS atlasnet-cartograph-backend-dev
 RUN apt-get update && apt-get install -y libjsoncpp-dev
@@ -62,7 +52,12 @@ COPY --from=atlasnetstage /atlasnet/AtlasNetCartographBackend /atlasnet/AtlasNet
 
 ENTRYPOINT ["/atlasnet/AtlasNetCartographBackend"]
 
-FROM nginx:alpine AS atlasnet-cartograph-proxy-dev
+FROM nginx:alpine AS atlasnet-cartograph-frontend-dev
+COPY --from=atlasnet-scr /atlasnet/src/web/frontend /atlasnet/AtlasNetCartographFrontend
+WORKDIR /atlasnet/AtlasNetCartographFrontend
+RUN apk add --no-cache nodejs npm
+RUN npm install && npm run build
+
 RUN apk add --no-cache gettext
 
 COPY --from=atlasnet-scr /atlasnet/src/web/proxy/nginx.conf.template /etc/nginx/nginx.conf.template

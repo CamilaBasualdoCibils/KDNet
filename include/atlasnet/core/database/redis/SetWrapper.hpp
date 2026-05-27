@@ -2,6 +2,7 @@
 
 
 #include "atlasnet/core/database/redis/RedisConn.hpp"
+#include "sw/redis++/redis_cluster.h"
 
 namespace AtlasNet::Database::Redis{
 

@@ -16,7 +16,6 @@ int main(int argc, char** argv)
   return RUN_ALL_TESTS();
 }
 
-
 using namespace AtlasNet;
 
 // ------------------------------------------------------------
@@ -190,8 +189,7 @@ TEST(Address, IPv6_ConstructFromStringFullForm)
 
 TEST(Address, IPv6_ConstructFromSegments)
 {
-  IPv6 addr(0x2001, 0x0db8, 0x0000, 0x0000,
-            0x0000, 0xff00, 0x0042, 0x8329);
+  IPv6 addr(0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0xff00, 0x0042, 0x8329);
 
   EXPECT_EQ(addr.to_string(), "2001:0db8:0000:0000:0000:ff00:0042:8329");
 }
@@ -210,19 +208,16 @@ TEST(Address, IPv6_Equality)
 {
   EXPECT_EQ(
       IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329"),
-      IPv6(0x2001, 0x0db8, 0x0000, 0x0000,
-           0x0000, 0xff00, 0x0042, 0x8329));
+      IPv6(0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0xff00, 0x0042, 0x8329));
 
-  EXPECT_NE(
-      IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329"),
-      IPv6("2001:0db8:0000:0000:0000:ff00:0042:8330"));
+  EXPECT_NE(IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329"),
+            IPv6("2001:0db8:0000:0000:0000:ff00:0042:8330"));
 }
 
 TEST(Address, IPv6_HashEqualObjectsMatch)
 {
   const IPv6 a("2001:0db8:0000:0000:0000:ff00:0042:8329");
-  const IPv6 b(0x2001, 0x0db8, 0x0000, 0x0000,
-               0x0000, 0xff00, 0x0042, 0x8329);
+  const IPv6 b(0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0xff00, 0x0042, 0x8329);
 
   EXPECT_EQ(std::hash<IPv6>{}(a), std::hash<IPv6>{}(b));
   EXPECT_EQ(a.hash(), b.hash());
@@ -247,34 +242,33 @@ TEST(Address, IPv6_IndexOutOfRangeThrows)
 
 TEST(Address, IPv6_Invalid_TooFewSegments)
 {
-  EXPECT_THROW(IPv6("2001:0db8:0000:0000:0000:ff00:0042"), std::invalid_argument);
+  EXPECT_THROW(IPv6("2001:0db8:0000:0000:0000:ff00:0042"),
+               std::invalid_argument);
 }
 
 TEST(Address, IPv6_Invalid_TooManySegments)
 {
-  EXPECT_THROW(
-      IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329:1234"),
-      std::invalid_argument);
+  EXPECT_THROW(IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329:1234"),
+               std::invalid_argument);
 }
 
 TEST(Address, IPv6_Invalid_BadHex)
 {
-  EXPECT_THROW(
-      IPv6("2001:0db8:0000:0000:0000:zzzz:0042:8329"),
-      std::invalid_argument);
+  EXPECT_THROW(IPv6("2001:0db8:0000:0000:0000:zzzz:0042:8329"),
+               std::invalid_argument);
 }
 
 TEST(Address, IPv6_Invalid_SegmentOutOfRange)
 {
-  EXPECT_THROW(
-      IPv6("2001:0db8:0000:0000:0000:10000:0042:8329"),
-      std::invalid_argument);
+  EXPECT_THROW(IPv6("2001:0db8:0000:0000:0000:10000:0042:8329"),
+               std::invalid_argument);
 }
 
 TEST(Address, IPv6_Invalid_EmptySegment)
 {
   // Your current parser does not support "::" compression.
-  // This should currently be invalid unless you later add compressed IPv6 parsing.
+  // This should currently be invalid unless you later add compressed IPv6
+  // parsing.
   EXPECT_THROW(IPv6("2001:db8::1"), std::invalid_argument);
   EXPECT_THROW(IPv6("::1"), std::invalid_argument);
 }
@@ -415,7 +409,8 @@ TEST(Address, HostAddress_DeducesIPv4)
 
 TEST(Address, HostAddress_DeducesIPv6)
 {
-  HostAddress addr = ParseHostAddress("2001:0db8:0000:0000:0000:ff00:0042:8329");
+  HostAddress addr =
+      ParseHostAddress("2001:0db8:0000:0000:0000:ff00:0042:8329");
   ExpectHostAddressIsIPv6(addr);
   EXPECT_EQ(addr.to_string(), "2001:0db8:0000:0000:0000:ff00:0042:8329");
 }
@@ -462,7 +457,8 @@ TEST(Address, HostAddress_HashEqualObjectsMatch)
 TEST(Address, HostAddress_InvalidStringThrows)
 {
   EXPECT_THROW(ParseHostAddress(""), std::invalid_argument);
-  EXPECT_THROW(ParseHostAddress("not a valid host name with spaces"), std::invalid_argument);
+  EXPECT_THROW(ParseHostAddress("not a valid host name with spaces"),
+               std::invalid_argument);
   EXPECT_THROW(ParseHostAddress("127.0.0.1.5"), std::invalid_argument);
 }
 
@@ -490,16 +486,13 @@ TEST(Address, SocketAddress_ConstructHostNameAndPort)
 
 TEST(Address, SocketAddress_ConstructIPv6AndPort)
 {
-  SocketAddress addr(
-      IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329"),
-      443);
+  SocketAddress addr(IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329"), 443);
 
   EXPECT_EQ(addr.get_port(), 443);
   EXPECT_TRUE(addr.IsIPv6());
 
   // Standard formatting should bracket IPv6 when combined with port.
-  EXPECT_EQ(addr.to_string(),
-            "[2001:0db8:0000:0000:0000:ff00:0042:8329]:443");
+  EXPECT_EQ(addr.to_string(), "[2001:0db8:0000:0000:0000:ff00:0042:8329]:443");
 }
 
 TEST(Address, SocketAddress_ParseIPv4AndPort)
@@ -528,23 +521,19 @@ TEST(Address, SocketAddress_ParseIPv6AndPort)
   EXPECT_EQ(addr.get_port(), 443);
   EXPECT_EQ(addr.get_ipv6().to_string(),
             "2001:0db8:0000:0000:0000:ff00:0042:8329");
-  EXPECT_EQ(addr.to_string(),
-            "[2001:0db8:0000:0000:0000:ff00:0042:8329]:443");
+  EXPECT_EQ(addr.to_string(), "[2001:0db8:0000:0000:0000:ff00:0042:8329]:443");
 }
 
 TEST(Address, SocketAddress_Equality)
 {
-  EXPECT_EQ(
-      SocketAddress(IPv4("127.0.0.1"), 80),
-      SocketAddress(IPv4("127.0.0.1"), 80));
+  EXPECT_EQ(SocketAddress(IPv4("127.0.0.1"), 80),
+            SocketAddress(IPv4("127.0.0.1"), 80));
 
-  EXPECT_NE(
-      SocketAddress(IPv4("127.0.0.1"), 80),
-      SocketAddress(IPv4("127.0.0.1"), 81));
+  EXPECT_NE(SocketAddress(IPv4("127.0.0.1"), 80),
+            SocketAddress(IPv4("127.0.0.1"), 81));
 
-  EXPECT_NE(
-      SocketAddress(IPv4("127.0.0.1"), 80),
-      SocketAddress(IPv4("127.0.0.2"), 80));
+  EXPECT_NE(SocketAddress(IPv4("127.0.0.1"), 80),
+            SocketAddress(IPv4("127.0.0.2"), 80));
 }
 
 TEST(Address, SocketAddress_HashEqualObjectsMatch)
@@ -591,7 +580,8 @@ TEST(Address, Deduction_PrefersIPv4WhenStringIsIPv4)
 
 TEST(Address, Deduction_PrefersIPv6WhenStringIsIPv6)
 {
-  HostAddress addr = ParseHostAddress("ffff:0000:1111:2222:3333:4444:5555:6666");
+  HostAddress addr =
+      ParseHostAddress("ffff:0000:1111:2222:3333:4444:5555:6666");
   ExpectHostAddressIsIPv6(addr);
 }
 
@@ -616,10 +606,100 @@ TEST(Address, Deduction_InvalidAddressRejected)
 TEST(Address, DifferentAddressKindsAreNotEqual)
 {
   HostAddress ipv4 = ParseHostAddress("127.0.0.1");
-  HostAddress ipv6 = ParseHostAddress("0000:0000:0000:0000:0000:0000:0000:0001");
+  HostAddress ipv6 =
+      ParseHostAddress("0000:0000:0000:0000:0000:0000:0000:0001");
   HostAddress host = ParseHostAddress("localhost");
 
   EXPECT_NE(ipv4, ipv6);
   EXPECT_NE(ipv4, host);
   EXPECT_NE(ipv6, host);
+}
+
+TEST(Address, HostAddressSerialization)
+{
+  HostAddress original = ParseHostAddress("example.com");
+  ByteWriter writer;
+  original.Serialize(writer);
+  ByteReader reader(writer.bytes());
+  HostAddress deserialized;
+  deserialized.Deserialize(reader);
+  EXPECT_EQ(original, deserialized);
+}
+TEST(Address, IPv4Serialization)
+{
+  IPv4 original("127.25.85.1");
+  ByteWriter writer;
+  original.Serialize(writer);
+  ByteReader reader(writer.bytes());
+  IPv4 deserialized;
+  deserialized.Deserialize(reader);
+  EXPECT_EQ(original, deserialized);
+}
+TEST(Address, IPv6Serialization)
+{
+  IPv6 original("2001:0db8:0000:0000:0000:ff00:0042:8329");
+  ByteWriter writer;
+  original.Serialize(writer);
+  ByteReader reader(writer.bytes());
+  IPv6 deserialized;
+  deserialized.Deserialize(reader);
+  EXPECT_EQ(original, deserialized);
+}
+TEST(Address, SteamIDAddressSerialization)
+{
+  SteamIDAddress original(76561198000000000ULL);
+  ByteWriter writer;
+  original.Serialize(writer);
+  ByteReader reader(writer.bytes());
+  SteamIDAddress deserialized;
+  deserialized.Deserialize(reader);
+  EXPECT_EQ(original, deserialized);
+}
+TEST(Address, HostnameSerialization)
+{
+  HostName original("example.com");
+  ByteWriter writer;
+  original.Serialize(writer);
+  ByteReader reader(writer.bytes());
+  HostName deserialized;
+  deserialized.Deserialize(reader);
+  EXPECT_EQ(original, deserialized);
+}
+TEST(Address, SocketAddressSerialization)
+{
+  // IPv4
+  SocketAddress original(IPv4("127.0.0.1"), 8080);
+  ByteWriter writer;
+  original.Serialize(writer);
+  ByteReader reader(writer.bytes());
+  SocketAddress deserialized;
+  deserialized.Deserialize(reader);
+  EXPECT_EQ(original, deserialized);
+
+  // IPv6
+  SocketAddress original6(IPv6("2001:0db8:0000:0000:0000:ff00:0042:8329"), 443);
+  ByteWriter writer6;
+  original6.Serialize(writer6);
+  ByteReader reader6(writer6.bytes());
+  SocketAddress deserialized6;
+  deserialized6.Deserialize(reader6);
+  EXPECT_EQ(original6, deserialized6);
+
+  // Hostname
+  SocketAddress originalHost(HostName("example.com"), 80);
+  ByteWriter writerHost;
+  originalHost.Serialize(writerHost);
+  ByteReader readerHost(writerHost.bytes());
+  SocketAddress deserializedHost;
+  deserializedHost.Deserialize(readerHost);
+  EXPECT_EQ(originalHost, deserializedHost);
+
+  // SteamIDAddress
+  SocketAddress originalSteam(SteamIDAddress(76561198000000000ULL), 27015);
+  ByteWriter writerSteam;
+  originalSteam.Serialize(writerSteam);
+  ByteReader readerSteam(writerSteam.bytes());
+  SocketAddress deserializedSteam;
+  deserializedSteam.Deserialize(readerSteam);
+  EXPECT_EQ(originalSteam, deserializedSteam);
 }

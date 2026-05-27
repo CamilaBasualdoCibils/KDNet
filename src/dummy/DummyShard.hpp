@@ -1,5 +1,5 @@
 #pragma once
-#include <atlasnet/API/shard/iatlasnetshard.hpp>
+#include <shard/iatlasnetshard.hpp>
 
 class DummyShard : public AtlasNet::IAtlasNetShard
 {

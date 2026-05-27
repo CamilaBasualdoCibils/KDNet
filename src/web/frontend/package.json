@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/tabler/tabler#readme",
   "devDependencies": {
+    "@types/react": "^19.2.15",
     "@vitejs/plugin-react": "^6.0.2",
     "vite": "^8.0.13"
   },

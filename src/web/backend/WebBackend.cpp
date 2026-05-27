@@ -56,7 +56,6 @@ private:
     _Json response;
     response["entities"] = _Json::array();
     {
-      _Json input = _Json::parse(jsonPtr->asCString());
       std::random_device rd;
       std::mt19937 gen(rd());
       std::uniform_real_distribution<float> dis(-100.0f, 100.0f);
@@ -66,10 +65,10 @@ private:
         Entity::Entity_Serializable entity;
         entity.entityInfo.emplace();
         entity.entityInfo->id = (Entity::EntityID)Entity::EntityID::Generate();
-
-        entity.entityInfo->location.transform.position =
-            vec3(dis(gen), dis(gen), dis(gen));
-        entity.entityInfo->location.worldId = 0;
+        
+        //entity.entityInfo->location.transform.position =
+        //    vec3(dis(gen), dis(gen), dis(gen));
+        entity.entityInfo->location.worldId = WorldID::Generate();
         entity.colliderInfo.emplace();
         if (i % 2 == 0)
         {

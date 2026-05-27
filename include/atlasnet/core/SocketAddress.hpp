@@ -34,8 +34,11 @@ public:
   virtual std::string to_string() const = 0;
   virtual void parse_string(const std::string& str) = 0;
   virtual std::size_t hash() const noexcept = 0;
+
+  virtual void Serialize(ByteWriter& archive) const = 0;
+  virtual void Deserialize(ByteReader& archive) = 0;
 };
-/* 
+/*
 template <typename T>
   requires std::derived_from<T, IAddress>
 class TSocketAddress : public ISocketAddress
@@ -115,6 +118,20 @@ public:
     set_port(port);
   }
 
+  SocketAddress(const HostAddress& hostAddr, PortType port)
+  {
+    if (hostAddr.IsIPv4())
+      address = hostAddr.get_ipv4();
+    else if (hostAddr.IsIPv6())
+      address = hostAddr.get_ipv6();
+    else if (hostAddr.IsHostName())
+      address = hostAddr.get_hostname();
+    else if (hostAddr.IsSteamID())
+      address = hostAddr.get_steam_id();
+    else
+      throw std::invalid_argument("Invalid HostAddress variant");
+    set_port(port);
+  }
   explicit SocketAddress(const SteamNetworkingIPAddr& steamAddr)
   {
     if (steamAddr.m_port == 0)
@@ -394,6 +411,59 @@ public:
     h ^= std::hash<PortType>{}(get_port()) + 0x9e3779b97f4a7c15ULL + (h << 6) +
          (h >> 2);
     return h;
+  }
+  void Serialize(ByteWriter& archive) const override
+  {
+    archive(get_port());
+    archive(address.index());
+    std::visit(
+        [&](const auto& addr)
+        {
+          using T = std::decay_t<decltype(addr)>;
+          if constexpr (!std::is_same_v<T, std::monostate>)
+            addr.Serialize(archive);
+        },
+        address);
+  }
+  void Deserialize(ByteReader& archive) override
+  {
+    PortType port;
+    archive(port);
+    set_port(port);
+    size_t index;
+    archive(index);
+    if (index > 4)
+      throw std::invalid_argument("Invalid SocketAddress variant index");
+    if (index == 0)
+    {
+      address = std::monostate{};
+      return;
+    }
+    if (index == 1)
+    {
+      address.emplace<IPv4>();
+      std::get<IPv4>(address).Deserialize(archive);
+      return;
+    }
+    if (index == 2)
+    {
+      address.emplace<IPv6>();
+      std::get<IPv6>(address).Deserialize(archive);
+      return;
+    }
+    if (index == 3)
+    {
+      address.emplace<HostName>();
+      std::get<HostName>(address).Deserialize(archive);
+      return;
+    }
+    if (index == 4)
+    {
+      address.emplace<SteamIDAddress>();
+      std::get<SteamIDAddress>(address).Deserialize(archive);
+      return;
+    }
+    throw std::invalid_argument("Invalid SocketAddress variant index");
   }
 };
 } // namespace AtlasNet

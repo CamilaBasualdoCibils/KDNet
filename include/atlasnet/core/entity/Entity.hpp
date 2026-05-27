@@ -3,6 +3,7 @@
 #include "atlasnet/core/UUID.hpp"
 #include "atlasnet/core/entity/collider/Collider.hpp"
 #include "atlasnet/core/geometry/Vec.hpp"
+#include "atlasnet/core/universe/WorldConcepts.hpp"
 #include "boost/container/small_vector.hpp"
 #include "boost/describe/enum_from_string.hpp"
 #include "boost/describe/enum_to_string.hpp"
@@ -26,20 +27,100 @@ using EntityID = StrongUUID<EntityIDTag>;
 
 #define ENTT_STANDARD_CPP
 using ClientID = StrongUUID<ClientIDTag>;
-using WorldID = uint32_t;
+
+
+enum class SpaceType
+{
+  Cartesian,
+  Geospatial
+};
+BOOST_DESCRIBE_ENUM(SpaceType, Cartesian, Geospatial);
+struct CartesianPosition
+{
+  dvec3 position;
+};
+struct GeospatialPosition
+{
+  double latitude;
+  double longitude;
+  double altitude;
+};
 struct Transform
 {
-  vec3 position;
+  std::variant<CartesianPosition, GeospatialPosition> position;
+
+  CartesianPosition& Cartesian()
+  {
+    if (!std::holds_alternative<CartesianPosition>(position))
+    {
+      throw std::runtime_error("Transform does not hold a CartesianPosition");
+    }
+    return std::get<CartesianPosition>(position);
+  }
+  GeospatialPosition& Geospatial()
+  {
+    if (!std::holds_alternative<GeospatialPosition>(position))
+    {
+      throw std::runtime_error("Transform does not hold a GeospatialPosition");
+    }
+    return std::get<GeospatialPosition>(position);
+  }
   void to_json(_Json& j) const
   {
-    j = _Json{{"position",
-               {{"x", position.x}, {"y", position.y}, {"z", position.z}}}};
+    std::visit(
+        [&j](const auto& pos)
+        {
+          using T = std::decay_t<decltype(pos)>;
+
+          if constexpr (std::is_same_v<T, CartesianPosition>)
+          {
+            j["type"] = boost::describe::enum_to_string(SpaceType::Cartesian,
+                                                        "UNKNOWN");
+            j["position"] = {{"x", pos.position.x},
+                             {"y", pos.position.y},
+                             {"z", pos.position.z}};
+          }
+          else if constexpr (std::is_same_v<T, GeospatialPosition>)
+          {
+            j["type"] = boost::describe::enum_to_string(SpaceType::Geospatial,
+                                                        "UNKNOWN");
+            j["position"] = {{"latitude", pos.latitude},
+                             {"longitude", pos.longitude},
+                             {"altitude", pos.altitude}};
+          }
+        },
+        position);
   }
   void from_json(const _Json& j)
   {
-    position.x = j.at("position").at("x").get<float>();
-    position.y = j.at("position").at("y").get<float>();
-    position.z = j.at("position").at("z").get<float>();
+    if (!j.contains("type") || !j.contains("position"))
+    {
+      position = CartesianPosition{{0.0, 0.0, 0.0}};
+      return;
+    }
+
+    const auto typeStr = j.at("type").get<std::string>();
+    SpaceType spaceType{};
+    if (!boost::describe::enum_from_string(typeStr.c_str(), spaceType))
+    {
+      position = CartesianPosition{{0.0, 0.0, 0.0}};
+      return;
+    }
+
+    if (spaceType == SpaceType::Cartesian)
+    {
+      const auto& posJson = j.at("position");
+      position = CartesianPosition{{posJson.at("x").get<double>(),
+                                    posJson.at("y").get<double>(),
+                                    posJson.at("z").get<double>()}};
+    }
+    else if (spaceType == SpaceType::Geospatial)
+    {
+      const auto& posJson = j.at("position");
+      position = GeospatialPosition{posJson.at("latitude").get<double>(),
+                                    posJson.at("longitude").get<double>(),
+                                    posJson.at("altitude").get<double>()};
+    }
   }
 };
 struct Location
@@ -51,12 +132,12 @@ struct Location
   {
     _Json transformJson;
     transform.to_json(transformJson);
-    j = _Json{{"worldId", worldId}, {"transform", transformJson}};
+    j = _Json{{"worldId", worldId.to_string()}, {"transform", transformJson}};
   }
 
   void from_json(const _Json& j)
   {
-    worldId = j.at("worldId").get<WorldID>();
+    worldId = (WorldID)WorldID::from_string(j.at("worldId").get<std::string>());
     transform.from_json(j.at("transform"));
   }
 };

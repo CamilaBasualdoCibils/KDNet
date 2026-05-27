@@ -1,4 +1,6 @@
 #pragma once
+#include "atlasnet/core/serialize/ByteReader.hpp"
+#include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "steam/steamclientpublic.h"
 #include "steam/steamnetworkingtypes.h"
 #include "steam/steamtypes.h"
@@ -94,6 +96,9 @@ public:
   virtual std::string to_string() const = 0;
   virtual void parse_string(const std::string& str) = 0;
   virtual std::size_t hash() const noexcept = 0;
+
+  virtual void Serialize(ByteWriter& archive) const = 0;
+  virtual void Deserialize(ByteReader& archive) = 0;
 };
 
 class IPv4 : public IAddress
@@ -208,6 +213,20 @@ public:
   size_t size() const
   {
     return 4;
+  }
+
+  void Serialize(ByteWriter& archive) const override
+  {
+    archive.blob(std::span<const uint8_t>(octets.data(), octets.size()));
+  }
+
+  void Deserialize(ByteReader& archive) override
+  {
+    std::span<const uint8_t> data;
+    archive.blob(data);
+    if (data.size() != octets.size())
+      throw std::invalid_argument("Invalid data size for IPv4 deserialization");
+    std::copy(data.begin(), data.end(), octets.begin());
   }
 };
 
@@ -359,6 +378,19 @@ public:
     return bytes.size();
   }
 
+  void Serialize(ByteWriter& archive) const override
+  {
+    archive.blob(std::span<const uint8_t>(bytes.data(), bytes.size()));
+  }
+  void Deserialize(ByteReader& archive) override
+  {
+    std::span<const uint8_t> data;
+    archive.blob(data);
+    if (data.size() != bytes.size())
+      throw std::invalid_argument("Invalid data size for IPv6 deserialization");
+    std::copy(data.begin(), data.end(), bytes.begin());
+  }
+
 private:
   void set_segment(size_t index, uint16_t value)
   {
@@ -436,6 +468,18 @@ public:
   bool operator==(const SteamIDAddress& other) const
   {
     return identity.GetSteamID64() == other.identity.GetSteamID64();
+  }
+
+  void Serialize(ByteWriter& archive) const override
+  {
+    uint64_t steamID64 = identity.GetSteamID64();
+    archive(steamID64);
+  }
+  void Deserialize(ByteReader& archive) override
+  {
+    uint64_t steamID64;
+    archive(steamID64);
+    identity.SetSteamID64(steamID64);
   }
 };
 
@@ -536,6 +580,14 @@ public:
     }
 
     return true;
+  }
+  void Serialize(ByteWriter& archive) const override
+  {
+    archive(hostname);
+  }
+  void Deserialize(ByteReader& archive) override
+  {
+    archive(hostname);
   }
 };
 
@@ -683,6 +735,58 @@ public:
 
     return std::holds_alternative<std::monostate>(address) &&
            std::holds_alternative<std::monostate>(other.address);
+  }
+  void Serialize(ByteWriter& archive) const override
+  {
+    archive(address.index());
+    std::visit(
+        [&](const auto& addr)
+        {
+          using T = std::decay_t<decltype(addr)>;
+          if constexpr (std::is_same_v<T, std::monostate>)
+            throw std::runtime_error("HostAddress is not initialized");
+          else
+            addr.Serialize(archive);
+        },
+        address);
+  }
+
+  void Deserialize(ByteReader& archive) override
+  {
+    size_t index;
+    archive(index);
+    if (index > 4)
+      throw std::invalid_argument("Invalid HostAddress variant index");
+    if (index == 0)
+    {
+      address = std::monostate{};
+      return;
+    }
+    if (index == 1)
+    {
+      address.emplace<IPv4>();
+      std::get<IPv4>(address).Deserialize(archive);
+      return;
+    }
+    if (index == 2)
+    {
+      address.emplace<IPv6>();
+      std::get<IPv6>(address).Deserialize(archive);
+      return;
+    }
+    if (index == 3)
+    {
+      address.emplace<HostName>();
+      std::get<HostName>(address).Deserialize(archive);
+      return;
+    }
+    if (index == 4)
+    {
+      address.emplace<SteamIDAddress>();
+      std::get<SteamIDAddress>(address).Deserialize(archive);
+      return;
+    }
+    throw std::invalid_argument("Invalid HostAddress variant index");
   }
 };
 } // namespace AtlasNet

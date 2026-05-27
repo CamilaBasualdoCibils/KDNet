@@ -52,6 +52,7 @@ public:
     Connection(MessageSystem& system, HSteamNetConnection handle)
         : system(system), handle(handle), state(ConnectionState::eNone)
     {
+      
     }
 
   public:
@@ -243,9 +244,8 @@ inline MessageSystem& MessageSystem::On(
       !_handlers.contains(typeIdHash),
       std::format("Handler already registered for message type with hash {}",
                   typeIdHash));
-  _handlers[typeIdHash] =
-      [h = std::move(handler)](const IMessage& msg,
-                               const SocketAddress& address)
+  _handlers[typeIdHash] = [h = std::move(handler)](const IMessage& msg,
+                                                   const SocketAddress& address)
   { h(static_cast<const MessageType&>(msg), address); };
 
   return *this;

@@ -6,6 +6,7 @@
 #include "atlasnet/core/database/redis/SetWrapper.hpp"
 #include "atlasnet/core/database/redis/SortedSetWrapper.hpp"
 #include "boost/describe/enum_to_string.hpp"
+#include "sw/redis++/async_redis_cluster.h"
 #include <iostream>
 std::unique_ptr<AtlasNet::Database::RedisConn>
 AtlasNet::Database::RedisConn::Connect(const Settings& settings)
@@ -46,18 +47,20 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
       {
 
         auto cluster = sw::redis::RedisCluster(opts, pool_opts);
+        auto acluster = sw::redis::AsyncRedisCluster(opts, pool_opts);
         cluster.redis("test").ping();
         std::cout << "Successfully connected to Redis in Cluster mode."
                   << std::endl;
-        return std::make_unique<RedisConn>(std::move(cluster), settings);
+        return std::make_unique<RedisConn>(std::move(cluster), std::move(acluster), settings);
       }
       else
       {
         auto redis = sw::redis::Redis(opts, pool_opts);
+        auto aredis = sw::redis::AsyncRedis(opts, pool_opts);
         redis.ping();
         std::cout << "Successfully connected to Redis in Standalone mode."
                   << std::endl;
-        return std::make_unique<RedisConn>(std::move(redis), settings);
+        return std::make_unique<RedisConn>(std::move(redis), std::move(aredis), settings);
       }
     }
     catch (const sw::redis::Error& e)
@@ -104,9 +107,9 @@ AtlasNet::Database::RedisConn::SortedSet()
   return *sortedSetWrapper;
 }
 AtlasNet::Database::RedisConn::~RedisConn() {}
-AtlasNet::Database::RedisConn::RedisConn(sw::redis::Redis redis,
+AtlasNet::Database::RedisConn::RedisConn(sw::redis::Redis redis, sw::redis::AsyncRedis aredis,
                                          const Settings& settings)
-    : settings(settings), HandleVariant(std::move(redis))
+    : settings(settings), HandleVariant(std::move(redis)), AsyncHandleVariant(std::move(aredis))
 {
   keyValWrapper =
       std::unique_ptr<Redis::KeyValWrapper>(new Redis::KeyValWrapper(*this));
@@ -116,9 +119,9 @@ AtlasNet::Database::RedisConn::RedisConn(sw::redis::Redis redis,
   sortedSetWrapper = std::unique_ptr<Redis::SortedSetWrapper>(
       new Redis::SortedSetWrapper(*this));
 }
-AtlasNet::Database::RedisConn::RedisConn(sw::redis::RedisCluster redis,
+AtlasNet::Database::RedisConn::RedisConn(sw::redis::RedisCluster redis, sw::redis::AsyncRedisCluster aredis,
                                          const Settings& settings)
-    : settings(settings), HandleVariant(std::move(redis))
+    : settings(settings), HandleVariant(std::move(redis)), AsyncHandleVariant(std::move(aredis))
 {
   keyValWrapper =
       std::unique_ptr<Redis::KeyValWrapper>(new Redis::KeyValWrapper(*this));

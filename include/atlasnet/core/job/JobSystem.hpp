@@ -86,42 +86,42 @@ public:
   }
 
   void Shutdown()
-{
   {
-    std::lock_guard lock(mutex_);
-    if (!started_)
-      return;
-
-    stopRequested_ = true;
-  }
-
-  cv_.notify_all();
-std::cerr << "Shutdown requested, waiting for worker threads to finish..."
-            << std::endl;
-  for (auto& worker : workers_)
-  {
-    if (worker.joinable())
     {
-      if (worker.get_id() == std::this_thread::get_id())
-        continue; // or std::terminate/assert, depending on your design
-      worker.join();
+      std::lock_guard lock(mutex_);
+      if (!started_)
+        return;
+
+      stopRequested_ = true;
+    }
+
+    cv_.notify_all();
+    std::cerr << "Shutdown requested, waiting for worker threads to finish..."
+              << std::endl;
+    for (auto& worker : workers_)
+    {
+      if (worker.joinable())
+      {
+        if (worker.get_id() == std::this_thread::get_id())
+          continue; // or std::terminate/assert, depending on your design
+        worker.join();
+      }
+    }
+    std::cerr << "All worker threads have finished." << std::endl;
+
+    workers_.clear();
+
+    {
+      std::lock_guard lock(mutex_);
+      started_ = false;
+
+      while (!ready_.empty())
+        ready_.pop();
+
+      while (!delayed_.empty())
+        delayed_.pop();
     }
   }
-  std::cerr << "All worker threads have finished." << std::endl;
-
-  workers_.clear();
-
-  {
-    std::lock_guard lock(mutex_);
-    started_ = false;
-
-    while (!ready_.empty())
-      ready_.pop();
-
-    while (!delayed_.empty())
-      delayed_.pop();
-  }
-}
 
 public:
   JobSystem(const Config& config) : _config(config)
@@ -383,6 +383,7 @@ private:
 
       if (shouldRepeat)
       {
+        runtime->cv.notify_all();
         EnqueueDelayed(runtime, repeatDelay);
         return;
       }

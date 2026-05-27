@@ -41,32 +41,24 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
+
   atlasnet-cartograph-frontend:
     image: atlasnet-cartograph-frontend-dev
     networks: [TankBattleNet]
-    environment:
-      - FRONTEND_PORT=4173
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-  atlasnet-cartograph-proxy:
-    image: atlasnet-cartograph-proxy-dev
-    networks: [TankBattleNet]
     ports:
-      - target: 80
+      - target : 80
         published: 80
         protocol: tcp
         mode: ingress
     environment:
-      - FRONTEND_HOST=atlasnet-cartograph-frontend:4173
+      - FRONTEND_PORT=4173
       - BACKEND_HOST=atlasnet-cartograph-backend:2000
     deploy:
       mode: replicated
       replicas: 1
       restart_policy:
         condition: on-failure
+ 
   atlasnet-cartograph-backend:
     image: atlasnet-cartograph-backend-dev
     networks: [TankBattleNet]

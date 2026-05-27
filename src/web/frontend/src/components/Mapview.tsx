@@ -87,31 +87,30 @@ export default function Mapview() {
     // ---------------- FETCH ----------------
     async function fetchEntityPositions() {
       try {
-        console.log("fetchEntityPositions");
-
         const res = await fetch("/api/entity-fetch");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         const data = await res.json();
-        console.log("Received entity positions", data);
 
         const positions = positionsRef.current;
-        if (!positions) return;
+        const geometry = pointsRef.current?.geometry as THREE.BufferGeometry | undefined;
 
-        const points = data.points;
-        const len = Math.min(points.length, STRESS_POINT_COUNT);
+        if (!positions || !geometry || !Array.isArray(data.entities)) return;
+
+        const entities = data.entities;
+        const len = Math.min(entities.length, STRESS_POINT_COUNT);
 
         for (let i = 0; i < len; i++) {
           const dst = i * 3;
-          const p = points[i];
+          const pos = entities[i]?.entityInfo?.location?.transform?.position;
 
-          positions[dst] = p[0];
-          positions[dst + 1] = 2;
-          positions[dst + 2] = p[1];
+          positions[dst] = pos?.x ?? 0;
+          positions[dst + 1] = pos?.y ?? 0;
+          positions[dst + 2] = pos?.z ?? 0;
         }
 
-        const geometry = pointsRef.current?.geometry;
-        if (geometry) {
-          geometry.attributes.position.needsUpdate = true;
-        }
+        geometry.setDrawRange(0, len);
+        geometry.attributes.position.needsUpdate = true;
       } catch (e) {
         console.error("fetchEntityPositions failed", e);
       }
@@ -185,7 +184,7 @@ export default function Mapview() {
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     // ---------------- RESIZE ----------------
- 
+
 
     function onResize() {
       if (!cameraRef.current || !rendererRef.current) return;
@@ -291,7 +290,7 @@ export default function Mapview() {
               max={1000}
               step={1}
               value={pollRate}
-              onChange={(e) => setPollRate(Number(e.target.value))}
+              onChange={(e: { target: { value: any; }; }) => setPollRate(Number(e.target.value))}
               style={{ width: 200 }}
             />
           </div>

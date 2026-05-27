@@ -1,0 +1,1 @@
+#include "atlasnet/core/events/LocalEventSystem.hpp"

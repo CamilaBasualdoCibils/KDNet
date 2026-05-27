@@ -26,11 +26,11 @@ add_custom_target(AtlasNetDevDockerBuildStage
         "${DEV_STAGE_DIR}/"
 
     DEPENDS
-        AtlasNetController
-        AtlasNetAgent
-        AtlasNetProxy
-        AtlasNetCartographBackend
-        AtlasNetDummy
+        $<TARGET_FILE:AtlasNetCartographBackend>
+        $<TARGET_FILE:AtlasNetController>
+        $<TARGET_FILE:AtlasNetAgent>
+        $<TARGET_FILE:AtlasNetProxy>
+        $<TARGET_FILE:AtlasNetDummy>
     USES_TERMINAL
     VERBATIM
 )

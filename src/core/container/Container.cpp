@@ -2,17 +2,24 @@
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/database/redis/Redis.hpp"
+#include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/utils/NetUtils.hpp"
+#include "boost/describe/enum_to_string.hpp"
+#include "boost/stacktrace/stacktrace.hpp"
 #include "enviroment/Enviroment.hpp"
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
+#include <boost/stacktrace.hpp>
+#include <cassert>
+#include <format>
 #include <optional>
 #include <string>
 namespace asio = boost::asio;
 namespace beast = boost::beast;
 namespace http = beast::http;
 
-std::string get_self_container_id_from_hostname()
+std::string get_hostname()
 {
   char hostname[256] = {};
   if (::gethostname(hostname, sizeof(hostname)) != 0)
@@ -23,78 +30,10 @@ std::string get_self_container_id_from_hostname()
   return std::string(hostname);
 }
 
-std::string get_container_ip_on_network(
-    const std::string& container_id, const std::string& network_name,
-    const std::string& docker_sock = "/var/run/docker.sock")
-{
-  asio::io_context ioc;
-
-  // Unix domain socket client
-  asio::local::stream_protocol::socket socket{ioc};
-  socket.connect(asio::local::stream_protocol::endpoint(docker_sock));
-
-  // check if connected
-  if (!socket.is_open())
-  {
-    throw std::runtime_error("Failed to connect to Docker socket: " +
-                             docker_sock);
-  }
-  // Beast can speak HTTP over any sync read/write stream.
-  http::request<http::empty_body> req{
-      http::verb::get, "/containers/" + container_id + "/json", 11};
-  req.set(http::field::host, "localhost");
-  req.set(http::field::user_agent, "beast-docker-client");
-  req.prepare_payload();
-
-  http::write(socket, req);
-
-  beast::flat_buffer buffer;
-  http::response<http::string_body> res;
-  http::read(socket, buffer, res);
-
-  if (res.result() != http::status::ok)
-  {
-    throw std::runtime_error(
-        "Docker API error: " + std::to_string(res.result_int()) + " " +
-        std::string(res.reason()) + " - " + res.body() +
-        std::format("\n is the process {} running in a container?",
-                    container_id));
-  }
-
-  auto doc = _Json::parse(res.body());
-
-  if (!doc.contains("NetworkSettings") ||
-      !doc["NetworkSettings"].contains("Networks"))
-  {
-    throw std::runtime_error(
-        "Docker response missing NetworkSettings.Networks for container: " +
-        container_id);
-  }
-
-  const auto& networks = doc["NetworkSettings"]["Networks"];
-
-  if (!networks.contains(network_name))
-  {
-    throw std::runtime_error(
-        std::format("Container {} is not attached to network: {}", container_id,
-                    network_name));
-  }
-
-  const auto& net = networks[network_name];
-
-  if (!net.contains("IPAddress"))
-  {
-    throw std::runtime_error(std::format(
-        "Network entry missing IPAddress for container: {}", container_id));
-  }
-
-  return net["IPAddress"].get<std::string>();
-}
-
 AtlasNet::HostAddress AtlasNet::IContainer::GetOverlayAddressOfSelf() const
 {
   std::optional<std::string> ip =
-      NetUtils::FindInterfaceIPInSubnet(EnvVars::NetworkSubnet);
+      NetUtils::FindInterfaceIPInSubnet(Env::NetworkSubnet);
 
   HostAddress overlayAddress;
   if (ip.has_value())
@@ -106,7 +45,7 @@ AtlasNet::HostAddress AtlasNet::IContainer::GetOverlayAddressOfSelf() const
     throw std::runtime_error(
         std::format("Failed to find an interface IP in the overlay subnet {}. "
                     "Is the container connected to the overlay network?",
-                    EnvVars::NetworkSubnet));
+                    Env::NetworkSubnet));
   }
   return overlayAddress;
 }
@@ -116,9 +55,7 @@ bool AtlasNet::IContainer::ShutdownRequested() const
   return shutdown.load(std::memory_order_acquire);
 }
 
-AtlasNet::IContainer::IContainer(ContainerType type)
-    : type(type), _internalMessageSocket(&GetMessageSystem().OpenListenSocket(
-                      EnvVars::InternalMessagePort))
+AtlasNet::IContainer::IContainer(ContainerType type) : type(type)
 {
   auto handleShutdown = [](int)
   {
@@ -126,19 +63,103 @@ AtlasNet::IContainer::IContainer(ContainerType type)
     IContainer::Get().shutdown.store(true, std::memory_order_release);
     IContainer::Get().cv.notify_all();
   };
+
+  auto HandleUnexpectedShutdown = [](int signal)
+  {
+    std::cerr << "Unexpected signal " << signal
+              << " received, generating stack trace..." << std::endl;
+    auto backtrace = boost::stacktrace::stacktrace();
+    ;
+    std::cerr << "======== STACK TRACE ========\n"
+              << backtrace << "\n====================\n";
+    std::_Exit(1);
+  };
   std::signal(SIGINT, handleShutdown);
   std::signal(SIGTERM, handleShutdown);
+
+  std::signal(SIGSEGV, HandleUnexpectedShutdown);
+  std::signal(SIGABRT, HandleUnexpectedShutdown);
 }
 void AtlasNet::IContainer::Init()
 {
+  std::cerr << std::format("Container {} with ID {} starting up...",
+                           boost::describe::enum_to_string(type, "UNKNOWN"),
+                           GetContainerID().to_string())
+            << std::endl;
   std::cerr << GetOverlayAddressOfSelf().to_string() << std::endl;
+  _redisDatabase = Database::RedisConn::Connect(Database::RedisConn::Settings{
+      .host = HostAddress(Env::DatabaseHostName),
+      .port = Env::DatabasePort,
+      .Mode = Database::RedisConn::RedisMode::eStandalone,
+      .ExceptionOnFailure = true,
+      .MaxConnectRetries = 5,
+      .ConnectRetryDelay = std::chrono::milliseconds(2000)});
+
+  assert(_redisDatabase &&
+         "Failed to connect to Redis database. Container cannot start.");
+  _redisDatabase->KeyVal().GetSet().Set("container_id", get_hostname());
+  _jobSystem.emplace(JobSystem::Config{});
+  _eventSystem.emplace(
+      LocalEventSystem::Config{.jobSystem = &_jobSystem.value()});
+  _globalEventSystem.emplace(GlobalEventSystem::Config{
+      ._redisConn = _redisDatabase.get(), ._jobSystem = &_jobSystem.value()});
+  _messageSystem.emplace(
+      MessageSystem::Config{.jobSystem = &_jobSystem.value()});
+  _rpcSystem.emplace(RPCSystem::Config{
+      .port = Env::RPCPort, .messageSystem = &_messageSystem.value()});
+  _serviceRegistry.emplace(
+      ServiceRegistry::Config{.redisConn = _redisDatabase.get()});
+  _universe.emplace(
+      Universe::Config{._globalEventSystem = &_globalEventSystem.value(),
+                       .__redisConfig = _redisDatabase.get()});
+  _internalMessageSocket.emplace(
+      &GetMessageSystem().OpenListenSocket(Env::InternalMessagePort));
+
+  if (type != ContainerType::Controller)
+  {
+
+    FetchControllerInfo();
+  }
   OnInit();
   while (!ShutdownRequested())
   {
 
     OnUpdate();
     std::this_thread::sleep_for(
-        std::chrono::milliseconds(1000 / EnvVars::TickRate));
+        std::chrono::milliseconds(1000 / Env::TickRate));
   }
   OnShutdown();
+
+  _messageSystem->Shutdown();
+  _jobSystem->Shutdown();
+}
+void AtlasNet::IContainer::FetchControllerInfo()
+{
+  JobHandle jobHandle = GetJobSystem().Submit(
+      [this](JobContext& ctx)
+      {
+        std::cerr << "Fetching Controller info from ServiceRegistry..."
+                  << std::endl;
+
+        std::vector<ServiceRegistry::ServiceInfo> outServices;
+        GetServiceRegistry().GetServicesOfType(ContainerType::Controller,
+                                               outServices);
+
+        if (outServices.empty())
+        {
+          std::chrono::milliseconds retryDelay(500);
+          std::cerr << "No Controller service found. Agent initialization "
+                       "failed. trying again in "
+                    << retryDelay.count() << "ms" << std::endl;
+          ctx.repeat_once(retryDelay);
+          return;
+        }
+        const auto& controllerInfo = outServices[0];
+        std::cerr << "Controller at " << controllerInfo.address.to_string()
+                  << " with ID " << controllerInfo.id.to_string() << std::endl;
+        controllerOverlayAddress = controllerInfo.address;
+        controllerContainerID = controllerInfo.id;
+      });
+
+  jobHandle.wait();
 }

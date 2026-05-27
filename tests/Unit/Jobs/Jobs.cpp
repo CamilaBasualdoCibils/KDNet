@@ -375,7 +375,31 @@ TEST(Jobs, HandleWaitObservesCompletion)
 
   system.Shutdown();
 }
+TEST(Jobs, HandleWaitObservesRepeatCompletion)
+{
+  using namespace AtlasNet;
+  JobSystem system(JobSystem::Config{});
 
+  std::atomic<int> calls{0};
+  const int desiredCalls = 15;
+  auto handle = system.Submit(
+      [&](JobContext& ctx)
+      {
+        if (calls.fetch_add(1) < desiredCalls - 1)
+        {
+          ctx.repeat_once(10ms);
+        }
+      },
+      JobOpts::Name{"HandleWaitObservesRepeatCompletion"});
+
+  handle.wait();
+
+  EXPECT_GE(calls.load(), desiredCalls);
+  EXPECT_TRUE(handle.is_completed());
+  EXPECT_FALSE(handle.is_failed());
+
+  system.Shutdown();
+}
 TEST(Jobs, FailureIsCapturedInHandle)
 {
   using namespace AtlasNet;
@@ -442,20 +466,47 @@ TEST(Jobs, FinishJobsBeforeQuitting)
   constexpr int desiredRuns = 2000;
   for (int i = 0; i < desiredRuns; ++i)
   {
-    system.Submit(
-        [&](AtlasNet::JobContext& ctx)
-        {
-          ++calls;
-        },
-        JobOpts::Name(std::format("Job {}", i)),
-        JobOpts::TPriority<JobPriority::eLow>{});
+    system.Submit([&](AtlasNet::JobContext& ctx) { ++calls; },
+                  JobOpts::Name(std::format("Job {}", i)),
+                  JobOpts::TPriority<JobPriority::eLow>{});
   }
 
   system.Shutdown();
-  EXPECT_GE(calls.load(), desiredRuns );
+  EXPECT_GE(calls.load(), desiredRuns);
 }
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST(Jobs, JobsWithinJobs)
+{
+  using namespace AtlasNet;
+  JobSystem system(JobSystem::Config{});
+
+  std::string output;
+
+  auto handle = system.Submit(
+      [&](AtlasNet::JobContext& ctx)
+      {
+        std::string s = "Hello ";
+        // it must do a copy of s for the lambda capture below, otherwise we
+        // have a race condition between the inner and outer job accessing s
+        system.Submit(
+            [s = s, &output](JobContext&)
+            {
+              std::string o = s;
+              o += "World!";
+              output = o;
+            },
+            JobOpts::Name{"InnerJob"});
+      },
+      JobOpts::Name{"JobsWithinJobs"});
+
+  handle.wait();
+
+  EXPECT_EQ(output, "Hello World!");
+
+  system.Shutdown();
 }

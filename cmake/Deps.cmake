@@ -11,7 +11,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+# --- Fetch Libuv ---
+message(STATUS "Fetching libuv")
 
+FetchContent_Declare(
+  libuv
+  GIT_REPOSITORY https://github.com/libuv/libuv.git
+  GIT_TAG v1.48.0
+)
+
+set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(libuv)
 # --- Fetch hiredis ---
 find_package(OpenSSL REQUIRED)
 message(STATUS "Fetching Redis-Plus-Plus")
@@ -112,3 +124,11 @@ FetchContent_MakeAvailable(ENTT)
 message(STATUS "Nlohmann Json")
 FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(nlohmann_json)
+include(FetchContent)
+
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG yaml-cpp-0.9.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
+)
+FetchContent_MakeAvailable(yaml-cpp)

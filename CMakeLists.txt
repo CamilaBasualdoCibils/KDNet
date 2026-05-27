@@ -7,8 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 ")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 ")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 ")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 ")
+
 set (CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(cmake/Deps.cmake)
 
@@ -41,8 +42,9 @@ add_library(AtlasNetCore STATIC ${_core_sources})
 target_include_directories(AtlasNetCore
   PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
-      PUBLIC
+  PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
+    
 )
 target_link_libraries(AtlasNetCore
 PUBLIC
@@ -51,7 +53,8 @@ OpenSSL::SSL
 OpenSSL::Crypto
 redis++::redis++_static
 hiredis::hiredis
-
+hiredis::hiredis_ssl
+uv_a
 Boost::headers
 Boost::beast
 Boost::bimap
@@ -67,6 +70,7 @@ glm::glm
 #Taskflow::Taskflow
 EnTT
 nlohmann_json::nlohmann_json
+yaml-cpp::yaml-cpp
 )
 
 
@@ -140,13 +144,13 @@ target_include_directories(AtlasNetShardAPI
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/API/shard"
       PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/API"
 )
 target_include_directories(AtlasNetShardAPI_s
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/API/shard"
       PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/API"
 )
 add_dependencies(AtlasNetShardAPI AtlasNetCore)
 add_dependencies(AtlasNetShardAPI_s AtlasNetCore)

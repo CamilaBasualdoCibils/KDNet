@@ -1,6 +1,6 @@
 
 #pragma once
-#include "atlasnet/API/shard/iatlasnetshard.hpp"
+#include "shard/iatlasnetshard.hpp"
 
 class TankBattleShard : AtlasNet::IAtlasNetShard
 {

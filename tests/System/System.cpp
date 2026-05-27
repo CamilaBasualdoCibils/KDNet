@@ -36,7 +36,7 @@ TEST_F(DockerStackTest, InternalDBInitialization)
    } */
 
   std::this_thread::sleep_for(
-      std::chrono::seconds(30)); // Wait a bit before final log check
+      std::chrono::seconds(5)); // Wait a bit before final log check
 
   SUCCEED();
 }

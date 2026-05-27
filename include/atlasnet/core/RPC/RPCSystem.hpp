@@ -8,6 +8,7 @@
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "boost/describe/enum_to_string.hpp"
+#include "enviroment/Enviroment.hpp"
 #include <functional>
 #include <future>
 #include <mutex>
@@ -105,8 +106,7 @@ private:
   void SendError(const RPCTarget& target, RPC_Internal::MethodID methodId,
                  RPC_Internal::CallID callID, std::string errorMsg);
 
-  void OnRPCRequest(const RpcRequestMessage& msg,
-                    const SocketAddress& address);
+  void OnRPCRequest(const RpcRequestMessage& msg, const SocketAddress& address);
   void OnRPCResponse(const RpcResponseMessage& msg,
                      const SocketAddress& address);
   void OnRPCError(const RpcErrorMessage& msg, const SocketAddress& address);
@@ -162,8 +162,8 @@ private:
   std::unordered_map<RPC_Internal::MethodID, RPC_Internal::CallID> _nextCallID;
   std::unordered_map<PendingPromiseKey, PendingRequest, PendingPromiseKeyHash>
       _pendingPromises;
-  //std::shared_mutex _activeJobsMutex;
-  //std::stack<JobHandle> activeJobs;
+  // std::shared_mutex _activeJobsMutex;
+  // std::stack<JobHandle> activeJobs;
 
   std::shared_mutex _mutex;
   const Config config_;
@@ -187,15 +187,15 @@ AtlasNet::RPCSystem::SendRequest(const RPCTarget& target, Args&&... args)
 
   JobHandle sendRequestHandle = config_.messageSystem->SendMessage(
       request, target, MessageSendMode::eReliableBatched);
-  //NewActiveJob(sendRequestHandle);
+  // NewActiveJob(sendRequestHandle);
   return std::make_pair(request.methodId, request.callID);
 }
 
 template <typename MethodType>
 inline void
 AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
-                            RPC_Internal::CallID callID,
-                            const typename MethodType::ReturnType& ret)
+                                  RPC_Internal::CallID callID,
+                                  const typename MethodType::ReturnType& ret)
 {
   ByteWriter writeArgs;
   writeArgs(ret);
@@ -211,7 +211,7 @@ AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
             << std::endl;
   JobHandle sendResponseHandle = config_.messageSystem->SendMessage(
       response, target, MessageSendMode::eReliableBatched);
-  //NewActiveJob(sendResponseHandle);
+  // NewActiveJob(sendResponseHandle);
 }
 
 template <typename MethodType, typename... Args>
@@ -235,22 +235,48 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
   RPC_Internal::CallID callID;
 
   {
+    // first check if lock is taken in this scope, if it is then warn
+    if (_mutex.try_lock())
+    {
+      _mutex.unlock();
+    }
+    else
+    {
+      std::cerr << "Warning: RPCSystem::Call is waiting for lock. This may "
+                   "indicate a deadlock or long-running RPC handler."
+                << std::endl;
+    }
     std::unique_lock lock(_mutex);
     callID = GetNextCallID(methodId);
 
     PendingRequest pending;
     pending.onResponse = [promise](std::span<const uint8_t> payload) mutable
     {
-      try
+      auto serializeFunction =
+          [](std::span<const uint8_t> payload) -> ReturnType
       {
         ByteReader reader(payload);
         ReturnType value{};
         reader(value);
-        promise->set_value(std::move(value));
-      }
-      catch (...)
+        return value;
+      };
+      if (Env::DebugMode)
       {
-        promise->set_exception(std::current_exception());
+        try
+        {
+          ByteReader reader(payload);
+          ReturnType value{};
+          reader(value);
+          promise->set_value(std::move(value));
+        }
+        catch (...)
+        {
+          promise->set_exception(std::current_exception());
+        }
+      }
+      else
+      {
+        serializeFunction(payload);
       }
     };
 
@@ -275,7 +301,9 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
 
   config_.messageSystem->SendMessage(request, target,
                                      MessageSendMode::eReliableBatched);
-
+  std::cerr << std::format("Sent RPC request for methodId {} callId {} to {}",
+                           methodId, callID, target.to_string())
+            << std::endl;
   return future;
 }
 

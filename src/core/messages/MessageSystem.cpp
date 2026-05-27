@@ -58,7 +58,7 @@ AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
         else
         {
           handle.repeat_once(
-              std::chrono::milliseconds(1000 / EnvVars::TickRate));
+              std::chrono::milliseconds(1000 / Env::TickRate));
         }
 
         GNS().RunCallbacks();
@@ -656,13 +656,13 @@ void AtlasNet::MessageSystem::_Connect_to_job(JobContext& handle,
 
     std::cerr << "Initiated connection to " << address.to_string() << std::endl;
 
-    handle.repeat_once(std::chrono::milliseconds(1000 / EnvVars::TickRate));
+    handle.repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
     return;
   }
 
   if (state == ConnectionState::eConnecting)
   {
-    handle.repeat_once(std::chrono::milliseconds(1000 / EnvVars::TickRate));
+    handle.repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
   }
 }
 std::optional<AtlasNet::MessageSystem::Connection>

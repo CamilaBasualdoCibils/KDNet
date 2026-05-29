@@ -30,38 +30,18 @@ std::string get_hostname()
   return std::string(hostname);
 }
 
-AtlasNet::HostAddress AtlasNet::IContainer::GetOverlayAddressOfSelf() const
-{
-  std::optional<std::string> ip =
-      NetUtils::FindInterfaceIPInSubnet(Env::NetworkSubnet);
-
-  HostAddress overlayAddress;
-  if (ip.has_value())
-  {
-    overlayAddress = HostAddress(ip.value());
-  }
-  else
-  {
-    throw std::runtime_error(
-        std::format("Failed to find an interface IP in the overlay subnet {}. "
-                    "Is the container connected to the overlay network?",
-                    Env::NetworkSubnet));
-  }
-  return overlayAddress;
-}
-
-bool AtlasNet::IContainer::ShutdownRequested() const
+bool AtlasNet::IService::ShutdownRequested() const
 {
   return shutdown.load(std::memory_order_acquire);
 }
 
-AtlasNet::IContainer::IContainer(ContainerType type) : type(type)
+AtlasNet::IService::IService(ServiceType type) : type(type)
 {
   auto handleShutdown = [](int)
   {
     std::cerr << "SIGINT received, shutting down container..." << std::endl;
-    IContainer::Get().shutdown.store(true, std::memory_order_release);
-    IContainer::Get().cv.notify_all();
+    IService::Get().shutdown.store(true, std::memory_order_release);
+    IService::Get().cv.notify_all();
   };
 
   auto HandleUnexpectedShutdown = [](int signal)
@@ -80,13 +60,19 @@ AtlasNet::IContainer::IContainer(ContainerType type) : type(type)
   std::signal(SIGSEGV, HandleUnexpectedShutdown);
   std::signal(SIGABRT, HandleUnexpectedShutdown);
 }
-void AtlasNet::IContainer::Init()
+void AtlasNet::IService::Init()
 {
   std::cerr << std::format("Container {} with ID {} starting up...",
                            boost::describe::enum_to_string(type, "UNKNOWN"),
                            GetContainerID().to_string())
             << std::endl;
-  std::cerr << GetOverlayAddressOfSelf().to_string() << std::endl;
+  std::cerr << "Container hostname: " << GetHostName().to_string() << std::endl;
+  if (const char* test_port = std::getenv("ATLASNET_DATABASE_PORT"); test_port)
+  {
+    std::cerr << "Database port from environment: " << test_port << std::endl;
+  }
+  std::cerr << "Connecting to Redis database at " << Env::DatabaseHostName
+            << ":" << Env::DatabasePort << "..." << std::endl;
   _redisDatabase = Database::RedisConn::Connect(Database::RedisConn::Settings{
       .host = HostAddress(Env::DatabaseHostName),
       .port = Env::DatabasePort,
@@ -115,7 +101,7 @@ void AtlasNet::IContainer::Init()
   _internalMessageSocket.emplace(
       &GetMessageSystem().OpenListenSocket(Env::InternalMessagePort));
 
-  if (type != ContainerType::Controller)
+  if (type != ServiceType::Controller)
   {
 
     FetchControllerInfo();
@@ -133,7 +119,7 @@ void AtlasNet::IContainer::Init()
   _messageSystem->Shutdown();
   _jobSystem->Shutdown();
 }
-void AtlasNet::IContainer::FetchControllerInfo()
+void AtlasNet::IService::FetchControllerInfo()
 {
   JobHandle jobHandle = GetJobSystem().Submit(
       [this](JobContext& ctx)
@@ -142,7 +128,7 @@ void AtlasNet::IContainer::FetchControllerInfo()
                   << std::endl;
 
         std::vector<ServiceRegistry::ServiceInfo> outServices;
-        GetServiceRegistry().GetServicesOfType(ContainerType::Controller,
+        GetServiceRegistry().GetServicesOfType(ServiceType::Controller,
                                                outServices);
 
         if (outServices.empty())

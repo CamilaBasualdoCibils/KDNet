@@ -45,22 +45,42 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
     {
       if (settings.Mode == RedisMode::eCluster)
       {
+        sw::redis::RedisCluster cluster(opts, pool_opts);
 
-        auto cluster = sw::redis::RedisCluster(opts, pool_opts);
-        auto acluster = sw::redis::AsyncRedisCluster(opts, pool_opts);
-        cluster.redis("test").ping();
+        // REAL validation: must touch cluster directly
+        auto replies = cluster.redis("PING").ping();
+
+        if (replies.empty())
+        {
+          throw sw::redis::Error("Cluster PING returned no responses");
+        }
+
         std::cout << "Successfully connected to Redis in Cluster mode."
                   << std::endl;
-        return std::make_unique<RedisConn>(std::move(cluster), std::move(acluster), settings);
+
+        auto acluster = sw::redis::AsyncRedisCluster(opts, pool_opts);
+
+        return std::make_unique<RedisConn>(std::move(cluster),
+                                           std::move(acluster), settings);
       }
       else
       {
-        auto redis = sw::redis::Redis(opts, pool_opts);
-        auto aredis = sw::redis::AsyncRedis(opts, pool_opts);
-        redis.ping();
+        sw::redis::Redis redis(opts, pool_opts);
+
+        // REAL validation: must be a round-trip
+        auto pong = redis.ping();
+        if (pong != "PONG")
+        {
+          throw sw::redis::Error("Standalone PING did not return PONG");
+        }
+
         std::cout << "Successfully connected to Redis in Standalone mode."
                   << std::endl;
-        return std::make_unique<RedisConn>(std::move(redis), std::move(aredis), settings);
+
+        auto aredis = sw::redis::AsyncRedis(opts, pool_opts);
+
+        return std::make_unique<RedisConn>(std::move(redis), std::move(aredis),
+                                           settings);
       }
     }
     catch (const sw::redis::Error& e)
@@ -107,9 +127,11 @@ AtlasNet::Database::RedisConn::SortedSet()
   return *sortedSetWrapper;
 }
 AtlasNet::Database::RedisConn::~RedisConn() {}
-AtlasNet::Database::RedisConn::RedisConn(sw::redis::Redis redis, sw::redis::AsyncRedis aredis,
+AtlasNet::Database::RedisConn::RedisConn(sw::redis::Redis redis,
+                                         sw::redis::AsyncRedis aredis,
                                          const Settings& settings)
-    : settings(settings), HandleVariant(std::move(redis)), AsyncHandleVariant(std::move(aredis))
+    : settings(settings), HandleVariant(std::move(redis)),
+      AsyncHandleVariant(std::move(aredis))
 {
   keyValWrapper =
       std::unique_ptr<Redis::KeyValWrapper>(new Redis::KeyValWrapper(*this));
@@ -119,9 +141,11 @@ AtlasNet::Database::RedisConn::RedisConn(sw::redis::Redis redis, sw::redis::Asyn
   sortedSetWrapper = std::unique_ptr<Redis::SortedSetWrapper>(
       new Redis::SortedSetWrapper(*this));
 }
-AtlasNet::Database::RedisConn::RedisConn(sw::redis::RedisCluster redis, sw::redis::AsyncRedisCluster aredis,
+AtlasNet::Database::RedisConn::RedisConn(sw::redis::RedisCluster redis,
+                                         sw::redis::AsyncRedisCluster aredis,
                                          const Settings& settings)
-    : settings(settings), HandleVariant(std::move(redis)), AsyncHandleVariant(std::move(aredis))
+    : settings(settings), HandleVariant(std::move(redis)),
+      AsyncHandleVariant(std::move(aredis))
 {
   keyValWrapper =
       std::unique_ptr<Redis::KeyValWrapper>(new Redis::KeyValWrapper(*this));

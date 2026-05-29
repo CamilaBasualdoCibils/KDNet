@@ -19,14 +19,6 @@ ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
 RUN chmod +x /atlasnet/AtlasNetController
 ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetController; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
-
-FROM runner AS atlasnet-agent-dev
-COPY --from=atlasnetstage /atlasnet/AtlasNetAgent /atlasnet/AtlasNetAgent
-ARG PRELAUNCH_CMD="{EXE}"
-ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetAgent; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
-
-
 FROM runner AS atlasnet-proxy-dev
 COPY --from=atlasnetstage /atlasnet/AtlasNetProxy /atlasnet/AtlasNetProxy
 ARG PRELAUNCH_CMD="{EXE}"

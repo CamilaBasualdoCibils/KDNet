@@ -28,18 +28,18 @@ public:
 
   struct ServiceInfo
   {
-    ContainerID id;
+    ServiceID id;
     HostAddress address;
-    ContainerType containerType;
-    HostAddress overlayAddress;
-    std::optional<ContainerID> ParentAgentID;
+    ServiceType containerType;
+    // HostAddress overlayAddress;
+    std::optional<ServiceID> ParentAgentID;
 
     void Serialize(ByteWriter& archive) const
     {
       archive((UUID)id);
       archive(address);
       archive(containerType);
-      archive(overlayAddress);
+      // archive(overlayAddress);
       archive.u8(ParentAgentID.has_value() ? 1 : 0);
       if (ParentAgentID)
         archive.uuid((UUID)*ParentAgentID);
@@ -49,17 +49,17 @@ public:
     {
       UUID id_uuid;
       archive(id_uuid);
-      id = ContainerID(id_uuid);
+      id = ServiceID(id_uuid);
       archive(address);
       archive(containerType);
-      archive(overlayAddress);
+      // archive(overlayAddress);
       uint8_t has_parent_agent_id;
       archive(has_parent_agent_id);
       if (has_parent_agent_id)
       {
         UUID parent_agent_id_uuid;
         archive(parent_agent_id_uuid);
-        ParentAgentID = ContainerID(parent_agent_id_uuid);
+        ParentAgentID = ServiceID(parent_agent_id_uuid);
       }
     }
 
@@ -70,7 +70,8 @@ public:
           {"address", address.to_string()},
           {"containerType",
            boost::describe::enum_to_string(containerType, "UNKNOWN")},
-          {"overlayAddress", overlayAddress.to_string()},
+          //{"overlayAddress", overlayAddress.to_string()
+
       };
       if (ParentAgentID)
         j["ParentAgentID"] = ParentAgentID->to_string();
@@ -103,10 +104,10 @@ public:
     }
   }
 
-  void GetServicesOfType(ContainerType type,
+  void GetServicesOfType(ServiceType type,
                          std::vector<ServiceInfo>& outServices)
   {
-    std::unordered_set<ContainerID> containerIDs;
+    std::unordered_set<ServiceID> containerIDs;
     GetContainerIDsOfType(type, containerIDs);
     for (const auto& containerID : containerIDs)
     {
@@ -126,8 +127,8 @@ public:
     }
   }
 
-  void GetContainerIDsOfType(ContainerType type,
-                             std::unordered_set<ContainerID>& outContainerIDs)
+  void GetContainerIDsOfType(ServiceType type,
+                             std::unordered_set<ServiceID>& outContainerIDs)
   {
     std::unordered_set<std::string> containerIDStrs;
     _redisConn->Set().Query().SMembers(
@@ -138,12 +139,12 @@ public:
       ByteReader br(containerIDStr);
       UUID containerID_uuid;
       br.uuid(containerID_uuid);
-      outContainerIDs.insert(ContainerID(containerID_uuid));
+      outContainerIDs.insert(ServiceID(containerID_uuid));
     }
   }
 
 private:
-  std::string GetContainerType2ContainerIDsSetKey(ContainerType type)
+  std::string GetContainerType2ContainerIDsSetKey(ServiceType type)
   {
     return ServiceInfoKeyPrefix +
            std::format(ContainerType2ContainerIDsSetKeyPostFix,

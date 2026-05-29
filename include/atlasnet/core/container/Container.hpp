@@ -15,22 +15,26 @@
 #include <condition_variable>
 
 #include <mutex>
+#include <unistd.h>
 namespace AtlasNet
 {
 
-class IContainer
+class IService
 {
 protected:
-  IContainer(ContainerType type);
-  virtual ~IContainer() = default;
+  IService(ServiceType type);
+  virtual ~IService() = default;
   bool ShutdownRequested() const;
   virtual void OnInit() = 0;
   virtual void OnUpdate() = 0;
   virtual void OnShutdown() = 0;
 
-  HostAddress GetOverlayAddressOfSelf() const;
-
-  const ContainerID& GetContainerID() const
+  // HostAddress GetOverlayAddressOfSelf() const;
+  HostName GetHostName() const
+  {
+    return HostName(std::string(std::getenv("HOSTNAME")));
+  }
+  const ServiceID& GetContainerID() const
   {
     return id;
   }
@@ -46,7 +50,8 @@ protected:
   }
   GlobalEventSystem& GetGlobalEventSystem()
   {
-    assert(_globalEventSystem.has_value() && "GlobalEventSystem not initialized");
+    assert(_globalEventSystem.has_value() &&
+           "GlobalEventSystem not initialized");
     return _globalEventSystem.value();
   }
   MessageSystem& GetMessageSystem()
@@ -72,11 +77,11 @@ protected:
 
 public:
   void Init();
-  ContainerType GetContainerType() const
+  ServiceType GetServiceType() const
   {
     return type;
   }
-  ContainerID GetID() const
+  ServiceID GetID() const
   {
     return id;
   }
@@ -88,7 +93,7 @@ public:
            "containers fetch the controller info during initialization.");
     return controllerOverlayAddress.value();
   }
-  ContainerID GetControllerID() const
+  ServiceID GetControllerID() const
   {
     assert(controllerContainerID.has_value() &&
            "Controller container ID not set. This should never happen as "
@@ -99,8 +104,8 @@ public:
 
 private:
   void FetchControllerInfo();
-  ContainerID id{ContainerID::Generate()};
-  ContainerType type;
+  ServiceID id{ServiceID::Generate()};
+  ServiceType type;
   std::atomic<bool> shutdown{false};
   std::mutex mutex;
   std::condition_variable cv;
@@ -115,12 +120,12 @@ private:
   std::optional<ServiceRegistry> _serviceRegistry;
   std::unique_ptr<Database::RedisConn> _redisDatabase;
 
-  std::optional<ContainerID> controllerContainerID;
+  std::optional<ServiceID> controllerContainerID;
   std::optional<HostAddress> controllerOverlayAddress;
   // Database::InternalDB _internalDB;
-  static inline IContainer& Get()
+  static inline IService& Get()
   {
-    static IContainer& instance = []() -> IContainer&
+    static IService& instance = []() -> IService&
     {
       throw std::runtime_error(
           "IContainer instance not set. Create a concrete container class that "

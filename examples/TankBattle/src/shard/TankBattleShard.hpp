@@ -11,9 +11,12 @@ public:
     void Run()
     {
         AtlasNet_Shard_Init();
+        
+        OnShutdown();
     }
     void OnShutdown() override {
         // Cleanup code for the shard
+        std::cerr << "Shutting down AtlasNet Shard..." << std::endl;
     }
 
 };

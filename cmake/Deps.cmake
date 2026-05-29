@@ -106,13 +106,13 @@ FetchContent_MakeAvailable(Boost)
 
 
 # Fetch Kokkos
-set (Kokkos_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-    kokkos
-    URL https://github.com/kokkos/kokkos/archive/refs/tags/5.1.0.tar.gz
-)
-
-FetchContent_MakeAvailable(kokkos)
+# set (Kokkos_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+# FetchContent_Declare(
+#     kokkos
+#     URL https://github.com/kokkos/kokkos/archive/refs/tags/5.1.0.tar.gz
+# )
+# 
+# FetchContent_MakeAvailable(kokkos)
 
 
 FetchContent_Declare(
@@ -132,3 +132,10 @@ FetchContent_Declare(
   GIT_TAG yaml-cpp-0.9.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
 )
 FetchContent_MakeAvailable(yaml-cpp)
+
+FetchContent_Declare(
+  JoltPhysics
+  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+  GIT_TAG v5.5.0
+)
+FetchContent_MakeAvailable(JoltPhysics)

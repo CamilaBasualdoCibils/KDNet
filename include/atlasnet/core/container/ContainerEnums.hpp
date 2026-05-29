@@ -6,14 +6,13 @@ namespace AtlasNet
 /* struct ContainerIDTag
 {
 }; */
-using ContainerID = UUID;
-enum class ContainerType
+using ServiceID = UUID;
+enum class ServiceType
 {
   Controller,
-  Agent,
   Shard,
   Proxy,
   WebBackend
 };
-BOOST_DESCRIBE_ENUM(ContainerType, Controller, Agent, Shard, Proxy, WebBackend);
+BOOST_DESCRIBE_ENUM(ServiceType, Controller, Shard, Proxy, WebBackend);
 }; // namespace AtlasNet

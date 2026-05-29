@@ -3,6 +3,7 @@
 #include <drogon/drogon.h>
 
 #include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/collider/Collider.hpp"
 #include <chrono>
@@ -12,10 +13,10 @@
 namespace AtlasNet
 {
 
-class WebBackend : public IContainer
+class WebBackend : public IService
 {
 public:
-  WebBackend() : IContainer(ContainerType::WebBackend) {}
+  WebBackend() : IService(ServiceType::WebBackend) {}
 
 private:
   void OnInit() override

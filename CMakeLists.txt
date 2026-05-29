@@ -18,6 +18,12 @@ set(ATLASNET_TESTS ON CACHE BOOL "Build AtlasNet tests")
 set(ATLASNET_DEV ON CACHE BOOL "Build AtlasNet dev")
 set(ATLASNET_CARTOGRAPH ON CACHE BOOL "Build AtlasNet web interface")
 
+add_custom_target(AtlasNetDocs
+    COMMAND doxygen docs/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Generating documentation with Doxygen"
+    VERBATIM
+)
 if (ATLASNET_EXAMPLES)
     add_subdirectory(examples)
 endif()
@@ -31,8 +37,7 @@ if (ATLASNET_DEV)
     add_subdirectory(dev)
 endif()
 
-
-# Recursively collect sources under ./src
+# ========= ATLASNET CORE ========
 file(GLOB_RECURSE _core_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp"
 )
@@ -74,7 +79,7 @@ yaml-cpp::yaml-cpp
 )
 
 
-
+# ========= ATLASNET PROXY ========
 file(GLOB_RECURSE _proxy_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/proxy/*.cpp"
 )
@@ -89,11 +94,10 @@ target_link_libraries(AtlasNetProxy AtlasNetCore)
 
 
 
-
+# ========= ATLASNET CONTROLLER ========
 file(GLOB_RECURSE _controller_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/controller/*.cpp"
 )
-
 add_executable(AtlasNetController ${_controller_sources})
 # Optional, but common: local includes
 target_include_directories(AtlasNetController
@@ -101,19 +105,22 @@ target_include_directories(AtlasNetController
     "${CMAKE_CURRENT_SOURCE_DIR}/src/controller"
 )
 target_link_libraries(AtlasNetController AtlasNetCore)
+target_compile_definitions(AtlasNetController PRIVATE ATLASNET_CONTROLLER_BUILD)
 
-file(GLOB_RECURSE _agent_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/agent/*.cpp"
-)
-
-add_executable(AtlasNetAgent ${_agent_sources})
-# Optional, but common: local includes
-target_include_directories(AtlasNetAgent
-      PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent"
-)
-target_link_libraries(AtlasNetAgent AtlasNetCore)
-
+## ========= ATLASNET AGENT ========
+#file(GLOB_RECURSE _agent_sources CONFIGURE_DEPENDS
+#  "${CMAKE_CURRENT_SOURCE_DIR}/src/agent/*.cpp"
+#)
+#
+#add_executable(AtlasNetAgent ${_agent_sources})
+## Optional, but common: local includes
+#target_include_directories(AtlasNetAgent
+#      PRIVATE
+#    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent"
+#)
+#target_link_libraries(AtlasNetAgent AtlasNetCore)
+#target_compile_definitions(AtlasNetAgent PRIVATE ATLASNET_AGENT_BUILD)
+# ========= ATLASNET CARTOGRAPH ========
 if (ATLASNET_CARTOGRAPH)
 include(cmake/WebDeps.cmake)
     #directory(web)
@@ -132,8 +139,10 @@ target_link_libraries(AtlasNetCartographBackend
 AtlasNetCore
 drogon
 )
+target_compile_definitions(AtlasNetCartographBackend PRIVATE ATLASNET_CARTOGRAPH_BACKEND_BUILD)
 endif()
 
+# ========= ATLASNET SHARD API ========
 file(GLOB_RECURSE _API_shard_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/API/shard/*.cpp"
 )
@@ -155,6 +164,7 @@ target_include_directories(AtlasNetShardAPI_s
 add_dependencies(AtlasNetShardAPI AtlasNetCore)
 add_dependencies(AtlasNetShardAPI_s AtlasNetCore)
 
+# ========= ATLASNET CLIENT API ========
 file(GLOB_RECURSE _API_client_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/API/client/*.cpp"
 )
@@ -165,17 +175,18 @@ target_include_directories(AtlasNetClientAPI
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/API/client"
       PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/atlasnet/API/client"
+    "${CMAKE_CURRENT_SOURCE_DIR}/API/client"
 )
 target_include_directories(AtlasNetClientAPI_s
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/API/client"
       PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/atlasnet/API/client"
+    "${CMAKE_CURRENT_SOURCE_DIR}/API/client"
 )
 add_dependencies(AtlasNetClientAPI AtlasNetCore)
 add_dependencies(AtlasNetClientAPI_s AtlasNetCore)
 
+# ========= ATLASNET DUMMY ========
 file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy/*.cpp"
 )
@@ -186,3 +197,23 @@ target_include_directories(AtlasNetDummy
     "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy"
 )
 target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)
+target_compile_definitions(AtlasNetDummy PRIVATE ATLASNET_DUMMY_BUILD)
+
+# ========= ATLASNET PHYSICS API ========
+file(GLOB_RECURSE _physics_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/API/physics/*.cpp"
+)
+add_library(AtlasNetPhysicsAPI ${_physics_sources})
+target_include_directories(AtlasNetPhysicsAPI
+      PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/API/physics"
+)
+target_link_libraries(AtlasNetPhysicsAPI AtlasNetCore)
+
+# ======== ATLASNET JOLT PHYSICS ========
+file(GLOB_RECURSE _physics_jolt_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/jolt/*.cpp"
+)
+add_executable(AtlasNetJoltPhysics ${_physics_jolt_sources})
+target_compile_definitions(AtlasNetJoltPhysics PRIVATE ATLASNET_PHYSICS_JOLT_BUILD)
+#target_link_libraries(AtlasNetJoltPhysics AtlasNetPhysicsAPI Jolt::Jolt)

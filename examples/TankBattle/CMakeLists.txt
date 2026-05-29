@@ -25,7 +25,16 @@ target_include_directories(TankBattleShard
     "${CMAKE_CURRENT_SOURCE_DIR}/src/shard"
 )
 
-target_link_libraries(TankBattleShard TankBattleCore AtlasNetShardAPI_s)
+target_link_libraries(TankBattleShard TankBattleCore AtlasNetShardAPI)
+file(GLOB_RECURSE _client_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/client/*.cpp"
+)
+add_executable(TankBattleClient ${_client_sources})
+target_include_directories(TankBattleClient
+      PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/client"
+)
+target_link_libraries(TankBattleClient TankBattleCore AtlasNetClientAPI raylib)
 
 
 add_custom_target(TankBattleStage
@@ -42,6 +51,7 @@ add_custom_target(TankBattleDockerDevBuild
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMAND docker build -t tankbattle-dev:latest .
 DEPENDS TankBattleStage
+USES_TERMINAL
 )
 
 add_custom_target(TankBattleDockerDeploy
@@ -50,5 +60,30 @@ add_custom_target(TankBattleDockerDeploy
     COMMAND docker stack rm tankbattle || true
     COMMAND sleep 1
     COMMAND docker stack deploy -c TankBattleStack.yml tankbattle
+    USES_TERMINAL
 DEPENDS TankBattleDockerDevBuild AtlasNetDevDockerBuild
+)
+
+add_custom_target(TankBattlek8sDismantle
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMAND kubectl delete -f TankBattle-k8s.yml || true
+    USES_TERMINAL
+)
+# this one can run in parallel
+add_custom_target(TankBattleK8sLoadImages
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMAND minikube image load tankbattle-dev:latest & 
+    minikube image load atlasnet-controller-dev:latest & 
+    minikube image load atlasnet-proxy-dev:latest & 
+    minikube image load atlasnet-cartograph-frontend-dev:latest & 
+    minikube image load atlasnet-cartograph-backend-dev:latest
+    USES_TERMINAL
+DEPENDS TankBattleDockerDevBuild AtlasNetDevDockerBuild TankBattlek8sDismantle
+)
+add_custom_target(TankBattleK8sDeploy
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    # If the stack exists, kill it and wait 1 second
+    COMMAND kubectl apply -f TankBattle-k8s.yml
+    DEPENDS TankBattleK8sLoadImages
+    USES_TERMINAL
 )

@@ -35,8 +35,7 @@ public:
   std::strong_ordering operator<=>(const UUID& other) const
   {
     return std::lexicographical_compare_three_way(
-        std::begin(id.data), std::end(id.data), std::begin(other.id.data),
-        std::end(other.id.data));
+        id.begin(), id.end(), other.id.begin(), other.id.end());
   }
 
   std::string to_string() const

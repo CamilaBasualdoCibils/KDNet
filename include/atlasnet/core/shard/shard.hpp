@@ -1,7 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include "atlasnet/core/UUID.hpp"
 namespace AtlasNet
 {
-    using ShardID = uint64_t;
+    using ShardID = UUID;
 };

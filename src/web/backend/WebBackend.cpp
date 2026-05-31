@@ -65,11 +65,11 @@ private:
 
         Entity::Entity_Serializable entity;
         entity.entityInfo.emplace();
-        entity.entityInfo->id = (Entity::EntityID)Entity::EntityID::Generate();
+        entity.entityInfo->id = (EntityID)EntityID::Generate();
         
         //entity.entityInfo->location.transform.position =
         //    vec3(dis(gen), dis(gen), dis(gen));
-        entity.entityInfo->location.worldId = WorldID::Generate();
+        entity.entityInfo->baseInfo.location.worldId = WorldID::Generate();
         entity.colliderInfo.emplace();
         if (i % 2 == 0)
         {

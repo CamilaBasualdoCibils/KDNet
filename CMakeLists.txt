@@ -153,16 +153,16 @@ target_include_directories(AtlasNetShardAPI
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/API/shard"
       PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/API"
+    "${CMAKE_CURRENT_SOURCE_DIR}/API/shard"
 )
 target_include_directories(AtlasNetShardAPI_s
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/API/shard"
       PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/API"
+    "${CMAKE_CURRENT_SOURCE_DIR}/API/shard"
 )
-add_dependencies(AtlasNetShardAPI AtlasNetCore)
-add_dependencies(AtlasNetShardAPI_s AtlasNetCore)
+target_link_libraries(AtlasNetShardAPI AtlasNetCore)
+target_link_libraries(AtlasNetShardAPI_s AtlasNetCore)
 
 # ========= ATLASNET CLIENT API ========
 file(GLOB_RECURSE _API_client_sources CONFIGURE_DEPENDS
@@ -183,8 +183,8 @@ target_include_directories(AtlasNetClientAPI_s
       PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/API/client"
 )
-add_dependencies(AtlasNetClientAPI AtlasNetCore)
-add_dependencies(AtlasNetClientAPI_s AtlasNetCore)
+target_link_libraries(AtlasNetClientAPI AtlasNetCore)
+target_link_libraries(AtlasNetClientAPI_s AtlasNetCore)
 
 # ========= ATLASNET DUMMY ========
 file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS

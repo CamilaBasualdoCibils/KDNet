@@ -234,19 +234,36 @@ void SceneView::_run_3d_scene()
                           : CAMERA_ORTHOGRAPHIC; // Camera mode type
 
   float dt = 1.0f / 60.0f;
+
+  // Orbit settings
+  float orbitAngle = std::atan2(camera.position.z, camera.position.x);
+  float orbitRadius =
+      std::sqrt(camera.position.x * camera.position.x +
+                camera.position.z * camera.position.z);
+  if (orbitRadius < 0.001f)
+    orbitRadius = CameraDistance;
+
+  float orbitHeight = camera.position.y;
+  if (std::fabs(orbitHeight) < 0.001f)
+    orbitHeight = CameraDistance * 0.5f;
+
+  const float orbitSpeed = 0.25f; // radians per second
+
   while (!WindowShouldClose()) // Detect window close button or ESC key
   {
-    // Update
-    //----------------------------------------------------------------------------------
-    // TODO: Update your variables here
-    //----------------------------------------------------------------------------------
+    dt = GetFrameTime();
 
-    // Draw
-    //----------------------------------------------------------------------------------
+    // Slowly orbit around the origin, ignoring mouse input
+    orbitAngle += orbitSpeed * dt;
+    camera.position.x = std::cos(orbitAngle) * orbitRadius;
+    camera.position.z = std::sin(orbitAngle) * orbitRadius;
+    camera.position.y = orbitHeight;
+    camera.target = (Vector3){0.0f, 0.0f, 0.0f};
+    camera.up = (Vector3){0.0f, 1.0f, 0.0f};
+
     BeginDrawing();
 
     ClearBackground(RAYWHITE);
-    UpdateCamera(&camera, CAMERA_THIRD_PERSON);
     BeginMode3D(camera);
     totalTime_ += dt;
     float mid_scale = settings.SceneScale * 0.5f;

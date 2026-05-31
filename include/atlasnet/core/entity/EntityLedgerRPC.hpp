@@ -1,0 +1,17 @@
+#pragma once
+
+#include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/entity/Entity.hpp"
+#include <utility>
+#include <vector>
+ATLASNET_RPC(
+    EntityLedgerRPC,
+    ATLASNET_RPC_METHOD(
+        GetEntityInfo,
+        ATLASNET_RPC_SIG(
+            AtlasNet::Entity::Components::EntityInfo(AtlasNet::EntityID)));
+    ATLASNET_RPC_METHOD(
+        GetAllEntityInfo,
+        ATLASNET_RPC_SIG(
+            std::unordered_map<AtlasNet::EntityID,
+                               AtlasNet::Entity::Components::EntityInfo>())));

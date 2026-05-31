@@ -7,6 +7,7 @@
 #include <shared_mutex>
 #include <type_traits>
 #include <unordered_map>
+#include "EntityLedgerRPC.hpp"
 namespace AtlasNet
 {
 namespace Entity
@@ -49,8 +50,7 @@ public:
     {
       return _ledger._isActor(id);
     }
-    const Entity::Components::EntityInfo&
-    GetEntityInfo(const EntityID& id) const
+    Entity::Components::EntityInfo GetEntityInfo(const EntityID& id) const
     {
       return _ledger._GetEntityInfo(id);
     }
@@ -81,10 +81,13 @@ public:
       return _ledger._isActor(id);
     }
 
-    EntityID CreateEntity(const Components::EntityInfo& info)
+    EntityID CreateEntity(const Components::BaseEntityInfo& info)
     {
       EntityID id = EntityID(UUID::Generate());
-      _ledger._createEntity(id, info);
+      Entity::Components::EntityInfo entityInfo;
+      entityInfo.baseInfo = info;
+      entityInfo.id = id;
+      _ledger._createEntity(id, entityInfo);
       return id;
     }
     void RemoveEntity(const EntityID& id)
@@ -94,6 +97,11 @@ public:
     Entity::Components::EntityInfo GetEntityInfo(const EntityID& id)
     {
       return _ledger._GetEntityInfo(id);
+    }
+    void SetEntityInfo(const EntityID& id,
+                       const Entity::Components::EntityInfo& info)
+    {
+      _ledger._SetEntityInfo(id, info);
     }
 
   private:
@@ -180,7 +188,7 @@ protected:
     _EntityAddComponent(id, actorInfo);
   }
   void _setEntityClient(const EntityID& id,
-                       const Entity::Components::ClientInfo& clientInfo)
+                        const Entity::Components::ClientInfo& clientInfo)
   {
     _EntityAddComponent(id, clientInfo);
   }
@@ -198,7 +206,13 @@ protected:
     // Use info as needed
     return info;
   }
- 
+  void _SetEntityInfo(const EntityID& id,
+                      const Entity::Components::EntityInfo& info)
+  {
+    EnTTEntityID _id = GetEnTTEntityID(id);
+    auto& entityInfo = entityTable.get<Entity::Components::EntityInfo>(_id);
+    entityInfo = info;
+  }
 
 private:
   [[nodiscard]] EnTTEntityID GetEnTTEntityID(const EntityID& id) const

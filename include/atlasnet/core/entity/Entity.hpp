@@ -14,27 +14,25 @@
 
 namespace AtlasNet
 {
-namespace Entity
-{
-
 struct EntityIDTag
 {
 };
+using EntityID = StrongUUID<EntityIDTag>;
 struct ClientIDTag
 {
 };
-using EntityID = StrongUUID<EntityIDTag>;
+using ClientID = StrongUUID<ClientIDTag>;
+namespace Entity
+{
 
 #define ENTT_STANDARD_CPP
-using ClientID = StrongUUID<ClientIDTag>;
 
-
-enum class SpaceType
+enum class CoordinateSystem
 {
   Cartesian,
   Geospatial
 };
-BOOST_DESCRIBE_ENUM(SpaceType, Cartesian, Geospatial);
+BOOST_DESCRIBE_ENUM(CoordinateSystem, Cartesian, Geospatial);
 struct CartesianPosition
 {
   dvec3 position;
@@ -74,16 +72,16 @@ struct Transform
 
           if constexpr (std::is_same_v<T, CartesianPosition>)
           {
-            j["type"] = boost::describe::enum_to_string(SpaceType::Cartesian,
-                                                        "UNKNOWN");
+            j["type"] = boost::describe::enum_to_string(
+                CoordinateSystem::Cartesian, "UNKNOWN");
             j["position"] = {{"x", pos.position.x},
                              {"y", pos.position.y},
                              {"z", pos.position.z}};
           }
           else if constexpr (std::is_same_v<T, GeospatialPosition>)
           {
-            j["type"] = boost::describe::enum_to_string(SpaceType::Geospatial,
-                                                        "UNKNOWN");
+            j["type"] = boost::describe::enum_to_string(
+                CoordinateSystem::Geospatial, "UNKNOWN");
             j["position"] = {{"latitude", pos.latitude},
                              {"longitude", pos.longitude},
                              {"altitude", pos.altitude}};
@@ -100,21 +98,21 @@ struct Transform
     }
 
     const auto typeStr = j.at("type").get<std::string>();
-    SpaceType spaceType{};
+    CoordinateSystem spaceType{};
     if (!boost::describe::enum_from_string(typeStr.c_str(), spaceType))
     {
       position = CartesianPosition{{0.0, 0.0, 0.0}};
       return;
     }
 
-    if (spaceType == SpaceType::Cartesian)
+    if (spaceType == CoordinateSystem::Cartesian)
     {
       const auto& posJson = j.at("position");
       position = CartesianPosition{{posJson.at("x").get<double>(),
                                     posJson.at("y").get<double>(),
                                     posJson.at("z").get<double>()}};
     }
-    else if (spaceType == SpaceType::Geospatial)
+    else if (spaceType == CoordinateSystem::Geospatial)
     {
       const auto& posJson = j.at("position");
       position = GeospatialPosition{posJson.at("latitude").get<double>(),
@@ -146,28 +144,42 @@ namespace Components
 struct EntityComponent
 {
 };
-struct EntityInfo : public EntityComponent
+struct BaseEntityInfo
 {
-  EntityID id;
   Location location;
   void to_json(_Json& j) const
   {
 
     _Json locationJson;
     location.to_json(locationJson);
-    j = _Json{{"id", id.to_string()}, {"location", locationJson}};
+    j = _Json{{"location", locationJson}};
+  }
+  void from_json(const _Json& j)
+  {
+    location.from_json(j.at("location"));
+  }
+};
+struct EntityInfo : public EntityComponent
+{
+  EntityID id;
+  BaseEntityInfo baseInfo;
+  void to_json(_Json& j) const
+  {
+    _Json baseInfoJson;
+    baseInfo.to_json(baseInfoJson);
+    j = _Json{{"id", id.to_string()}, {"baseInfo", baseInfoJson}};
   }
   void from_json(const _Json& j)
   {
     id = (EntityID)EntityID::from_string(j.at("id").get<std::string>());
-    location.from_json(j.at("location"));
-  }
+    baseInfo.from_json(j.at("baseInfo"));
+  };
 };
 struct ActorInfo : public EntityComponent
 {
   int pad;
-  // Data is not required because we dont store, we serialize on transform from
-  // IAtlasNetShard boost::container::small_vector<uint8_t, 256> payload;
+  // Data is not required because we dont store, we serialize on transform
+  // from IAtlasNetShard boost::container::small_vector<uint8_t, 256> payload;
   void to_json(_Json& j) const
   {
     j = _Json{};

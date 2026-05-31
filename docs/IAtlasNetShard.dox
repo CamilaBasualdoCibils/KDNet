@@ -1,0 +1,66 @@
+/**
+ * @page shard_interface AtlasNet Shard Interface
+ * @tableofcontents
+ *
+ * @section overview Overview
+ *
+ * AtlasNet shard interface definition. This file defines the
+ * IAtlasNetShard interface, which serves as the base class for all shards in
+ * the AtlasNet system. It provides standardized functions for:
+ * - entity registration
+ * - serialization / deserialization
+ * - locking mechanisms
+ *
+ * This ensures all shards can be managed and communicated with consistently
+ * across the AtlasNet ecosystem.
+ *
+ * @section interface Interface Definition
+ *
+ * The primary interface is @ref AtlasNet::IAtlasNetShard.
+ *
+ * @subsection actions Actions
+ *
+ * @subsubsection register_entities Registering Entities
+ *
+ * Shards can register entities with the AtlasNet core using `RegisterEntity`.
+ * This allows shards to define entity types managed by the system.
+ *
+ * @subsubsection transfer_entities Transferring Entities
+ *
+ * @paragraph releasing Releasing
+ *
+ * When transferring an entity, the shard must call `DetachEntity`.
+ * This ensures the entity is no longer owned locally.
+ *
+ * @dot
+digraph TransferEntities {
+    rankdir=LR;
+    node [shape=rectangle];
+    EntityOOB [label="Entity out of bounds"];
+    LockEntity [label="LockEntity()"];
+    SerializeEntity [label="SerializeEntity()"];
+    DetachEntity [label="DetachEntity()"];
+    UnlockEntity [label="UnlockEntity()"];
+
+    EntityOOB -> LockEntity;
+    LockEntity -> SerializeEntity;
+    SerializeEntity -> DetachEntity;
+    DetachEntity -> UnlockEntity;
+}
+@enddot
+ *
+ * @paragraph receiving Receiving
+ *
+ * @dot
+digraph ReceiveEntities {
+    rankdir=LR;
+    node [shape=rectangle];
+    LockEntity [label="LockEntity()"];
+    DeserializeEntity [label="DeserializeEntity()"];
+    UnlockEntity [label="UnlockEntity()"];
+
+    LockEntity -> DeserializeEntity;
+    DeserializeEntity -> UnlockEntity;
+}
+@enddot
+ */

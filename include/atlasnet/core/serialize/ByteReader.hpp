@@ -220,26 +220,26 @@ public:
   // ---------------- Strings / blobs -----------------------------
 
   ByteReader& str(std::string& s)
-{
-  uint32_t len;
-  var_u32(len);
-  if (remaining() < len)
-    throw ByteError("string overflow");
-  s.assign(reinterpret_cast<const char*>(p + i), len);
-  i += len;
-  return *this;
-}
+  {
+    uint32_t len;
+    var_u32(len);
+    if (remaining() < len)
+      throw ByteError("string overflow");
+    s.assign(reinterpret_cast<const char*>(p + i), len);
+    i += len;
+    return *this;
+  }
 
-ByteReader& str(std::string_view& s)
-{
-  uint32_t len;
-  var_u32(len);
-  if (remaining() < len)
-    throw ByteError("string_view overflow");
-  s = std::string_view(reinterpret_cast<const char*>(p + i), len);
-  i += len;
-  return *this;
-}
+  ByteReader& str(std::string_view& s)
+  {
+    uint32_t len;
+    var_u32(len);
+    if (remaining() < len)
+      throw ByteError("string_view overflow");
+    s = std::string_view(reinterpret_cast<const char*>(p + i), len);
+    i += len;
+    return *this;
+  }
   ByteReader& uuid(UUID& id)
   {
     if (remaining() < 16)
@@ -356,63 +356,92 @@ ByteReader& str(std::string_view& s)
 
 private:
   template <typename T> void read_any(T& v)
-{
-  if constexpr (requires { v.Deserialize(*this); })
   {
-    v.Deserialize(*this);
-  }
-  else if constexpr (ResizableIterable<T>)
-  {
-    uint32_t count{};
-    read_scalar(count);
-
-    v.resize(count);
-    for (auto& elem : v)
+    using U = std::remove_cvref_t<T>;
+    if constexpr (requires { v.Deserialize(*this); })
     {
-      read_any(elem);
+      v.Deserialize(*this);
+    }
+    else if constexpr (ResizableIterable<U>)
+    {
+      uint32_t count{};
+      read_scalar(count);
+
+      v.resize(count);
+      for (auto& elem : v)
+      {
+        read_any(elem);
+      }
+    }
+    else if constexpr (is_associative_container_v<U>)
+    {
+      uint32_t count{};
+      read_scalar(count);
+
+      for (uint32_t i = 0; i < count; ++i)
+      {
+        using value_type = typename U::value_type;
+        using raw_key_type = typename value_type::first_type;
+        using raw_mapped_type = typename value_type::second_type;
+
+        using key_type = std::remove_cvref_t<raw_key_type>;
+        using mapped_type = std::remove_cvref_t<raw_mapped_type>;
+
+        key_type key{};
+        mapped_type value{};
+
+        read_any(key);
+        read_any(value);
+
+        v.emplace(std::move(key), std::move(value));
+      }
+    }
+    else if constexpr (is_pair_v<U>)
+    {
+      read_any(v.first);
+      read_any(v.second);
+    }
+    else if constexpr (std::is_same_v<U, std::string>)
+    {
+      str(v);
+    }
+    else if constexpr (std::is_same_v<U, std::string_view>)
+    {
+      str(v);
+    }
+    else if constexpr (std::is_same_v<U, UUID>)
+    {
+      uuid(v);
+    }
+    else if constexpr (std::is_same_v<U, std::span<const uint8_t>>)
+    {
+      blob(v);
+    }
+    else if constexpr (std::is_arithmetic_v<U>)
+    {
+      read_scalar(v);
+    }
+    else if constexpr (std::is_enum_v<U>)
+    {
+      read_scalar(v);
+    }
+    else if constexpr (std::is_same_v<U, glm::quat>)
+    {
+      quat(v);
+    }
+    else if constexpr (std::is_same_v<U, glm::mat4>)
+    {
+      mat4(v);
+    }
+    else if constexpr (is_glm_vec<U>::value)
+    {
+      read_vector<U::length()>(v);
+    }
+    else
+    {
+      static_assert(!sizeof(U*), "Unsupported type for ByteReader");
     }
   }
-  else if constexpr (std::is_same_v<T, std::string>)
-  {
-    str(v);
-  }
-  else if constexpr (std::is_same_v<T, std::string_view>)
-  {
-    str(v);
-  }
-  else if constexpr (std::is_same_v<T, UUID>)
-  {
-    uuid(v);
-  }
-  else if constexpr (std::is_same_v<T, std::span<const uint8_t>>)
-  {
-    blob(v);
-  }
-  else if constexpr (std::is_arithmetic_v<T>)
-  {
-    read_scalar(v);
-  }
-  else if constexpr (std::is_enum_v<T>)
-  {
-    read_scalar(v);
-  }
-  else if constexpr (std::is_same_v<T, glm::quat>)
-  {
-    quat(v);
-  }
-  else if constexpr (std::is_same_v<T, glm::mat4>)
-  {
-    mat4(v);
-  }
-  else if constexpr (is_glm_vec<T>::value)
-  {
-    read_vector<T::length()>(v);
-  }
-  else
-  {
-    static_assert(!sizeof(T*), "Unsupported type for ByteReader");
-  }
-}
   template <typename T> T read_int()
   {
     if (i + sizeof(T) > n)

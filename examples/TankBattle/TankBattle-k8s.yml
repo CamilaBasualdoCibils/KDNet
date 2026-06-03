@@ -27,6 +27,11 @@ spec:
           args: ["valkey-server", "--appendonly", "yes", "--port", "6379"]
           ports:
             - containerPort: 6379
+          env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
 ---
 apiVersion: v1
 kind: Service
@@ -100,87 +105,198 @@ spec:
           env:
             - name: ATLASNET_SHARD_DEFAULT_IMAGE
               value: "tankbattle-dev:latest"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
 ---
 # =========================
 # SHARDS (STATEFULSET)
 # =========================
-apiVersion: v1
-kind: Service
-metadata:
-  name: atlasnet-shard
-  namespace: atlasnet
-spec:
-  clusterIP: None
-  selector:
-    app: atlasnet-shard
-  ports:
-    - port: 7777
-      targetPort: 7777
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: atlasnet-shard
-  namespace: atlasnet
-spec:
-  serviceName: atlasnet-shard
-  replicas: 0
-  selector:
-    matchLabels:
-      app: atlasnet-shard
-  template:
-    metadata:
-      labels:
-        app: atlasnet-shard
-    spec:
-      containers:
-        - name: shard
-          image: atlasnet-shard-dev
-          imagePullPolicy: Never
-          ports:
-            - containerPort: 7777
----
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: atlasnet-shard
+#  namespace: atlasnet
+#spec:
+#  clusterIP: None
+#  publishNotReadyAddresses: true
+#  selector:
+#    app: atlasnet-shard
+#  ports:
+#    - port: 7777
+#      targetPort: 7777
+#---
+#apiVersion: apps/v1
+#kind: StatefulSet
+#metadata:
+#  name: atlasnet-shard
+#  namespace: atlasnet
+#spec:
+#  serviceName: atlasnet-shard
+#  replicas: 0
+#  selector:
+#    matchLabels:
+#      app: atlasnet-shard
+#  template:
+#    metadata:
+#      labels:
+#        app: atlasnet-shard
+#    spec:
+#      containers:
+#        - name: shard
+#          image: atlasnet-shard-dev
+#          imagePullPolicy: Never
+#          ports:
+#            - containerPort: 7777
+#          env:
+#            - name: NODE_IP
+#              valueFrom:
+#                fieldRef:
+#                  fieldPath: status.podIP
+#---
 # =========================
 # PROXY (STATEFULSET)
 # =========================
-apiVersion: v1
-kind: Service
-metadata:
-  name: atlasnet-proxy
-  namespace: atlasnet
-spec:
-  clusterIP: None
-  selector:
-    app: atlasnet-proxy
-  ports:
-    - name: tcp
-      port: 2555
-      targetPort: 25568
-      protocol: TCP
-    - name: udp
-      port: 2555
-      targetPort: 25568
-      protocol: UDP
----
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: atlasnet-proxy
+#  namespace: atlasnet
+#spec:
+#  clusterIP: None
+#  publishNotReadyAddresses: true
+#  selector:
+#    app: atlasnet-proxy
+#  ports:
+#    - name: tcp
+#      port: 2555
+#      targetPort: 25568
+#      protocol: TCP
+#    - name: udp
+#      port: 2555
+#      targetPort: 25568
+#      protocol: UDP
+#---
+#apiVersion: apps/v1
+#kind: StatefulSet
+#metadata:
+#  name: atlasnet-proxy
+#  namespace: atlasnet
+#spec:
+#  serviceName: atlasnet-proxy
+#  replicas: 0
+#  selector:
+#    matchLabels:
+#      app: atlasnet-proxy
+#  template:
+#    metadata:
+#      labels:
+#        app: atlasnet-proxy
+#    spec:
+#      containers:
+#        - name: proxy
+#          image: atlasnet-proxy-dev
+#          imagePullPolicy: Never
+#          ports:
+#            - containerPort: 25568
+#          env:
+#            - name: NODE_IP
+#              valueFrom:
+#                fieldRef:
+#                  fieldPath: status.podIP
+#---
+# =========================
+# CARTOGRAPH BACKEND
+# =========================
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: atlasnet-proxy
+  name: atlasnet-cartograph-backend
   namespace: atlasnet
 spec:
-  serviceName: atlasnet-proxy
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
-      app: atlasnet-proxy
+      app: atlasnet-cartograph-backend
   template:
     metadata:
       labels:
-        app: atlasnet-proxy
+        app: atlasnet-cartograph-backend
     spec:
       containers:
-        - name: proxy
-          image: atlasnet-proxy-dev
+        - name: backend
+          image: atlasnet-cartograph-backend-dev
           imagePullPolicy: Never
+          env:
+            - name: BACKEND_PORT
+              value: "2000"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           ports:
-            - containerPort: 25568
+            - containerPort: 2000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlasnet-cartograph-backend
+  namespace: atlasnet
+spec:
+  selector:
+    app: atlasnet-cartograph-backend
+  ports:
+    - port: 2000
+      targetPort: 2000
+      protocol: TCP
+
+---
+# =========================
+# CARTOGRAPH FRONTEND
+# =========================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlasnet-cartograph-frontend
+  namespace: atlasnet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlasnet-cartograph-frontend
+  template:
+    metadata:
+      labels:
+        app: atlasnet-cartograph-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: atlasnet-cartograph-frontend-dev
+          imagePullPolicy: Never
+          env:
+            - name: FRONTEND_PORT
+              value: "4173"
+            - name: BACKEND_HOST
+              value: "atlasnet-cartograph-backend:2000"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlasnet-cartograph-frontend
+  namespace: atlasnet
+spec:
+  type: NodePort
+  selector:
+    app: atlasnet-cartograph-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+      protocol: TCP

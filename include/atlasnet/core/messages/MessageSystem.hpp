@@ -37,6 +37,8 @@ enum class ConnectionState
   eProblemDetectedLocally =
       k_ESteamNetworkingConnectionState_ProblemDetectedLocally
 };
+BOOST_DESCRIBE_ENUM(ConnectionState, eNone, eConnecting, eConnected, eClosedByPeer,
+                   eProblemDetectedLocally)
 using MessagePriority = JobPriority;
 class MessageSystem
 {
@@ -339,6 +341,13 @@ inline JobHandle MessageSystem::SendMessage(const MessageType& message,
       std::cerr << std::format(
                        "SendMessageToConnection failed for {} with code {}",
                        address.to_string(), static_cast<int>(result))
+                << std::endl;
+    }
+    else 
+    {
+      std::cerr << std::format("Sent message of type {} to {} with mode {}",
+                               MessageType::GetName(), address.to_string(),
+                               static_cast<int>(mode))
                 << std::endl;
     }
   };

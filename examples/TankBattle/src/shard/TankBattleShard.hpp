@@ -21,7 +21,6 @@ public:
   {
     TankBattle::OrbitEntity* orbitEntity =
         world.AddEntity<TankBattle::OrbitEntity>();
-    AtlasNet_Shard_Init();
     AtlasNet::Entity::Transform atlasTransform;
     atlasTransform.Cartesian().position = orbitEntity->transform.position;
     orbitEntity->SetAtlasEntityID(AtlasNet_RegisterEntity(atlasTransform));
@@ -55,10 +54,10 @@ public:
         }
       }
       world.Render();
-      std::cerr
-          << "Tick completed. Delta time: "
-          << std::chrono::duration<double>(Clock::now() - tickStart).count()
-          << " seconds." << std::endl;
+      //std::cerr
+      //    << "Tick completed. Delta time: "
+      //    << std::chrono::duration<double>(Clock::now() - tickStart).count()
+      //    << " seconds." << std::endl;
       const auto tickEnd = Clock::now();
       const auto tickElapsed = tickEnd - tickStart;
       const auto sleepTime = targetTickTime - tickElapsed;

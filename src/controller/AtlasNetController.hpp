@@ -41,7 +41,7 @@ class AtlasNetController : public IService
 public:
   AtlasNetController();
   void OnInit() override;
-  void OnUpdate() override;
+
 
 private:
   void OnShutdown() override;

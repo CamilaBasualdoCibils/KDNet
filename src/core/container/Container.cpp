@@ -107,17 +107,8 @@ void AtlasNet::IService::Init()
     FetchControllerInfo();
   }
   OnInit();
-  while (!ShutdownRequested())
-  {
+  
 
-    OnUpdate();
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(1000 / Env::TickRate));
-  }
-  OnShutdown();
-
-  _messageSystem->Shutdown();
-  _jobSystem->Shutdown();
 }
 void AtlasNet::IService::FetchControllerInfo()
 {

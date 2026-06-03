@@ -44,8 +44,9 @@ public:
 // =====================================================
 
 #define ATLASNET_HASH_NAME(Name)                                               \
+const static inline std::string GetName() { return #Name; } \
   const static inline AtlasNet::MessageIDHash TypeIdHash =                     \
-      std::hash<std::string_view>{}(#Name)
+      std::hash<std::string_view>{}(GetName());
 
 
 // =====================================================

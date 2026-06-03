@@ -14,14 +14,14 @@
 
 namespace AtlasNet
 {
-struct EntityIDTag
+/* struct EntityIDTag
 {
-};
-using EntityID = StrongUUID<EntityIDTag>;
-struct ClientIDTag
+}; */
+using EntityID = UUID;
+/* struct ClientIDTag
 {
-};
-using ClientID = StrongUUID<ClientIDTag>;
+}; */
+using ClientID = UUID;
 namespace Entity
 {
 
@@ -29,8 +29,8 @@ namespace Entity
 
 enum class CoordinateSystem
 {
-  Cartesian,
-  Geospatial
+  Cartesian = 0,
+  Geospatial = 1
 };
 BOOST_DESCRIBE_ENUM(CoordinateSystem, Cartesian, Geospatial);
 struct CartesianPosition
@@ -120,6 +120,38 @@ struct Transform
                                     posJson.at("altitude").get<double>()};
     }
   }
+  void Serialize(ByteWriter& writer) const
+  {
+    if (std::holds_alternative<CartesianPosition>(position))
+    {
+      writer(CoordinateSystem::Cartesian); // Type discriminator
+      const auto& pos = std::get<CartesianPosition>(position);
+      writer.f64(pos.position.x).f64(pos.position.y).f64(pos.position.z);
+    }
+    else if (std::holds_alternative<GeospatialPosition>(position))
+    {
+      writer(CoordinateSystem::Geospatial); // Type discriminator
+      const auto& pos = std::get<GeospatialPosition>(position);
+      writer.f64(pos.latitude).f64(pos.longitude).f64(pos.altitude);
+    }
+  }
+  void Deserialize(ByteReader& reader)
+  {
+    CoordinateSystem spaceType;
+    reader(spaceType);
+    if (spaceType == CoordinateSystem::Cartesian)
+    {
+      CartesianPosition pos;
+      reader.f64(pos.position.x).f64(pos.position.y).f64(pos.position.z);
+      position = pos;
+    }
+    else if (spaceType == CoordinateSystem::Geospatial)
+    {
+      GeospatialPosition pos;
+      reader.f64(pos.latitude).f64(pos.longitude).f64(pos.altitude);
+      position = pos;
+    }
+  }
 };
 struct Location
 {
@@ -137,6 +169,16 @@ struct Location
   {
     worldId = (WorldID)WorldID::from_string(j.at("worldId").get<std::string>());
     transform.from_json(j.at("transform"));
+  }
+  void Serialize(ByteWriter& writer) const
+  {
+   writer.uuid(worldId);
+   transform.Serialize(writer);
+  }
+  void Deserialize(ByteReader& reader)
+  {
+    reader.uuid(worldId);
+    transform.Deserialize(reader);
   }
 };
 namespace Components
@@ -158,6 +200,14 @@ struct BaseEntityInfo
   {
     location.from_json(j.at("location"));
   }
+  void Serialize(ByteWriter& writer) const
+  {
+    location.Serialize(writer);
+  }
+  void Deserialize(ByteReader& reader)
+  {
+    location.Deserialize(reader);
+  }
 };
 struct EntityInfo : public EntityComponent
 {
@@ -174,6 +224,16 @@ struct EntityInfo : public EntityComponent
     id = (EntityID)EntityID::from_string(j.at("id").get<std::string>());
     baseInfo.from_json(j.at("baseInfo"));
   };
+  void Serialize(ByteWriter& writer) const
+  {
+    writer(id);
+    baseInfo.Serialize(writer);
+  }
+  void Deserialize(ByteReader& reader)
+  {
+    reader(id);
+    baseInfo.Deserialize(reader);
+  }
 };
 struct ActorInfo : public EntityComponent
 {

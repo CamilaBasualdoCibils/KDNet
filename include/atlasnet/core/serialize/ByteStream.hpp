@@ -7,6 +7,7 @@
 #include <glm/gtc/packing.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <map>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -52,5 +53,25 @@ struct is_glm_vec<T, std::void_t<typename T::value_type,
     : std::true_type
 {
 };
+template <typename T>
+struct is_associative_container : std::false_type {};
 
+template <typename K, typename V, typename... Rest>
+struct is_associative_container<std::map<K, V, Rest...>> : std::true_type {};
+
+template <typename K, typename V, typename... Rest>
+struct is_associative_container<std::unordered_map<K, V, Rest...>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_associative_container_v = is_associative_container<T>::value;
+
+
+template <typename T>
+struct is_pair : std::false_type {};
+
+template <typename A, typename B>
+struct is_pair<std::pair<A, B>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_pair_v = is_pair<T>::value;
 } // namespace AtlasNet

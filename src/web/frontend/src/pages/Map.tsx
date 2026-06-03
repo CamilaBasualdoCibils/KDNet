@@ -39,7 +39,7 @@ export default function Map() {
                 <div className="card">
                   <div
                     className="card-body"
-                    style={{ height: "10rem" }}
+                    style={{ height: "40rem" }}
                     
                   ><Mapview /></div>
                 </div>

@@ -25,16 +25,18 @@
 #define ATLASNET_RPC_SIG(...) __VA_ARGS__
 #define ATLASNET_RPC_METHOD(Name, Signature)                                   \
   struct Name                                                                  \
-      : AtlasNet::RPC_Internal::Method<                                       \
-            AtlasNet::RPC_Internal::Fnv1a32(#Name),                           \
-            Signature>                                                        \
+      : AtlasNet::RPC_Internal::Method<AtlasNet::RPC_Internal::Fnv1a32(#Name), \
+                                       Signature>                              \
   {                                                                            \
-    static constexpr const char* GetName() { return #Name; }                 \
+    static constexpr const char* GetName()                                     \
+    {                                                                          \
+      return #Name;                                                            \
+    }                                                                          \
   };
-#define ATLASNET_RPC(ServiceName, ...) \
-  struct ServiceName                   \
-  {                                    \
-    __VA_ARGS__                       \
+#define ATLASNET_RPC(ServiceName, ...)                                         \
+  struct ServiceName                                                           \
+  {                                                                            \
+    __VA_ARGS__                                                                \
   };
 namespace AtlasNet
 {
@@ -296,8 +298,12 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
                                 std::vector<uint8_t>(writeArgs.bytes().begin(),
                                                      writeArgs.bytes().end())};
 
-  config_.messageSystem->SendMessage(request, target,
-                                     MessageSendMode::eReliableBatched);
+  auto sendMessageJobHandle = config_.messageSystem->SendMessage(
+      request, target, MessageSendMode::eReliableBatched);
+  sendMessageJobHandle.wait();
+  assert(sendMessageJobHandle.is_completed() &&
+         "Failed to send RPC request message and no fault scenarios have been "
+         "implemented");
   std::cerr << std::format("Sent RPC request for methodId {} callId {} to {}",
                            methodId, callID, target.to_string())
             << std::endl;
@@ -308,7 +314,7 @@ template <typename MethodType, typename Func>
   requires AtlasNet::RPC_Internal::BindableRpcHandler<MethodType, Func>
 inline void AtlasNet::RPCSystem::Bind(Func&& func)
 {
-  using ReturnType = typename MethodType::ReturnType;
+  using ReturnType = std::remove_cvref_t<typename MethodType::ReturnType>;
   using ArgsTuple = typename MethodType::ArgsTuple;
 
   std::unique_lock lock(_mutex);
@@ -343,4 +349,7 @@ inline void AtlasNet::RPCSystem::Bind(Func&& func)
       SendError(caller, MethodType::Id, callId, "Unhandled RPC exception");
     } */
   };
+  std::cerr << std::format("Bound RPC method {} with MethodID {}",
+                           MethodType::GetName(), MethodType::Id)
+            << std::endl;
 }

@@ -24,29 +24,20 @@ class IAtlasNetShard : IService
   std::optional<Entity::EntityLedger> _entityLedger;
 
 public:
-  IAtlasNetShard() : IService(ServiceType::Shard) {}
+  IAtlasNetShard();
   virtual ~IAtlasNetShard() = default;
-  void OnInit() override
-  {
-    std::cerr << "Shard OnInit called." << std::endl;
-    _entityLedger.emplace(Entity::EntityLedger::Config{});
-  }
-  void OnUpdate() override
-  {
-    // This function can be used for periodic updates or maintenance tasks
-    // within the shard.
-  }
+
+private:
+  void OnInit() override;
+  
   void OnShutdown() override
   {
     std::cerr << "Shard OnShutdown called." << std::endl;
     _entityLedger.reset();
   }
 
-  void AtlasNet_Shard_Init()
-  {
-    // Initialization code for the shard
-    std::cerr << "Initializing AtlasNet Shard..." << std::endl;
-  }
+public:
+  
   WorldID AtlasNet_GetWorldID()
   {
     // Implementation for retrieving the WorldID associated with this shard
@@ -67,11 +58,13 @@ public:
   EntityID AtlasNet_RegisterEntity(Entity::Transform transform)
   {
     // Implementation for registering a new entity and returning its ID
+    assert(_entityLedger.has_value() && "EntityLedger not initialized");
     Entity::Components::BaseEntityInfo info;
     info.location.worldId = AtlasNet_GetWorldID();
     info.location.transform = transform;
+    auto writeAccess = _entityLedger->GetWriteAccess();
 
-    return _entityLedger->GetWriteAccess().CreateEntity(info);
+    return writeAccess.CreateEntity(info);
   };
   /**
    * @brief Deregister an existing local entity from the AtlasNet system. This
@@ -83,11 +76,13 @@ public:
   void AtlasNet_UnregisterEntity(const EntityID& id)
   {
     // Implementation for deregistering an existing entity
+    assert(_entityLedger.has_value() && "EntityLedger not initialized");
     _entityLedger->GetWriteAccess().RemoveEntity(id);
   };
   void AtlasNet_UpdateEntityTransform(const EntityID& id,
                                       const Entity::Transform& transform)
   {
+    assert(_entityLedger.has_value() && "EntityLedger not initialized");
     auto writeAccess = _entityLedger->GetWriteAccess();
     auto entityInfo = writeAccess.GetEntityInfo(id);
     entityInfo.baseInfo.location.transform = transform;

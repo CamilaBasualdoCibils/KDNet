@@ -309,7 +309,24 @@ public:
         write_any(elem);
       }
     }
-    else if constexpr (std::is_same_v<T, std::string> || std::is_convertible_v<T, std::string_view>)
+    else if constexpr (is_associative_container_v<T>)
+    {
+      uint32_t count = static_cast<uint32_t>(v.size());
+      write_scalar(count);
+
+      for (const auto& [key, value] : v)
+      {
+        write_any(key);
+        write_any(value);
+      }
+    }
+    else if constexpr (is_pair_v<T>)
+{
+  write_any(v.first);
+  write_any(v.second);
+}
+    else if constexpr (std::is_same_v<T, std::string> ||
+                       std::is_convertible_v<T, std::string_view>)
       str(v);
     else if constexpr (std::is_same_v<T, UUID>)
       uuid(v);

@@ -224,6 +224,11 @@ _Json AtlasNet::KubernetesServiceAdapter::BuildStatefulSetJSON() const
                            _imagePullPolicy == Always         ? "Always"
                            : _imagePullPolicy == IfNotPresent ? "IfNotPresent"
                                                               : "Never"},
+                          {"env", _Json::array({{{"name", "NODE_IP"},
+                                                 {"valueFrom",
+                                                  {{"fieldRef",
+                                                    {{"fieldPath",
+                                                      "status.podIP"}}}}}}})}
                           //{"ports",
                           // {{{"containerPort", 7777}}}},
                       }}},

@@ -14,6 +14,7 @@
 #include <cassert>
 #include <condition_variable>
 
+#include <cstdlib>
 #include <mutex>
 #include <unistd.h>
 namespace AtlasNet
@@ -25,14 +26,31 @@ protected:
   IService(ServiceType type);
   virtual ~IService() = default;
   bool ShutdownRequested() const;
+  void Shutdown()
+  {
+    OnShutdown();
+
+    _messageSystem->Shutdown();
+    _jobSystem->Shutdown();
+  }
   virtual void OnInit() = 0;
-  virtual void OnUpdate() = 0;
   virtual void OnShutdown() = 0;
 
   // HostAddress GetOverlayAddressOfSelf() const;
-  HostName GetHostName() const
+  HostAddress GetHostName() const
   {
-    return HostName(std::string(std::getenv("HOSTNAME")));
+    if (const char* envHost = std::getenv("NODE_IP"))
+    {
+      std::cerr << "Using NODE_IP environment variable for hostname: " << envHost
+                << std::endl;
+      return HostAddress(envHost);
+    }
+    else
+    {
+      throw std::runtime_error(
+          "NODE_IP environment variable not set. Unable to determine hostname.");
+    }
+    return HostAddress();
   }
   const ServiceID& GetContainerID() const
   {

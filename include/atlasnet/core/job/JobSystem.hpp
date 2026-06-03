@@ -490,12 +490,16 @@ JobHandle JobHandle::on_complete(F&& f, Opts&&... opts) const
       std::forward<F>(f), std::forward<Opts>(opts)...);
 
   JobSystem* system = system_;
+
   auto makeRuntime = [system,
                       factoryData]() -> std::shared_ptr<Detail::JobRuntime>
   {
-    return std::apply([&](auto& fn, auto&... options)
-                      { return system->MakeRuntime(fn, options...); },
-                      *factoryData);
+    return std::apply(
+        [&](auto& fn, auto&... options)
+        {
+          return system->MakeRuntime(fn, options...);
+        },
+        *factoryData);
   };
 
   if (!runtime_ || !system)
@@ -503,18 +507,20 @@ JobHandle JobHandle::on_complete(F&& f, Opts&&... opts) const
     if (!system)
       return JobHandle{};
 
-    auto firstRuntime = makeRuntime();
-    system->EnqueueFromHandle(firstRuntime);
-    return JobHandle(*system, firstRuntime);
+    auto runtime = makeRuntime();
+    system->EnqueueFromHandle(runtime);
+    return JobHandle(*system, runtime);
   }
 
-  auto firstRuntime = makeRuntime();
+  // Create EXACTLY ONE continuation runtime.
+  auto continuationRuntime = makeRuntime();
 
   bool submitNow = false;
   bool doNothing = false;
 
   {
     std::lock_guard lock(runtime_->mutex);
+
     const auto s = runtime_->state.load(std::memory_order_acquire);
 
     if (s == JobState::eCompleted)
@@ -528,14 +534,17 @@ JobHandle JobHandle::on_complete(F&& f, Opts&&... opts) const
     else
     {
       runtime_->continuations.push_back(
-          Detail::JobContinuationFactory{makeRuntime});
+          Detail::JobContinuationFactory{
+              [continuationRuntime]
+              {
+                return continuationRuntime;
+              }});
     }
   }
 
   if (submitNow)
   {
-    system->EnqueueFromHandle(firstRuntime);
-    return JobHandle(*system, firstRuntime);
+    system->EnqueueFromHandle(continuationRuntime);
   }
 
   if (doNothing)
@@ -543,7 +552,7 @@ JobHandle JobHandle::on_complete(F&& f, Opts&&... opts) const
     return JobHandle{};
   }
 
-  return JobHandle(*system, firstRuntime);
+  return JobHandle(*system, continuationRuntime);
 }
 
 } // namespace AtlasNet

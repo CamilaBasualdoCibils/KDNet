@@ -1,13 +1,15 @@
 #pragma once
 
+#include "EntityLedgerRPC.hpp"
+#include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "entt/entity/fwd.hpp"
 #include <boost/bimap.hpp>
+#include <cassert>
 #include <mutex>
 #include <shared_mutex>
 #include <type_traits>
 #include <unordered_map>
-#include "EntityLedgerRPC.hpp"
 namespace AtlasNet
 {
 namespace Entity
@@ -26,8 +28,14 @@ public:
   struct Config
   {
     ActorTransferMode transferMode = ActorTransferMode::eRPC;
+    RPCSystem* rpcSystem = nullptr;
   };
-  EntityLedger(const Config& config) : _config(config) {}
+  EntityLedger(const Config& config)
+      : _config(config), rpcSystem(config.rpcSystem)
+  {
+    assert(rpcSystem != nullptr && "RPCSystem pointer cannot be null in EntityLedger config");
+    SetRPCBinds();
+  }
 
   class ReadAccess
   {
@@ -124,6 +132,9 @@ protected:
     EnTTEntityID enttId = entityTable.create();
     IDMapping.insert({id, enttId});
     entityTable.emplace<Entity::Components::EntityInfo>(enttId, info);
+    std::cerr << "Entity created with ID: " << id.to_string()
+              << " with internal entt ID: " << static_cast<int>(enttId)
+              << std::endl;
     return enttId;
   }
   bool _entityExists(const EntityID& id) const
@@ -215,6 +226,7 @@ protected:
   }
 
 private:
+void SetRPCBinds();
   [[nodiscard]] EnTTEntityID GetEnTTEntityID(const EntityID& id) const
   {
     auto it = IDMapping.left.find(id);
@@ -229,6 +241,8 @@ private:
   // std::unordered_map<EntityID, typename Tp>
   EntityTable entityTable;
   mutable std::shared_mutex _mutex;
+
+  RPCSystem* rpcSystem = nullptr;
 };
 } // namespace Entity
 } // namespace AtlasNet

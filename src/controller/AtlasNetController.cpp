@@ -37,7 +37,6 @@ void AtlasNet::AtlasNetController::OnShutdown()
               << worldID.to_string() << std::endl;
   }
 }
-void AtlasNet::AtlasNetController::OnUpdate() {}
 AtlasNet::AtlasNetController::AtlasNetController()
     : IService(ServiceType::Controller)
 {

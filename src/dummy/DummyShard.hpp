@@ -9,7 +9,6 @@ public:
 
     void Run()
     {
-        AtlasNet_Shard_Init();
     }
     void OnAtlasNetRequest_Shutdown() override {
         // Cleanup code for the shard

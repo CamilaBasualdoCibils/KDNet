@@ -5,13 +5,13 @@ const STRESS_POINT_COUNT = 100_000;
 
 export default function Mapview() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const entityStreamWS = useRef<WebSocket | null>(null);
 
   // ---------------- UI STATE ----------------
   const [mode, setMode] = useState<"2d" | "3d">("3d");
   const [handedness, setHandedness] = useState<"lhs" | "rhs">("rhs");
   const [upAxis, setUpAxis] = useState<"y" | "z">("y");
   const [zoom, setZoom] = useState(1);
-  const [pollRate, setPollRate] = useState(100);
 
   // ---------------- THREE REFS ----------------
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
@@ -21,6 +21,9 @@ export default function Mapview() {
   const pointsRef = useRef<THREE.Points | null>(null);
   const positionsRef = useRef<Float32Array | null>(null);
 
+  const entityIndexMapRef = useRef<Map<string, number>>(new Map());
+  const nextIndexRef = useRef(0);
+
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
@@ -28,8 +31,14 @@ export default function Mapview() {
     // ---------------- RENDERER ----------------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
+
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setClearColor(0x0f172a);
+
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.pointerEvents = "auto";
+    renderer.domElement.style.touchAction = "none";
+
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -38,8 +47,8 @@ export default function Mapview() {
     sceneRef.current = scene;
 
     // ---------------- CAMERA ----------------
-    const aspect = mount.clientWidth / mount.clientHeight;
     const frustum = 500;
+    const aspect = mount.clientWidth / mount.clientHeight;
 
     const camera = new THREE.OrthographicCamera(
       -frustum * aspect,
@@ -52,87 +61,98 @@ export default function Mapview() {
 
     camera.position.set(600, 500, 600);
     camera.lookAt(0, 0, 0);
-
     cameraRef.current = camera;
 
     // ---------------- GRID ----------------
-    const grid = new THREE.GridHelper(2000, 40, 0x444444, 0x222222);
-    scene.add(grid);
+    scene.add(new THREE.GridHelper(2000, 40, 0x444444, 0x222222));
 
     // ---------------- POINT CLOUD ----------------
-    function createPointCloud() {
-      const positions = new Float32Array(STRESS_POINT_COUNT * 3);
+    const positions = new Float32Array(STRESS_POINT_COUNT * 3);
 
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new THREE.BufferAttribute(positions, 3)
-      );
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(positions, 3)
+    );
 
-      const material = new THREE.PointsMaterial({
-        color: 0x38bdf8,
-        size: 2,
-        sizeAttenuation: false,
-      });
+    // ---------------- TRIANGLE SPRITE MATERIAL (ONLY CHANGE) ----------------
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
 
-      const points = new THREE.Points(geometry, material);
-      scene.add(points);
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#38bdf8";
+    ctx.beginPath();
+    ctx.moveTo(32, 8);
+    ctx.lineTo(56, 56);
+    ctx.lineTo(8, 56);
+    ctx.closePath();
+    ctx.fill();
 
-      pointsRef.current = points;
-      positionsRef.current = positions;
-    }
+    const texture = new THREE.CanvasTexture(canvas);
 
-    createPointCloud();
+    const material = new THREE.PointsMaterial({
+      size: 30,
+      map: texture,
+      transparent: true,
+      alphaTest: 0.5,
+      depthWrite: false,
+    });
 
-    // ---------------- FETCH ----------------
-    async function fetchEntityPositions() {
+    const points = new THREE.Points(geometry, material);
+    scene.add(points);
+
+    pointsRef.current = points;
+    positionsRef.current = positions;
+
+    // ---------------- WEBSOCKET ----------------
+    entityStreamWS.current = new WebSocket(
+      `ws://${window.location.host}/api/entity-stream`
+    );
+
+    entityStreamWS.current.onmessage = (event) => {
       try {
-        const res = await fetch("/api/entity-fetch");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = JSON.parse(event.data);
 
-        const data = await res.json();
+        const posArray = positionsRef.current;
+        const geo = pointsRef.current?.geometry as THREE.BufferGeometry;
+        if (!posArray || !geo) return;
 
-        const positions = positionsRef.current;
-        const geometry = pointsRef.current?.geometry as THREE.BufferGeometry | undefined;
+        let maxIndex = 0;
 
-        if (!positions || !geometry || !Array.isArray(data.entities)) return;
+        for (const [entityId, payload] of Object.entries<any>(data)) {
+          let index = entityIndexMapRef.current.get(entityId);
 
-        const entities = data.entities;
-        const len = Math.min(entities.length, STRESS_POINT_COUNT);
+          if (index === undefined) {
+            index = nextIndexRef.current++;
+            entityIndexMapRef.current.set(entityId, index);
+          }
 
-        for (let i = 0; i < len; i++) {
-          const dst = i * 3;
-          const pos = entities[i]?.entityInfo?.location?.transform?.position;
+          const pos =
+            payload?.baseInfo?.location?.transform?.position;
 
-          positions[dst] = pos?.x ?? 0;
-          positions[dst + 1] = pos?.y ?? 0;
-          positions[dst + 2] = pos?.z ?? 0;
+          const i = index * 3;
+
+          posArray[i] = pos?.x ?? 0;
+          posArray[i + 1] = pos?.y ?? 0;
+          posArray[i + 2] = pos?.z ?? 0;
+
+          maxIndex = Math.max(maxIndex, index);
         }
 
-        geometry.setDrawRange(0, len);
-        geometry.attributes.position.needsUpdate = true;
+        geo.setDrawRange(0, maxIndex + 1);
+        geo.attributes.position.needsUpdate = true;
       } catch (e) {
-        console.error("fetchEntityPositions failed", e);
+        console.error("WS update failed:", e);
       }
-    }
+    };
 
-    // ---------------- POLLING (FIXED) ----------------
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    function startPolling(rate: number) {
-      if (intervalId) clearInterval(intervalId);
-
-      intervalId = setInterval(() => {
-        fetchEntityPositions();
-      }, rate);
-    }
-
-    startPolling(pollRate);
-
-    // ---------------- CONTROLS ----------------
+    // ---------------- INPUT ----------------
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
+
+    const canvasEl = renderer.domElement;
 
     function onMouseDown(e: MouseEvent) {
       dragging = true;
@@ -174,20 +194,21 @@ export default function Mapview() {
       e.preventDefault();
 
       cameraRef.current.zoom *= e.deltaY > 0 ? 0.9 : 1.1;
-      cameraRef.current.zoom = Math.max(0.2, Math.min(cameraRef.current.zoom, 10));
+      cameraRef.current.zoom = Math.max(
+        0.2,
+        Math.min(cameraRef.current.zoom, 10)
+      );
       cameraRef.current.updateProjectionMatrix();
     }
 
-    renderer.domElement.addEventListener("mousedown", onMouseDown);
+    canvasEl.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("mousemove", onMouseMove);
-    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
+    canvasEl.addEventListener("wheel", onWheel, { passive: false });
 
     // ---------------- RESIZE ----------------
-
-
     function onResize() {
-      if (!cameraRef.current || !rendererRef.current) return;
+      if (!cameraRef.current || !rendererRef.current || !mount) return;
 
       const aspect = mount.clientWidth / mount.clientHeight;
 
@@ -197,7 +218,10 @@ export default function Mapview() {
       cameraRef.current.bottom = -frustum;
 
       cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(mount.clientWidth, mount.clientHeight);
+      rendererRef.current.setSize(
+        mount.clientWidth,
+        mount.clientHeight
+      );
     }
 
     window.addEventListener("resize", onResize);
@@ -205,10 +229,10 @@ export default function Mapview() {
     // ---------------- LOOP ----------------
     let frame = 0;
 
-    function animate() {
+    const animate = () => {
       frame = requestAnimationFrame(animate);
       renderer.render(scene, camera);
-    }
+    };
 
     animate();
 
@@ -220,12 +244,15 @@ export default function Mapview() {
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("mousemove", onMouseMove);
 
-      if (intervalId) clearInterval(intervalId);
+      canvasEl.removeEventListener("mousedown", onMouseDown);
+      canvasEl.removeEventListener("wheel", onWheel);
+
+      entityStreamWS.current?.close();
 
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
-  }, [pollRate]); // IMPORTANT FIX
+  }, []);
 
   // ---------------- UI EFFECTS ----------------
   useEffect(() => {
@@ -257,67 +284,88 @@ export default function Mapview() {
   }, [upAxis]);
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3 className="card-title">AtlasNet 3D Map</h3>
-      </div>
-
-      <div className="card-body p-2">
-        {/* CONTROLS */}
-        <div className="d-flex gap-2 mb-2 flex-wrap">
-
-          <div className="btn-group">
-            <button className={`btn btn-sm ${mode === "2d" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => setMode("2d")}>2D</button>
-            <button className={`btn btn-sm ${mode === "3d" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => setMode("3d")}>3D</button>
-          </div>
-
-          <div className="btn-group">
-            <button className={`btn btn-sm ${handedness === "lhs" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => setHandedness("lhs")}>LHS</button>
-            <button className={`btn btn-sm ${handedness === "rhs" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => setHandedness("rhs")}>RHS</button>
-          </div>
-
-          <div className="btn-group">
-            <button className={`btn btn-sm ${upAxis === "y" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => setUpAxis("y")}>Y-Up</button>
-            <button className={`btn btn-sm ${upAxis === "z" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => setUpAxis("z")}>Z-Up</button>
-          </div>
-
-          <div className="d-flex align-items-center gap-2">
-            <span className="small text-muted">Poll {pollRate}ms</span>
-            <input
-              type="range"
-              className="form-range"
-              min={1}
-              max={1000}
-              step={1}
-              value={pollRate}
-              onChange={(e: { target: { value: any; }; }) => setPollRate(Number(e.target.value))}
-              style={{ width: 200 }}
-            />
-          </div>
-
-          {mode === "2d" && (
-            <div className="d-flex align-items-center gap-2">
-              <span className="small text-muted">Zoom</span>
-              <input
-                type="range"
-                className="form-range"
-                min={0.2}
-                max={5}
-                step={0.1}
-                value={zoom}
-                onChange={(e) => setZoom(Number(e.target.value))}
-                style={{ width: 150 }}
-              />
-            </div>
-          )}
+    <div
+      style={{
+        height: "100%",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* BUTTONS */}
+      <div style={{ display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}>
+        <div className="btn-group">
+          <button
+            className={`btn btn-sm ${
+              mode === "2d" ? "btn-primary" : "btn-outline-primary"
+            }`}
+            onClick={() => setMode("2d")}
+          >
+            2D
+          </button>
+          <button
+            className={`btn btn-sm ${
+              mode === "3d" ? "btn-primary" : "btn-outline-primary"
+            }`}
+            onClick={() => setMode("3d")}
+          >
+            3D
+          </button>
         </div>
 
-        {/* MAP */}
-        <div
-          ref={mountRef}
-          style={{ width: "100%", height: "700px", cursor: "grab" }}
-        />
+        <div className="btn-group">
+          <button
+            className={`btn btn-sm ${
+              handedness === "lhs"
+                ? "btn-primary"
+                : "btn-outline-primary"
+            }`}
+            onClick={() => setHandedness("lhs")}
+          >
+            LHS
+          </button>
+          <button
+            className={`btn btn-sm ${
+              handedness === "rhs"
+                ? "btn-primary"
+                : "btn-outline-primary"
+            }`}
+            onClick={() => setHandedness("rhs")}
+          >
+            RHS
+          </button>
+        </div>
+
+        <div className="btn-group">
+          <button
+            className={`btn btn-sm ${
+              upAxis === "y" ? "btn-primary" : "btn-outline-primary"
+            }`}
+            onClick={() => setUpAxis("y")}
+          >
+            Y-Up
+          </button>
+          <button
+            className={`btn btn-sm ${
+              upAxis === "z" ? "btn-primary" : "btn-outline-primary"
+            }`}
+            onClick={() => setUpAxis("z")}
+          >
+            Z-Up
+          </button>
+        </div>
       </div>
+
+      {/* MAP */}
+      <div
+        ref={mountRef}
+        style={{
+          flex: 1,
+          width: "100%",
+          minHeight: 0,
+          cursor: "grab",
+        }}
+      />
     </div>
   );
 }

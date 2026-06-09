@@ -2,12 +2,17 @@
 #include "Message.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/job/JobEnums.hpp"
 #include "atlasnet/core/job/JobHandle.hpp"
 #include "atlasnet/core/job/JobOptions.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "boost/multi_index/hashed_index.hpp"
+#include "boost/multi_index/indexed_by.hpp"
+#include "boost/multi_index/member.hpp"
+#include "boost/multi_index_container.hpp"
 #include "steam/isteamnetworkingsockets.h"
 #include "steam/steamnetworkingtypes.h"
 #include <atomic>
@@ -37,8 +42,8 @@ enum class ConnectionState
   eProblemDetectedLocally =
       k_ESteamNetworkingConnectionState_ProblemDetectedLocally
 };
-BOOST_DESCRIBE_ENUM(ConnectionState, eNone, eConnecting, eConnected, eClosedByPeer,
-                   eProblemDetectedLocally)
+BOOST_DESCRIBE_ENUM(ConnectionState, eNone, eConnecting, eConnected,
+                    eClosedByPeer, eProblemDetectedLocally)
 using MessagePriority = JobPriority;
 class MessageSystem
 {
@@ -54,7 +59,6 @@ public:
     Connection(MessageSystem& system, HSteamNetConnection handle)
         : system(system), handle(handle), state(ConnectionState::eNone)
     {
-      
     }
 
   public:
@@ -103,6 +107,7 @@ public:
   struct Config
   {
     JobSystem* jobSystem = nullptr;
+    LocalEventSystem* localEventSystem = nullptr;
   };
   MessageSystem(const Config& config);
 
@@ -157,6 +162,26 @@ private:
   ISteamNetworkingSockets* _GNS;
   HSteamNetPollGroup _pollGroup;
   mutable std::shared_mutex _mutex;
+  /* struct ListenSocketByPort
+  {
+  };
+  struct ListenSocketBySteamHandle
+  {
+  };
+  boost::multi_index_container<
+      std::unique_ptr<ListenSocketHandle>,
+      boost::multi_index::indexed_by<
+          boost::multi_index::hashed_unique<
+              boost::multi_index::tag<ListenSocketByPort>,
+              boost::multi_index::member<ListenSocketHandle, PortType,
+                                         &ListenSocketHandle::port>>,
+          boost::multi_index::hashed_unique<boost::multi_index::tag<ListenSocketBySteamHandle>,
+                                            boost::multi_index::member<
+                                                ListenSocketHandle,
+                                                HSteamListenSocket,
+                                                &ListenSocketHandle::handle>>>>
+      _listenSocketList; */
+
   std::unordered_map<PortType, std::unique_ptr<ListenSocketHandle>>
       _listenSockets;
   std::unordered_map<SocketAddress, Connection> _connections;
@@ -343,7 +368,7 @@ inline JobHandle MessageSystem::SendMessage(const MessageType& message,
                        address.to_string(), static_cast<int>(result))
                 << std::endl;
     }
-    else 
+    else
     {
       std::cerr << std::format("Sent message of type {} to {} with mode {}",
                                MessageType::GetName(), address.to_string(),

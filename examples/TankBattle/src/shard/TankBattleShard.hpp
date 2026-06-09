@@ -51,13 +51,19 @@ public:
           atlasTransform.Cartesian().position = entity->transform.position;
           AtlasNet_UpdateEntityTransform(entity->GetAtlasEntityID().value(),
                                          atlasTransform);
+          std::cerr << "Updated transform for entity ID "
+                    << entity->GetAtlasEntityID().value().to_string()
+                    << std::endl;
+          std::cerr << "Entity position: xyz "
+                    << glm::to_string(atlasTransform.Cartesian().position)
+                    << std::endl;
         }
       }
       world.Render();
-      //std::cerr
-      //    << "Tick completed. Delta time: "
-      //    << std::chrono::duration<double>(Clock::now() - tickStart).count()
-      //    << " seconds." << std::endl;
+      // std::cerr
+      //     << "Tick completed. Delta time: "
+      //     << std::chrono::duration<double>(Clock::now() - tickStart).count()
+      //     << " seconds." << std::endl;
       const auto tickEnd = Clock::now();
       const auto tickElapsed = tickEnd - tickStart;
       const auto sleepTime = targetTickTime - tickElapsed;

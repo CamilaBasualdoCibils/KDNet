@@ -161,8 +161,10 @@
  */
 #pragma once
 
+#include "atlasnet/controller/ServiceAdapterEnums.hpp"
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
+#include "boost/describe/enum_from_string.hpp"
 #include <cstdint>
 #include <cstdlib>
 namespace AtlasNet
@@ -191,8 +193,8 @@ public:
   const static inline uint32_t TickRate =
       std::atoi(GetEnvVarOrDefault("ATLASNET_TICK_RATE", "20"));
 
-  const static inline PortType RPCPort = static_cast<PortType>(
-      std::atoi(GetEnvVarOrDefault("ATLASNET_RPC_PORT", "41001")));
+  // const static inline PortType RPCPort = static_cast<PortType>(
+  //     std::atoi(GetEnvVarOrDefault("ATLASNET_RPC_PORT", "41001")));
 
   const static inline std::string DatabaseHostName =
       GetEnvVarOrDefault("ATLASNET_DATABASE_HOST_NAME", "atlasnet-database");
@@ -214,16 +216,33 @@ public:
 
   const static inline uint32_t ShardCPUReserve = static_cast<uint32_t>(
       std::atoi(GetEnvVarOrDefault("ATLASNET_SHARD_CPU_RESERVE", "4")));
-  const static inline std::string AgentBackend =
-      GetEnvVarOrDefault("ATLASNET_AGENT_BACKEND", "DOCKER");
+  const static inline ServiceAdapterType ControllerServiceBackend = []()
+  {
+    ServiceAdapterType type = ServiceAdapterType::INVALID;
+    const char* envValue = std::getenv("ATLASNET_CONTROLLER_SERVICE_BACKEND");
+    std::string UpperEnvValue = envValue ? std::string(envValue) : "";
+    std::transform(UpperEnvValue.begin(), UpperEnvValue.end(), UpperEnvValue.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    envValue = UpperEnvValue.c_str();
+    if (envValue && envValue[0] != '\0')
+    {
+      bool parse = boost::describe::enum_from_string(envValue, type);
+      if (!parse)
+        type = ServiceAdapterType::INVALID;
+    }
+    return type;
+  }();
 
-  const static inline std::string ShardDefaultImage =
-      GetEnvVarOrDefault("ATLASNET_SHARD_DEFAULT_IMAGE", "INVALID_SHARD_IMAGE_NAME");
+  const static inline std::string ShardDefaultImage = GetEnvVarOrDefault(
+      "ATLASNET_SHARD_DEFAULT_IMAGE", "INVALID_SHARD_IMAGE_NAME");
   const static inline std::string Docker_NetworkName =
-      GetEnvVarOrDefault("ATLASNET_DOCKER_NETWORK_NAME", "atlasnet_network");
+      GetEnvVarOrDefault("ATLASNET_DOCKER_NETWORK_NAME", "INVALID_NETWORK_NAME");
 
   const static inline std::string DockerSocketPath =
       GetEnvVarOrDefault("ATLASNET_DOCKER_SOCKET_PATH", "/var/run/docker.sock");
+
+  const static inline PortType ProxyListenPort = static_cast<PortType>(
+      std::atoi(GetEnvVarOrDefault("ATLASNET_PROXY_LISTEN_PORT", "42000")));
 };
 
 } // namespace AtlasNet

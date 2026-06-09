@@ -1,9 +1,10 @@
 #pragma once
 
 #include "atlasnet/core/MacroConcepts.hpp"
+#include "atlasnet/core/serialize/ByteReader.hpp"
+#include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <cstdint>
 #include <string_view>
-
 // =====================================================
 // Stable hash (event ID)
 // =====================================================
@@ -73,12 +74,12 @@ struct IEvent
     {                                                                          \
     }                                                                          \
     Name() {}                                                                  \
-    void Serialize(ByteWriter& writer) const                                   \
+    void Serialize(AtlasNet::ByteWriter& writer) const                         \
     {                                                                          \
       ATLASNET_FOR_EACH(ATLASNET_EVENT_FIELD_SERIALIZE, ATLASNET_SEP_NONE,     \
                         __VA_ARGS__)                                           \
     }                                                                          \
-    void Deserialize(ByteReader& reader)                                       \
+    void Deserialize(AtlasNet::ByteReader& reader)                             \
     {                                                                          \
       ATLASNET_FOR_EACH(ATLASNET_EVENT_FIELD_DESERIALIZE, ATLASNET_SEP_NONE,   \
                         __VA_ARGS__)                                           \

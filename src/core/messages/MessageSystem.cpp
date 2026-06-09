@@ -2,6 +2,7 @@
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/events/MessagingEvents.hpp"
 #include "atlasnet/core/job/JobContext.hpp"
 #include "atlasnet/core/job/JobEnums.hpp"
 #include "atlasnet/core/job/JobOptions.hpp"
@@ -26,6 +27,7 @@
 AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
 {
   AN_ASSERT(config_.jobSystem, "JobSystem must be provided");
+  // AN_ASSERT(config_.localEventSystem, "LocalEventSystem must be provided");
   SteamNetworkingErrMsg errMsg;
   const bool result = GameNetworkingSockets_Init(nullptr, errMsg);
   if (!result)
@@ -135,6 +137,27 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
     const bool isIncoming =
         (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
 
+    if (config_.localEventSystem)
+    {
+      if (isIncoming)
+      {
+        SteamNetworkingIPAddr localAddr;
+        GNS().GetListenSocketAddress(pInfo->m_info.m_hListenSocket, &localAddr);
+        SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
+        ConnectionRequestReceivedEvent event;
+        event.remoteAddr = remoteAddr;
+        event.localPort = localAddr.m_port;
+        config_.localEventSystem->Emit(event);
+      }
+      else
+      {
+        ConnectionStartedInternallyEvent event;
+        SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
+        event.address = remoteAddr;
+        config_.localEventSystem->Emit(event);
+      }
+    }
+
     if (isIncoming)
     {
       GNS().SetConnectionUserData(pInfo->m_hConn, (int64)this);
@@ -175,7 +198,12 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
           it->second.state = ConnectionState::eConnecting;
         }
       }
-
+      if (config_.localEventSystem)
+      {
+        ConnectionAcceptedInternallyPreHandshakeEvent event;
+        event.address = address;
+        config_.localEventSystem->Emit(event);
+      }
       std::cout << "Accepted incoming connection: "
                 << pInfo->m_info.m_szConnectionDescription << std::endl;
     }

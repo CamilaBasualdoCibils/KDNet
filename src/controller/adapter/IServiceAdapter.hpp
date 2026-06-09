@@ -6,6 +6,7 @@
 #include <string_view>
 namespace AtlasNet
 {
+
 class IServiceAdapter
 {
 public:

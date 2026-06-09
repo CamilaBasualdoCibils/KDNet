@@ -105,6 +105,8 @@ spec:
           env:
             - name: ATLASNET_SHARD_DEFAULT_IMAGE
               value: "tankbattle-dev:latest"
+            - name: ATLASNET_CONTROLLER_SERVICE_BACKEND
+              value: "KUBERNETES"
             - name: NODE_IP
               valueFrom:
                 fieldRef:

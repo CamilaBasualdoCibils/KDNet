@@ -17,9 +17,10 @@ void AtlasNet::KubernetesServiceAdapter::Create()
   }
 }
 AtlasNet::KubernetesServiceAdapter::KubernetesServiceAdapter(
-    const std::string_view& serviceName, const std::string_view& imageName,
+    const std::string_view& serviceName, const std::string_view& imageName,std::vector<std::pair<PortType, PortType>> portMappings,
     ImagePullPolicy imagePullPolicy, const std::string& namespaceName)
     : IServiceAdapter(serviceName, imageName),
+    portMappings(std::move(portMappings)),
       _namespace(namespaceName.empty() ? DetectNamespace() : namespaceName),
       _ctx(boost::asio::ssl::context::tlsv12_client), _resolver(_ioc),
       _stream(_ioc, _ctx), _imagePullPolicy(imagePullPolicy)

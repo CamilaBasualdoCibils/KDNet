@@ -90,9 +90,9 @@ void AtlasNet::IService::Init()
   _globalEventSystem.emplace(GlobalEventSystem::Config{
       ._redisConn = _redisDatabase.get(), ._jobSystem = &_jobSystem.value()});
   _messageSystem.emplace(
-      MessageSystem::Config{.jobSystem = &_jobSystem.value()});
-  _rpcSystem.emplace(RPCSystem::Config{
-      .port = Env::RPCPort, .messageSystem = &_messageSystem.value()});
+      MessageSystem::Config{.jobSystem = &_jobSystem.value(),
+                            .localEventSystem = &_eventSystem.value()});
+  _rpcSystem.emplace(RPCSystem::Config{.messageSystem = &_messageSystem.value()});
   _serviceRegistry.emplace(
       ServiceRegistry::Config{.redisConn = _redisDatabase.get()});
   _universe.emplace(
@@ -107,8 +107,10 @@ void AtlasNet::IService::Init()
     FetchControllerInfo();
   }
   OnInit();
-  
-
+  while (!ShutdownRequested())
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  }
 }
 void AtlasNet::IService::FetchControllerInfo()
 {

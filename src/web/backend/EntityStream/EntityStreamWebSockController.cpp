@@ -134,7 +134,7 @@ void EntityStreamWebSockController::StartFetchJob()
               futures.push_back(
                   rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
                       AtlasNet::SocketAddress(info.address,
-                                              AtlasNet::Env::RPCPort)));
+                                              AtlasNet::Env::InternalMessagePort)));
             }
 
             // -----------------------------

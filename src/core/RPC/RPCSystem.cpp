@@ -13,15 +13,22 @@ AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
   AN_ASSERT(config_.messageSystem != nullptr,
             "RPC requires a valid MessageSystem");
 
-  config_.messageSystem->OpenListenSocket(config.port)
-      .On<RpcRequestMessage>(
-          [this](const RpcRequestMessage& msg, const SocketAddress& address)
-          {
-            OnRPCRequest(msg, address);
-          }); // requests should be handled by the listen socket callback to
-              // ensure we know which port they came in on
-
-
+  if (config.port.has_value())
+  {
+    config_.messageSystem->OpenListenSocket(config.port.value())
+        .On<RpcRequestMessage>(
+            [this](const RpcRequestMessage& msg, const SocketAddress& address)
+            {
+              OnRPCRequest(msg, address);
+            }); // requests should be handled by the listen socket callback to
+                // ensure we know which port they came in on
+  }
+  else
+  {
+    config_.messageSystem->On<RpcRequestMessage>(
+        [this](const RpcRequestMessage& msg, const SocketAddress& address)
+        { OnRPCRequest(msg, address); });
+  }
   config_.messageSystem
       ->On<RpcResponseMessage>(
           [this](const RpcResponseMessage& msg, const SocketAddress& address)
@@ -32,11 +39,12 @@ AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
 }
 
 void AtlasNet::RPCSystem::OnRPCRequest(const RpcRequestMessage& msg,
-                                 const SocketAddress& address)
+                                       const SocketAddress& address)
 {
-    std::cerr << std::format("Received RPC request for methodId {} callId {} from {}",
-                             msg.methodId, msg.callID, address.to_string())
-              << std::endl;
+  std::cerr << std::format(
+                   "Received RPC request for methodId {} callId {} from {}",
+                   msg.methodId, msg.callID, address.to_string())
+            << std::endl;
   BindFunc handler;
   {
     std::shared_lock<std::shared_mutex> lock(_mutex);
@@ -54,24 +62,26 @@ void AtlasNet::RPCSystem::OnRPCRequest(const RpcRequestMessage& msg,
 void AtlasNet::RPCSystem::Shutdown() {}
 
 void AtlasNet::RPCSystem::SendError(const RPCTarget& target,
-                              RPC_Internal::MethodID methodId,
-                              RPC_Internal::CallID callID, std::string errorMsg)
+                                    RPC_Internal::MethodID methodId,
+                                    RPC_Internal::CallID callID,
+                                    std::string errorMsg)
 {
   RpcErrorMessage error{
       .methodId = methodId, .callID = callID, .ErrorMsg = std::move(errorMsg)};
 
-  JobHandle sendErrorHandle =  config_.messageSystem->SendMessage(error, target,
-                                     MessageSendMode::eReliableBatched);
+  JobHandle sendErrorHandle = config_.messageSystem->SendMessage(
+      error, target, MessageSendMode::eReliableBatched);
 
-    //NewActiveJob(sendErrorHandle);
+  // NewActiveJob(sendErrorHandle);
 }
 
 void AtlasNet::RPCSystem::OnRPCError(const RpcErrorMessage& msg,
-                               const SocketAddress& address)
+                                     const SocketAddress& address)
 {
-    std::cerr << std::format("Received RPC error for methodId {} callId {} from {}: {}",
-                             msg.methodId, msg.callID, address.to_string(), msg.ErrorMsg)
-              << std::endl;
+  std::cerr << std::format(
+                   "Received RPC error for methodId {} callId {} from {}: {}",
+                   msg.methodId, msg.callID, address.to_string(), msg.ErrorMsg)
+            << std::endl;
   (void)address;
 
   PendingRequest pending;
@@ -95,11 +105,12 @@ void AtlasNet::RPCSystem::OnRPCError(const RpcErrorMessage& msg,
 }
 
 void AtlasNet::RPCSystem::OnRPCResponse(const RpcResponseMessage& msg,
-                                  const SocketAddress& address)
+                                        const SocketAddress& address)
 {
-    std::cerr << std::format("Received RPC response for methodId {} callId {} from {}",
-                             msg.methodId, msg.callID, address.to_string())
-              << std::endl;
+  std::cerr << std::format(
+                   "Received RPC response for methodId {} callId {} from {}",
+                   msg.methodId, msg.callID, address.to_string())
+            << std::endl;
 
   PendingRequest pending;
   {

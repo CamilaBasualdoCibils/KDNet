@@ -2,6 +2,7 @@
 
 #include "IServiceAdapter.hpp"
 #include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/SocketAddress.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
@@ -26,8 +27,8 @@ public:
   };
   KubernetesServiceAdapter(
       const std::string_view& serviceName, const std::string_view& imageName,
-      ImagePullPolicy imagePullPolicy,
-      const std::string& namespaceName = "");
+      std::vector<std::pair<PortType, PortType>> portMappings, //internal/external
+      ImagePullPolicy imagePullPolicy, const std::string& namespaceName = "");
 
   void Create() override;
 
@@ -55,7 +56,7 @@ private:
 
   std::string _token;
   ImagePullPolicy _imagePullPolicy;
-
+std::vector<std::pair<PortType, PortType>> portMappings;
 private:
   static std::string DetectNamespace();
 

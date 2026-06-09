@@ -47,7 +47,7 @@ class RPCSystem
 public:
   struct Config
   {
-    PortType port = 12345;
+    std::optional<PortType> port; // if not specified then listens for requests on any port
     MessageSystem* messageSystem = nullptr;
   };
 

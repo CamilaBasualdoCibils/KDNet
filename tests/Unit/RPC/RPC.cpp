@@ -176,7 +176,33 @@ TEST(RPC, SelfReceiveWrongPort)
   cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
   EXPECT_FALSE(success);
 }
+TEST(RPC, SelfReceiveAnyPort)
+{
+  JobSystem jobSystem(JobSystem::Config{});
 
+
+  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+  msgSystem.OpenListenSocket(12345);
+  RPCSystem rpc(RPCSystem::Config{ .messageSystem = &msgSystem});
+
+  bool success = false;
+  std::mutex mutex;
+  std::condition_variable cv;
+  rpc.Bind<TESTRpc::TestMethod>(
+      [&](int a, float b)
+      {
+        std::cout << "TestMethod called with a=" << a << " b=" << b
+                  << std::endl;
+        success = true;
+        cv.notify_one();
+      });
+  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), 12345), 42,
+                                3.14f);
+
+  std::unique_lock lock(mutex);
+  cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
+  EXPECT_TRUE(success);
+}
 TEST(RPC, ForkParentCallsChildAndGetsResult)
 {
   const PortType parentPort = 41011;

@@ -7,23 +7,18 @@ services:
   Atlasnet-Controller:
     image: atlasnet-controller-dev
     networks: [TankBattleNet]
+    environment:
+      - ATLASNET_CONTROLLER_SERVICE_BACKEND=DOCKER
+      - NODE_IP={{.Node.Hostname}}
+      - ATLASNET_SHARD_DEFAULT_IMAGE=tankbattle-dev:latest
+      - ATLASNET_DOCKER_NETWORK_NAME=tankbattle_TankBattleNet
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       #labels:
         #atlasnet.role: controller # REQUIRED
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: on-failure
-
-  Atlasnet-Agent:
-    image: atlasnet-agent-dev
-    networks: [TankBattleNet]
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # REQUIRED
-    deploy:
-      mode: global # REQUIRED. 1 per node
-      #labels:
-        #atlasnet.role: agent # OPTIONAL, determines which nodes can run shards
       restart_policy:
         condition: on-failure
 
@@ -53,9 +48,10 @@ services:
     environment:
       - FRONTEND_PORT=4173
       - BACKEND_HOST=atlasnet-cartograph-backend:2000
+      - NODE_IP={{.Node.Hostname}}
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 1 
       restart_policy:
         condition: on-failure
  
@@ -64,23 +60,7 @@ services:
     networks: [TankBattleNet]
     environment:
       - BACKEND_PORT=2000
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-  AtlasNet-Proxy:
-    image: atlasnet-proxy-dev
-    networks: [TankBattleNet]
-    ports:
-      - target: 25568
-        published: 2555
-        protocol: tcp
-        mode: ingress
-      - target: 25568
-        published: 2555
-        protocol: udp
-        mode: ingress
+      - NODE_IP={{.Node.Hostname}}
     deploy:
       mode: replicated
       replicas: 1

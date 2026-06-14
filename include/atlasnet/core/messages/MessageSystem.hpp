@@ -7,6 +7,7 @@
 #include "atlasnet/core/job/JobHandle.hpp"
 #include "atlasnet/core/job/JobOptions.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
+#include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "boost/multi_index/hashed_index.hpp"
@@ -20,6 +21,7 @@
 #include <format>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 namespace AtlasNet
@@ -39,11 +41,25 @@ enum class ConnectionState
   eConnecting = k_ESteamNetworkingConnectionState_Connecting,
   eConnected = k_ESteamNetworkingConnectionState_Connected,
   eClosedByPeer = k_ESteamNetworkingConnectionState_ClosedByPeer,
+  eClosedByLocalHost,
   eProblemDetectedLocally =
       k_ESteamNetworkingConnectionState_ProblemDetectedLocally
 };
 BOOST_DESCRIBE_ENUM(ConnectionState, eNone, eConnecting, eConnected,
                     eClosedByPeer, eProblemDetectedLocally)
+enum class AuthState
+{
+  eUnknown,
+  eHandshakePendingReq,
+  eHandshakePendingRes,
+  eHandshakePendingAck,
+  eHandshakePendingFinal,
+  eAuthenticating,
+  eAuthenticatedClient,
+  eAuthenticatedServer,
+  eRejected
+};
+
 using MessagePriority = JobPriority;
 class MessageSystem
 {
@@ -52,12 +68,14 @@ public:
   {
     MessageSystem& system;
     HSteamNetConnection handle;
-    ConnectionState state;
+    ConnectionState connState;
+    AuthState authState;
     friend class MessageSystem;
 
   protected:
     Connection(MessageSystem& system, HSteamNetConnection handle)
-        : system(system), handle(handle), state(ConnectionState::eNone)
+        : system(system), handle(handle), connState(ConnectionState::eNone),
+          authState(AuthState::eUnknown)
     {
     }
 
@@ -68,7 +86,7 @@ public:
     }
     ConnectionState GetState() const
     {
-      return state;
+      return connState;
     }
     void SendMessage(const void* data, uint32_t size,
                      MessageSendMode mode) const;
@@ -104,14 +122,16 @@ public:
        requires std::is_base_of_v<IMessage, MsgType>
      void _ensure_socket_message_dispatcher(); */
   };
+  using HandshakeHandlerFunc = std::function<HandshakeResponsePacket(
+      const HandshakeIdentity&, const SocketAddress&)>;
   struct Config
   {
     JobSystem* jobSystem = nullptr;
     LocalEventSystem* localEventSystem = nullptr;
+    HandshakeHandlerFunc handshakeHandler = nullptr;
+    std::optional<HandshakeIdentity> handshakeIdentity;
   };
   MessageSystem(const Config& config);
-
-  void SetIdentity(const SteamNetworkingIdentity& identity);
 
   ~MessageSystem();
   void Shutdown();
@@ -146,6 +166,7 @@ public:
   std::optional<Connection> GetConnection(const SocketAddress& address) const;
 
 private:
+  void SetIdentity(const SteamNetworkingIdentity& identity);
   void _Connect_to_job(JobContext& handle, const SocketAddress& address);
   void _Parse_Incoming_Messages();
   ISteamNetworkingSockets& GNS() const
@@ -158,6 +179,7 @@ private:
     requires std::is_base_of_v<IMessage, MsgType>
   void _ensure_message_dispatcher();
 
+  bool attempt_handshake(const SteamNetworkingIdentity& identity);
   const Config config_;
   ISteamNetworkingSockets* _GNS;
   HSteamNetPollGroup _pollGroup;

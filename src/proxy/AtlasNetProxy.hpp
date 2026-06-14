@@ -1,8 +1,20 @@
 #pragma once
 
+#include "atlasnet/controller/ControllerRPC.hpp"
+#include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/container/Container.hpp"
 #include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/events/MessagingEvents.hpp"
+#include "atlasnet/core/login/LoginEntry.hpp"
+#include "atlasnet/core/login/LoginService.hpp"
+#include "atlasnet/core/service/ServiceRegistry.hpp"
+#include "atlasnet/proxy/ProxyRelayService.hpp"
+#include "atlasnet/shard/ShardRPC.hpp"
+#include <chrono>
+#include <future>
+#include <optional>
+#include <vector>
+
 namespace AtlasNet
 {
 class AtlasNetProxy : public IService
@@ -11,15 +23,106 @@ public:
   AtlasNetProxy() : IService(ServiceType::Proxy) {}
   ~AtlasNetProxy() override = default;
 
-  void OnInit() override {
+  void OnInit() override
+  {
+
+    loginService_.emplace(LoginService::Config{
+        ._globalEventSystem = &GetGlobalEventSystem(),
+        .__redisConn = &GetRedisConn(),
+        .containerService = this,
+    });
+    proxyRelayService_.emplace(ProxyRelayService::Config{
+        .redisConn = &GetRedisConn(),
+        .containerService = this,
+    });
     GetMessageSystem().OpenListenSocket(Env::ProxyListenPort);
-    GetLocalEventSystem().On<ConnectionAcceptedInternallyPreHandshakeEvent>(
-        [&](const ConnectionAcceptedInternallyPreHandshakeEvent& event)
+    GetLocalEventSystem().On<ConnectionEstablishedEvent>(
+        [&](const ConnectionEstablishedEvent& event)
         {
-          std::cerr << "Proxy detected new incoming connection from "
+          std::cerr << "Proxy detected new connection established: "
                     << event.address.to_string() << std::endl;
+
+          std::cerr << "Logging in new client at " << event.address.to_string()
+                    << std::endl;
+          const std::optional<LoginService::LoginResult> entry =
+              loginService_->LoginClient(event.address);
+          if (!entry)
+            return;
+
+          std::cerr << "Declaring proxy relay for ClientID: "
+                    << entry->clientID.to_string() << std::endl;
+          proxyRelayService_->DeclareProxyRelay(entry->clientID);
+
+          // Eventually this will be implemented
+          /* auto shardID_future =
+              GetRPCSystem().Call<ControllerRPC::GetClosestShardToLocation>(
+                  GetControllerAddress(), entry->SpawnLocation);
+
+          shardID_future.wait_for(std::chrono::seconds(5));
+          if (shardID_future.valid())
+          {
+            const ShardID shardID = shardID_future.get();
+            std::cerr << "Received closest shard ID " << shardID.to_string()
+                      << " for client " << entry->clientID.to_string()
+                      << std::endl;
+          }
+          else
+          {
+            std::cerr << "Failed to receive closest shard ID for client "
+                      << entry->clientID.to_string() << " within timeout."
+                      << std::endl;
+          } */
+          std::vector<ServiceRegistry::ServiceInfo> services;
+          GetServiceRegistry().GetServicesOfType(ServiceType::Shard, services);
+
+          if (services.empty())
+            throw std::runtime_error("No shard services found in registry");
+
+          std::cerr << "Shard at " << services[0].address.to_string()
+                    << " with ID " << services[0].id.to_string() << std::endl;
+
+          ShardSpawnClientRequest request{
+              .spawnTransform = entry->SpawnLocation.transform,
+              .clientID = entry->clientID,
+              .proxyRelayID = GetID(),
+          };
+
+          auto spawnResult = GetRPCSystem().Call<ShardRPC::SpawnClient>(
+              SocketAddress(services[0].address, Env::InternalMessagePort),
+              request);
+
+          std::future_status status =
+              spawnResult.wait_for(std::chrono::seconds(5));
+          std::optional<ShardSpawnClientResponse> spawnResponse;
+          if (status == std::future_status::ready)
+            spawnResponse = spawnResult.get();
+
+          if (spawnResponse)
+          {
+
+            std::cerr << "Successfully spawned client entity with ID "
+                      << spawnResponse->entityID->to_string() << " on shard "
+                      << services[0].id.to_string() << std::endl;
+          }
+          else
+          {
+            std::cerr << "Failed to receive spawn result for client "
+                      << entry->clientID.to_string() << " within timeout."
+                      << std::endl;
+          }
+
+
         });
+    GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
+        .id = GetContainerID(),
+        .address = GetHostName(),
+        .containerType = ServiceType::Proxy,
+    });
   }
   void OnShutdown() override {}
+
+private:
+  std::optional<LoginService> loginService_;
+  std::optional<ProxyRelayService> proxyRelayService_;
 };
 } // namespace AtlasNet

@@ -1,4 +1,8 @@
 
+#include "atlasnet/core/Address.hpp"
+#include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/login/LoginEntry.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "glm/ext/quaternion_relational.hpp"
@@ -11,7 +15,8 @@
 #include <gtest/gtest.h>
 #include <string>
 
-TEST(Serialization, BasicOps) {
+TEST(Serialization, BasicOps)
+{
   const uint8_t u8_val = 255;
   const uint16_t u16_val = 65535;
   const uint32_t u32_val = 4294967295;
@@ -100,7 +105,8 @@ TEST(Serialization, BasicOps) {
   EXPECT_TRUE(std::equal(blob_out.begin(), blob_out.end(), blob_val.begin(),
                          blob_val.end()));
 }
-struct Object {
+struct Object
+{
   uint8_t u8_val;
   uint16_t u16_val;
   uint32_t u32_val;
@@ -118,7 +124,8 @@ struct Object {
   glm::mat4 mat4_val;
   std::span<const uint8_t> blob_val;
 
-  template <typename Archive> void serialize(Archive &ar) {
+  template <typename Archive> void serialize(Archive& ar)
+  {
     ar(u8_val);
     ar(u16_val);
     ar(u32_val);
@@ -137,9 +144,10 @@ struct Object {
     ar(blob_val);
   }
 };
-TEST(Serialization, archivetest) {
+TEST(Serialization, archivetest)
+{
 
-    std::vector<uint8_t> blob = {0xDE, 0xAD, 0xBE, 0xEF};
+  std::vector<uint8_t> blob = {0xDE, 0xAD, 0xBE, 0xEF};
   Object in{
       255,
       65535,
@@ -184,7 +192,32 @@ TEST(Serialization, archivetest) {
   EXPECT_TRUE(std::equal(out.blob_val.begin(), out.blob_val.end(),
                          in.blob_val.begin(), in.blob_val.end()));
 }
-int main(int argc, char **argv) {
+int main(int argc, char** argv)
+{
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+TEST(Serialization, LoginEntrySerialization)
+{
+  using namespace AtlasNet;
+  LoginEntry entry;
+  //entry.address = SocketAddress();
+  //entry.clientID;
+  //entry.managingProxy = UUID::Generate();
+  //entry.entityID = EntityID::Generate();
+  ByteWriter writer;
+  entry.Serialize(writer);
+
+  ByteReader reader(writer.bytes());
+  LoginEntry deserializedEntry;
+  deserializedEntry.Deserialize(reader);
+  EXPECT_EQ(entry.address, deserializedEntry.address);
+  EXPECT_EQ(entry.clientID, deserializedEntry.clientID);
+  EXPECT_EQ(entry.managingProxy, deserializedEntry.managingProxy);
+  EXPECT_EQ(entry.entityID, deserializedEntry.entityID);
+
+  _Json j;
+  entry.to_json(j);
+  std::cerr << j.dump(4) << std::endl;
+  SUCCEED();
 }

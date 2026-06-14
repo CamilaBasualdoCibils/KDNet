@@ -1,5 +1,6 @@
 #pragma once
 #include "atlasnet/core/RPC/RPCMessage.hpp"
+#include "atlasnet/core/RPC/RPCMacros.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"

@@ -1,7 +1,10 @@
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 
+#include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/core/job/JobHandle.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
+#include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
@@ -50,7 +53,7 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-TEST(MessageLocal, InitAndShutdown)
+TEST(MessageSystem, InitAndShutdown)
 {
   using namespace AtlasNet;
   JobSystem jobsys(JobSystem::Config{});
@@ -58,7 +61,7 @@ TEST(MessageLocal, InitAndShutdown)
 
   SUCCEED();
 }
-TEST(MessageLocal, OpenListenSocket)
+TEST(MessageSystem, OpenListenSocket)
 {
   using namespace AtlasNet;
   JobSystem jobsys(JobSystem::Config{});
@@ -71,7 +74,7 @@ TEST(MessageLocal, OpenListenSocket)
 }
 ATLASNET_MESSAGE(IOTestMessage, ATLASNET_MESSAGE_DATA(int, intVal),
                  ATLASNET_MESSAGE_DATA(std::string, strVal))
-TEST(MessageLocal, MessageIO)
+TEST(MessageSystem, MessageIO)
 {
   using namespace AtlasNet;
   IOTestMessage msg;
@@ -90,7 +93,7 @@ TEST(MessageLocal, MessageIO)
   EXPECT_EQ(deserializedMsg.intVal, msg.intVal);
   EXPECT_EQ(deserializedMsg.strVal, msg.strVal);
 }
-TEST(MessageLocal, Connect)
+TEST(MessageSystem, Connect)
 {
   using namespace AtlasNet;
   JobSystem jobsys(JobSystem::Config{});
@@ -126,7 +129,7 @@ TEST(MessageLocal, Connect)
 }
 ATLASNET_MESSAGE(TestMessage, ATLASNET_MESSAGE_DATA(int, u8_val),
                  ATLASNET_MESSAGE_DATA(std::string, str))
-TEST(MessageLocal, SendMessage)
+TEST(MessageSystem, SendMessage)
 {
   using namespace AtlasNet;
   JobSystem jobsys(JobSystem::Config{});
@@ -162,7 +165,7 @@ TEST(MessageLocal, SendMessage)
   EXPECT_TRUE(success) << "Did not receive message within timeout";
 };
 
-TEST(MessageLocal, SendMessageWithoutConnecting)
+TEST(MessageSystem, SendMessageWithoutConnecting)
 {
   bool success = false;
   std::mutex mtx;
@@ -196,7 +199,7 @@ TEST(MessageLocal, SendMessageWithoutConnecting)
 
   EXPECT_TRUE(success) << "Did not receive message within timeout";
 };
-TEST(MessageLocal, ListenMessagePort)
+TEST(MessageSystem, ListenMessagePort)
 {
   using namespace AtlasNet;
 
@@ -214,12 +217,12 @@ TEST(MessageLocal, ListenMessagePort)
   EXPECT_NE(port1, port2);
   SocketAddress serverAddr2(HostName("localhost"), port2);
   msgsys.OpenListenSocket(port2).On<TestMessage>(
-    [&](const TestMessage& msg, const SocketAddress& address)
-    {
-      PortCount++;
-      std::lock_guard lock(mtx);
-      cv.notify_one();
-    });
+      [&](const TestMessage& msg, const SocketAddress& address)
+      {
+        PortCount++;
+        std::lock_guard lock(mtx);
+        cv.notify_one();
+      });
 
   msgsys.On<TestMessage>(
       [&](const TestMessage& msg, const SocketAddress& address)
@@ -234,17 +237,16 @@ TEST(MessageLocal, ListenMessagePort)
   TestMessage msg;
   msg.u8_val = 42;
   msg.str = "Hello, AtlasNet!";
-  msgsys.SendMessage(msg, serverAddr, AtlasNet::MessageSendMode::eReliable);
-  msgsys.SendMessage(msg, serverAddr2, AtlasNet::MessageSendMode::eReliable);
+  msgsys.SendMessage(msg, serverAddr, AtlasNet::MessageSendMode::eReliable)
+      .wait(std::chrono::seconds(2));
+  msgsys.SendMessage(msg, serverAddr2, AtlasNet::MessageSendMode::eReliable)
+      .wait(std::chrono::seconds(2));
 
   std::unique_lock lock(mtx);
-  EXPECT_TRUE(cv.wait_for(lock, std::chrono::seconds(5),
-                        [&]
-                        {
-                          return AllCount.load() >= 2 &&
-                                 PortCount.load() >= 1;
-                        }))
-    << "Did not receive messages within timeout";
+  EXPECT_TRUE(
+      cv.wait_for(lock, std::chrono::seconds(5), [&]
+                  { return AllCount.load() >= 2 && PortCount.load() >= 1; }))
+      << "Did not receive messages within timeout";
   EXPECT_EQ(PortCount.load(), 1)
       << "Port-specific handler should have been called once";
   EXPECT_GE(AllCount.load(), 2)
@@ -253,7 +255,7 @@ TEST(MessageLocal, ListenMessagePort)
 ATLASNET_MESSAGE(BigMessageTestMessage,
                  ATLASNET_MESSAGE_DATA(std::vector<uint8_t>, data))
 
-TEST(MessageLocal, BigMessage)
+TEST(MessageSystem, BigMessage)
 {
   using namespace AtlasNet;
   using namespace std::chrono_literals;
@@ -321,4 +323,273 @@ TEST(MessageLocal, BigMessage)
     ASSERT_EQ(receivedData, bigData)
         << "Content mismatch for payload size " << currentSize;
   }
+}
+
+TEST(MessageSystem, Handshake_Valid_Self)
+{
+  using namespace AtlasNet;
+
+  auto handshakeHandler =
+      [](const HandshakeIdentity& identity,
+         const SocketAddress& address) -> HandshakeResponsePacket
+  { //acept all
+    return HandshakeResponsePacket{.accepted = true}; };
+
+  HandshakeIdentity identity{
+      .role = HandshakeRole::eClient,
+      .data = HandshakeClientRequestData{.payload = {1, 2, 3, 4, 5}}};
+  JobSystem jobsys(JobSystem::Config{});
+  MessageSystem msgsys(MessageSystem::Config{
+      .jobSystem = &jobsys,
+      .handshakeHandler = handshakeHandler,
+      .handshakeIdentity = identity,
+  });
+
+  PortType port = pick_available_port();
+  msgsys.OpenListenSocket(port);
+  SocketAddress addr(HostName("localhost"), port);
+  JobHandle connectionJob = msgsys.Connect(addr);
+  connectionJob.wait(std::chrono::seconds(5));
+
+  EXPECT_TRUE(connectionJob.is_completed());
+  EXPECT_EQ(msgsys.GetNumConnections(), 2);
+  EXPECT_EQ(msgsys.GetConnectionState(addr), ConnectionState::eConnected);
+}
+TEST(MessageSystem, Handshake_Valid_Fork)
+{
+
+  using namespace AtlasNet;
+  auto handshakeHandler =
+      [](const HandshakeIdentity& identity,
+         const SocketAddress& address) -> HandshakeResponsePacket
+  { //acept all
+    return HandshakeResponsePacket{.accepted = true}; };
+
+  const PortType parentPort = pick_available_port();
+  const SocketAddress address(HostName("localhost"), parentPort);
+  int readyPipe[2];
+  ASSERT_EQ(pipe(readyPipe), 0) << "Failed to create pipe";
+
+  const int expectedResult =
+      std::chrono::system_clock::now().time_since_epoch().count() %
+      10000; // Just some arbitrary value to return from child to parent
+  pid_t pid = fork();
+  ASSERT_GE(pid, 0) << "fork() failed";
+  if (pid == 0)
+  {
+    // Child process: hosts RPC server on childPort.
+    close(readyPipe[0]);
+
+    JobSystem childJobSystem(JobSystem::Config{});
+    HandshakeIdentity childidentity{
+        .role = HandshakeRole::eClient,
+        .data = HandshakeClientRequestData{.payload = {1, 2, 3, 4, 5}}};
+    MessageSystem childMsgSystem(
+        MessageSystem::Config{.jobSystem = &childJobSystem,
+                              .handshakeIdentity = childidentity,
+                              .handshakeHandler = handshakeHandler});
+    // Signal readiness to parent.
+    const uint8_t ready = 1;
+    (void)write(readyPipe[1], &ready, 1);
+    close(readyPipe[1]);
+
+    JobHandle connectJob = childMsgSystem.Connect(address);
+    connectJob.wait(std::chrono::seconds(2));
+    if (!connectJob.is_completed() ||
+        childMsgSystem.GetConnectionState(address) !=
+            ConnectionState::eConnected)
+    {
+      std::cerr << "Child failed to connect to parent within timeout\n";
+      _exit(1);
+    }
+    _exit(0);
+  }
+
+  close(readyPipe[1]);
+
+  uint8_t ready = 0;
+  ASSERT_EQ(read(readyPipe[0], &ready, 1), 1)
+      << "Parent failed waiting for child readiness";
+  close(readyPipe[0]);
+
+  JobSystem parentJobSystem(JobSystem::Config{});
+  HandshakeIdentity parentIdentity{
+      .role = HandshakeRole::eServer,
+      .data = HandshakeServerRequestData{
+          .serviceID = {},
+          .serviceType =
+              ServiceType::Controller}}; // Just some dummy handshake identity
+  MessageSystem parentMsgSystem(
+      MessageSystem::Config{.jobSystem = &parentJobSystem,
+                            .handshakeIdentity = parentIdentity,
+                            .handshakeHandler = handshakeHandler});
+  parentMsgSystem.OpenListenSocket(parentPort);
+
+  int childStatus = 0;
+  ASSERT_EQ(waitpid(pid, &childStatus, 0), pid);
+  ASSERT_TRUE(WIFEXITED(childStatus));
+  EXPECT_EQ(WEXITSTATUS(childStatus), 0);
+}
+
+TEST(MessageSystem, Handshake_Invalid_Client_Fork)
+{
+
+  using namespace AtlasNet;
+  auto handshakeHandler =
+      [](const HandshakeIdentity& identity,
+         const SocketAddress& address) -> HandshakeResponsePacket
+  { //acept all
+    if (identity.role == HandshakeRole::eClient)
+    {
+      return HandshakeResponsePacket{.accepted = false,
+                                     .rejectReason = "Clients not allowed"};
+    }
+    return HandshakeResponsePacket{.accepted = true}; };
+
+  const PortType parentPort = pick_available_port();
+  const SocketAddress address(HostName("localhost"), parentPort);
+  int readyPipe[2];
+  ASSERT_EQ(pipe(readyPipe), 0) << "Failed to create pipe";
+
+  const int expectedResult =
+      std::chrono::system_clock::now().time_since_epoch().count() %
+      10000; // Just some arbitrary value to return from child to parent
+  pid_t pid = fork();
+  ASSERT_GE(pid, 0) << "fork() failed";
+  if (pid == 0)
+  {
+    // Child process: hosts RPC server on childPort.
+    close(readyPipe[0]);
+
+    JobSystem childJobSystem(JobSystem::Config{});
+    HandshakeIdentity childidentity{
+        .role = HandshakeRole::eClient,
+        .data = HandshakeClientRequestData{.payload = {1, 2, 3, 4, 5}}};
+    MessageSystem childMsgSystem(
+        MessageSystem::Config{.jobSystem = &childJobSystem,
+                              .handshakeIdentity = childidentity,
+                              .handshakeHandler = handshakeHandler});
+    // Signal readiness to parent.
+    const uint8_t ready = 1;
+    (void)write(readyPipe[1], &ready, 1);
+    close(readyPipe[1]);
+
+    JobHandle connectJob = childMsgSystem.Connect(address);
+    connectJob.wait(std::chrono::seconds(2));
+    if (!connectJob.is_completed() ||
+        childMsgSystem.GetConnectionState(address) !=
+            ConnectionState::eConnected)
+    {
+      std::cerr << "Child failed to connect to parent within timeout\n";
+      _exit(1);
+    }
+    _exit(0);
+  }
+
+  close(readyPipe[1]);
+
+  uint8_t ready = 0;
+  ASSERT_EQ(read(readyPipe[0], &ready, 1), 1)
+      << "Parent failed waiting for child readiness";
+  close(readyPipe[0]);
+
+  JobSystem parentJobSystem(JobSystem::Config{});
+  HandshakeIdentity parentIdentity{
+      .role = HandshakeRole::eServer,
+      .data = HandshakeServerRequestData{
+          .serviceID = {},
+          .serviceType =
+              ServiceType::Controller}}; // Just some dummy handshake identity
+  MessageSystem parentMsgSystem(
+      MessageSystem::Config{.jobSystem = &parentJobSystem,
+                            .handshakeIdentity = parentIdentity,
+                            .handshakeHandler = handshakeHandler});
+  parentMsgSystem.OpenListenSocket(parentPort);
+
+  // we expect a failure from child
+  int childStatus = 0;
+  ASSERT_EQ(waitpid(pid, &childStatus, 0), pid);
+  ASSERT_TRUE(WIFEXITED(childStatus));
+  EXPECT_EQ(WEXITSTATUS(childStatus), 1);
+}
+TEST(MessageSystem, Handshake_Invalid_Server_Fork)
+{
+
+  using namespace AtlasNet;
+  auto handshakeHandler =
+      [](const HandshakeIdentity& identity,
+         const SocketAddress& address) -> HandshakeResponsePacket
+  { //acept all
+    if (identity.role == HandshakeRole::eServer)
+    {
+      return HandshakeResponsePacket{.accepted = false,
+                                     .rejectReason = "Servers not allowed"};
+    }
+    return HandshakeResponsePacket{.accepted = true}; };
+
+  const PortType parentPort = pick_available_port();
+  const SocketAddress address(HostName("localhost"), parentPort);
+  int readyPipe[2];
+  ASSERT_EQ(pipe(readyPipe), 0) << "Failed to create pipe";
+
+  const int expectedResult =
+      std::chrono::system_clock::now().time_since_epoch().count() %
+      10000; // Just some arbitrary value to return from child to parent
+  pid_t pid = fork();
+  ASSERT_GE(pid, 0) << "fork() failed";
+  if (pid == 0)
+  {
+    // Child process: hosts RPC server on childPort.
+    close(readyPipe[0]);
+
+    JobSystem childJobSystem(JobSystem::Config{});
+    HandshakeIdentity childidentity{
+        .role = HandshakeRole::eClient,
+        .data = HandshakeClientRequestData{.payload = {1, 2, 3, 4, 5}}};
+    MessageSystem childMsgSystem(
+        MessageSystem::Config{.jobSystem = &childJobSystem,
+                              .handshakeIdentity = childidentity,
+                              .handshakeHandler = handshakeHandler});
+    // Signal readiness to parent.
+    const uint8_t ready = 1;
+    (void)write(readyPipe[1], &ready, 1);
+    close(readyPipe[1]);
+
+    JobHandle connectJob = childMsgSystem.Connect(address);
+    connectJob.wait(std::chrono::seconds(2));
+    if (!connectJob.is_completed() ||
+        childMsgSystem.GetConnectionState(address) !=
+            ConnectionState::eConnected)
+    {
+      std::cerr << "Child failed to connect to parent within timeout\n";
+      _exit(1);
+    }
+    _exit(0);
+  }
+
+  close(readyPipe[1]);
+
+  uint8_t ready = 0;
+  ASSERT_EQ(read(readyPipe[0], &ready, 1), 1)
+      << "Parent failed waiting for child readiness";
+  close(readyPipe[0]);
+
+  JobSystem parentJobSystem(JobSystem::Config{});
+  HandshakeIdentity parentIdentity{
+      .role = HandshakeRole::eServer,
+      .data = HandshakeServerRequestData{
+          .serviceID = {},
+          .serviceType =
+              ServiceType::Controller}}; // Just some dummy handshake identity
+  MessageSystem parentMsgSystem(
+      MessageSystem::Config{.jobSystem = &parentJobSystem,
+                            .handshakeIdentity = parentIdentity,
+                            .handshakeHandler = handshakeHandler});
+  parentMsgSystem.OpenListenSocket(parentPort);
+
+  // we expect a failure from child
+  int childStatus = 0;
+  ASSERT_EQ(waitpid(pid, &childStatus, 0), pid);
+  ASSERT_TRUE(WIFEXITED(childStatus));
+  EXPECT_EQ(WEXITSTATUS(childStatus), 1);
 }

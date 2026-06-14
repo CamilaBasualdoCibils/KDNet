@@ -27,10 +27,10 @@ void AtlasNet::DockerServiceAdapter::Create()
            {"ContainerSpec",
             {
                 {"Image", _imageName},
-                {"Env",
+               /*  {"Env",
                  {
                      "NODE_IP={{.Node.Hostname}}",
-                 }},
+                 }}, */
             }},
            {"RestartPolicy",
             {

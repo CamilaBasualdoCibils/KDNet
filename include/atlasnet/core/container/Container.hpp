@@ -1,6 +1,7 @@
 #pragma once
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
@@ -41,14 +42,25 @@ protected:
   {
     if (const char* envHost = std::getenv("NODE_IP"))
     {
-      std::cerr << "Using NODE_IP environment variable for hostname: " << envHost
-                << std::endl;
+      std::cerr << "Using NODE_IP environment variable for hostname: "
+                << envHost << std::endl;
       return HostAddress(envHost);
     }
     else
     {
-      throw std::runtime_error(
-          "NODE_IP environment variable not set. Unable to determine hostname.");
+      std::cerr << "NODE_IP environment variable not set. Unable to determine "
+                   "Node Address. Attempting to use hostname."
+                << std::endl;
+      char actualHost[256];
+      if (gethostname(actualHost, sizeof(actualHost)) == 0)
+      {
+        return HostAddress(std::string(actualHost));
+      }
+      else
+      {
+        throw std::runtime_error(
+            "Failed to retrieve hostname using gethostname().");
+      }
     }
     return HostAddress();
   }
@@ -92,6 +104,11 @@ protected:
     assert(_universe.has_value() && "Universe not initialized");
     return _universe.value();
   }
+  Database::RedisConn& GetRedisConn()
+  {
+    assert(_redisDatabase && "RedisConn not initialized");
+    return *_redisDatabase;
+  }
 
 public:
   void Init();
@@ -103,7 +120,7 @@ public:
   {
     return id;
   }
-  HostAddress GetControllerAddress() const
+  SocketAddress GetControllerAddress() const
   {
     assert(controllerOverlayAddress.has_value() &&
            "Controller address not set. This should never happen as "
@@ -111,6 +128,7 @@ public:
            "containers fetch the controller info during initialization.");
     return controllerOverlayAddress.value();
   }
+ 
   ServiceID GetControllerID() const
   {
     assert(controllerContainerID.has_value() &&
@@ -139,7 +157,7 @@ private:
   std::unique_ptr<Database::RedisConn> _redisDatabase;
 
   std::optional<ServiceID> controllerContainerID;
-  std::optional<HostAddress> controllerOverlayAddress;
+  std::optional<SocketAddress> controllerOverlayAddress;
   // Database::InternalDB _internalDB;
   static inline IService& Get()
   {

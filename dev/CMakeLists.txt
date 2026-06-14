@@ -5,19 +5,19 @@ set(DEV_STAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.stage")
 add_custom_target(AtlasNetDevDockerBuildStage
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DEV_STAGE_DIR}"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    COMMAND ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE:AtlasNetController>
         "${DEV_STAGE_DIR}/"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    COMMAND ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE:AtlasNetProxy>
         "${DEV_STAGE_DIR}/"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    COMMAND ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE:AtlasNetCartographBackend>
         "${DEV_STAGE_DIR}/"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    COMMAND ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE:AtlasNetDummy>
         "${DEV_STAGE_DIR}/"
 

@@ -136,7 +136,7 @@ void AtlasNet::IService::FetchControllerInfo()
         const auto& controllerInfo = outServices[0];
         std::cerr << "Controller at " << controllerInfo.address.to_string()
                   << " with ID " << controllerInfo.id.to_string() << std::endl;
-        controllerOverlayAddress = controllerInfo.address;
+        controllerOverlayAddress = SocketAddress(controllerInfo.address, Env::InternalMessagePort);
         controllerContainerID = controllerInfo.id;
       });
 

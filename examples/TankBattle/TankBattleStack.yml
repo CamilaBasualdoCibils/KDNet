@@ -9,7 +9,6 @@ services:
     networks: [TankBattleNet]
     environment:
       - ATLASNET_CONTROLLER_SERVICE_BACKEND=DOCKER
-      - NODE_IP={{.Node.Hostname}}
       - ATLASNET_SHARD_DEFAULT_IMAGE=tankbattle-dev:latest
       - ATLASNET_DOCKER_NETWORK_NAME=tankbattle_TankBattleNet
     volumes:
@@ -48,7 +47,6 @@ services:
     environment:
       - FRONTEND_PORT=4173
       - BACKEND_HOST=atlasnet-cartograph-backend:2000
-      - NODE_IP={{.Node.Hostname}}
     deploy:
       mode: replicated
       replicas: 1 
@@ -60,7 +58,6 @@ services:
     networks: [TankBattleNet]
     environment:
       - BACKEND_PORT=2000
-      - NODE_IP={{.Node.Hostname}}
     deploy:
       mode: replicated
       replicas: 1

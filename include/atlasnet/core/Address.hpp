@@ -123,7 +123,10 @@ public:
     octets[2] = o3;
     octets[3] = o4;
   }
-
+  static const IPv4 Loopback()
+  {
+    return IPv4(127, 0, 0, 1);
+  }
   explicit IPv4(const std::string& str)
   {
     parse_string(str);
@@ -289,7 +292,10 @@ public:
   {
     parse_string(str);
   }
-
+  static const IPv6 Loopback()
+  {
+    return IPv6(0, 0, 0, 0, 0, 0, 0, 1);
+  }
   void parse_string(const std::string& str) override
   {
     bytes.fill(0);

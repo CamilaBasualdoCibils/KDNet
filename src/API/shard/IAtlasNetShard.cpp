@@ -1,5 +1,6 @@
 #include "IAtlasNetShard.hpp"
 #include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/shard/ShardRPC.hpp"
 
 AtlasNet::IAtlasNetShard::IAtlasNetShard() : IService(ServiceType::Shard)
 {
@@ -15,6 +16,14 @@ void AtlasNet::IAtlasNetShard::OnInit()
       .id = GetContainerID(),
       .address = GetHostName(),
       .containerType = ServiceType::Shard,
-
   });
+
+  GetRPCSystem().Bind<ShardRPC::SpawnClient>(
+      [this](ShardSpawnClientRequest request)
+      {
+        // Handle the SpawnClient request here
+        std::cerr << "Received SpawnClient request for ClientID: "
+                  << request.clientID.to_string() << std::endl;
+        return ShardSpawnClientResponse{};
+      });
 }

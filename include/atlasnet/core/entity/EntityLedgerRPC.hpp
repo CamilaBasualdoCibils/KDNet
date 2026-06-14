@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/RPC/RPCMacros.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include <utility>
 #include <vector>

@@ -91,7 +91,7 @@ public:
     LoginEntry entry;
     entry.address = address;
     entry.clientID = newClientID;
-    entry.managingProxy = config_.containerService->GetID();
+    entry.managingGateway = config_.containerService->GetID();
     entry.address.Serialize(addressWriter);
     ByteWriter clientIDWriter;
     clientIDWriter.uuid(newClientID);

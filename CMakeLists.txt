@@ -80,17 +80,17 @@ yaml-cpp::yaml-cpp
 
 
 # ========= ATLASNET PROXY ========
-file(GLOB_RECURSE _proxy_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/proxy/*.cpp"
+file(GLOB_RECURSE _gateway_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/gateway/*.cpp"
 )
 
-add_executable(AtlasNetProxy ${_proxy_sources})
+add_executable(AtlasNetGateway ${_gateway_sources})
 # Optional, but common: local includes
-target_include_directories(AtlasNetProxy
+target_include_directories(AtlasNetGateway
       PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/proxy"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gateway"
 )
-target_link_libraries(AtlasNetProxy AtlasNetCore)
+target_link_libraries(AtlasNetGateway AtlasNetCore)
 
 
 

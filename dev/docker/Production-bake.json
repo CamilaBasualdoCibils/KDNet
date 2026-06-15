@@ -3,7 +3,7 @@
     "default": {
       "targets": [
         "atlasnet-controller",
-        "atlasnet-proxy",
+        "atlasnet-gateway",
         "atlasnet-cartograph",
         "atlasnet-dummy"
       ]
@@ -20,13 +20,13 @@
         "atlasnet-controller:latest"
       ]
     },
-    "atlasnet-proxy": {
+    "atlasnet-gateway": {
       "context": ".",
       "dockerfile": "dev/docker/Production.Dockerfile",
-      "target": "atlasnet-proxy",
+      "target": "atlasnet-gateway",
       "load": true,
       "tags": [
-        "atlasnet-proxy:latest"
+        "atlasnet-gateway:latest"
       ]
     },
     "atlasnet-cartograph": {

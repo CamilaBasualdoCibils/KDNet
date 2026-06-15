@@ -74,7 +74,7 @@ add_custom_target(TankBattleK8sLoadImages
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMAND minikube image load tankbattle-dev:latest & 
     minikube image load atlasnet-controller-dev:latest & 
-    minikube image load atlasnet-proxy-dev:latest & 
+    minikube image load atlasnet-gateway-dev:latest & 
     minikube image load atlasnet-cartograph-frontend-dev:latest & 
     minikube image load atlasnet-cartograph-backend-dev:latest
     USES_TERMINAL

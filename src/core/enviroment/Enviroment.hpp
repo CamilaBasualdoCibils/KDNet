@@ -241,7 +241,7 @@ public:
   const static inline std::string DockerSocketPath =
       GetEnvVarOrDefault("ATLASNET_DOCKER_SOCKET_PATH", "/var/run/docker.sock");
 
-  const static inline PortType ProxyListenPort = static_cast<PortType>(
+  const static inline PortType GatewayListenPort = static_cast<PortType>(
       std::atoi(GetEnvVarOrDefault("ATLASNET_PROXY_LISTEN_PORT", "42000")));
 };
 

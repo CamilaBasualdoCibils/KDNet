@@ -203,7 +203,7 @@ TEST(Serialization, LoginEntrySerialization)
   LoginEntry entry;
   entry.address = SocketAddress(IPv4(127, 0, 0, 1), 8080);
   //entry.clientID;
-  //entry.managingProxy = UUID::Generate();
+  //entry.managingGateway = UUID::Generate();
   //entry.entityID = EntityID::Generate();
   ByteWriter writer;
   entry.Serialize(writer);
@@ -213,7 +213,7 @@ TEST(Serialization, LoginEntrySerialization)
   deserializedEntry.Deserialize(reader);
   EXPECT_EQ(entry.address, deserializedEntry.address);
   EXPECT_EQ(entry.clientID, deserializedEntry.clientID);
-  EXPECT_EQ(entry.managingProxy, deserializedEntry.managingProxy);
+  EXPECT_EQ(entry.managingGateway, deserializedEntry.managingGateway);
   EXPECT_EQ(entry.entityID, deserializedEntry.entityID);
 
   _Json j;

@@ -5,7 +5,7 @@
         "atlasnet-controller-dev",
         "atlasnet-cartograph-frontend-dev",
         "atlasnet-cartograph-backend-dev",
-        "atlasnet-proxy-dev",
+        "atlasnet-gateway-dev",
         "atlasnet-dummy-dev"
       ]
     }
@@ -20,13 +20,13 @@
         "atlasnet-controller-dev"
       ]
     },
-    "atlasnet-proxy-dev": {
+    "atlasnet-gateway-dev": {
       "context": ".",
       "dockerfile": "dev/docker/Dev.Dockerfile",
-      "target": "atlasnet-proxy-dev",
+      "target": "atlasnet-gateway-dev",
       "load": true,
       "tags": [
-        "atlasnet-proxy-dev"
+        "atlasnet-gateway-dev"
       ]
     },
     "atlasnet-cartograph-frontend-dev": {

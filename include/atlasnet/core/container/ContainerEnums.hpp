@@ -11,9 +11,9 @@ enum class ServiceType : uint8_t
 {
   Controller = 0,
   Shard = 1,
-  Proxy = 2,
+  Gateway = 2,
   WebBackend = 3,
   Invalid = 4
 };
-BOOST_DESCRIBE_ENUM(ServiceType, Controller, Shard, Proxy, WebBackend, Invalid);
+BOOST_DESCRIBE_ENUM(ServiceType, Controller, Shard, Gateway, WebBackend, Invalid);
 }; // namespace AtlasNet

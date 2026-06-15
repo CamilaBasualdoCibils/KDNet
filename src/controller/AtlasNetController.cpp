@@ -33,13 +33,13 @@ void AtlasNet::AtlasNetController::OnInit()
   GetGlobalEventSystem().On<WorldCreatedEvent>(
       [this](const WorldCreatedEvent& event) { OnWorldCreated(event); });
 
-  std::cerr << "Creating proxy service adapter..." << std::endl;
-  _ProxyServiceAdapter =
-      CreateServiceAdapter("atlasnet-proxy", "atlasnet-proxy-dev",
-                           {{Env::ProxyListenPort, Env::ProxyListenPort}});
-  _ProxyServiceAdapter->Create();
-  std::cerr << "Scaling proxy service adapter to 1 replica..." << std::endl;
-  _ProxyServiceAdapter->SetReplicaCount(1);
+  std::cerr << "Creating gateway service adapter..." << std::endl;
+  _GatewayServiceAdapter =
+      CreateServiceAdapter("atlasnet-gateway", "atlasnet-gateway-dev",
+                           {{Env::GatewayListenPort, Env::GatewayListenPort}});
+  _GatewayServiceAdapter->Create();
+  std::cerr << "Scaling gateway service adapter to 1 replica..." << std::endl;
+  _GatewayServiceAdapter->SetReplicaCount(1);
   LoadStartupWorlds();
 }
 void AtlasNet::AtlasNetController::OnShutdown()
@@ -55,11 +55,11 @@ void AtlasNet::AtlasNetController::OnShutdown()
               << worldID.to_string() << std::endl;
   }
   _serviceAdapters.clear();
-  if (_ProxyServiceAdapter)
+  if (_GatewayServiceAdapter)
   {
-    std::cerr << "Destroying proxy service adapter..." << std::endl;
-    _ProxyServiceAdapter->Destroy();
-    std::cerr << "Destroyed proxy service adapter." << std::endl;
+    std::cerr << "Destroying gateway service adapter..." << std::endl;
+    _GatewayServiceAdapter->Destroy();
+    std::cerr << "Destroyed gateway service adapter." << std::endl;
   }
 }
 AtlasNet::AtlasNetController::AtlasNetController()

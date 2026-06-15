@@ -9,7 +9,7 @@
 #include "atlasnet/core/login/LoginService.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/service/ServiceRegistry.hpp"
-#include "atlasnet/proxy/ProxyRelayService.hpp"
+#include "atlasnet/gateway/GatewayRelayService.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 #include <chrono>
 #include <future>
@@ -18,11 +18,11 @@
 
 namespace AtlasNet
 {
-class AtlasNetProxy : public IService
+class AtlasNetGateway : public IService
 {
 public:
-  AtlasNetProxy() : IService(ServiceType::Proxy) {}
-  ~AtlasNetProxy() override = default;
+  AtlasNetGateway() : IService(ServiceType::Gateway) {}
+  ~AtlasNetGateway() override = default;
 
 private:
   void OnInit() override
@@ -33,11 +33,11 @@ private:
         .__redisConn = &GetRedisConn(),
         .containerService = this,
     });
-    proxyRelayService_.emplace(ProxyRelayService::Config{
+    gatewayRelayService_.emplace(GatewayRelayService::Config{
         .redisConn = &GetRedisConn(),
         .containerService = this,
     });
-    GetMessageSystem().OpenListenSocket(Env::ProxyListenPort);
+    GetMessageSystem().OpenListenSocket(Env::GatewayListenPort);
     GetLocalEventSystem().On<ConnectionEstablishedEvent>(
         [&](const ConnectionEstablishedEvent& event)
         {
@@ -78,7 +78,7 @@ private:
   }
   void OnClientConnected(const ConnectionEstablishedEvent& event)
   {
-    std::cerr << "Proxy detected new client connection established: "
+    std::cerr << "Gateway detected new client connection established: "
               << event.address.to_string() << std::endl;
 
     std::cerr << "Logging in new client at " << event.address.to_string()
@@ -88,9 +88,9 @@ private:
     if (!entry)
       return;
 
-    std::cerr << "Declaring proxy relay for ClientID: "
+    std::cerr << "Declaring gateway relay for ClientID: "
               << entry->clientID.to_string() << std::endl;
-    proxyRelayService_->DeclareProxyRelay(entry->clientID);
+    gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
 
     // Eventually this will be implemented
     /* auto shardID_future =
@@ -123,7 +123,7 @@ private:
     ShardSpawnClientRequest request{
         .spawnTransform = entry->SpawnLocation.transform,
         .clientID = entry->clientID,
-        .proxyRelayID = GetID(),
+        .gatewayRelayID = GetID(),
     };
 
     auto spawnResult = GetRPCSystem().Call<ShardRPC::SpawnClient>(
@@ -149,6 +149,6 @@ private:
     }
   }
   std::optional<LoginService> loginService_;
-  std::optional<ProxyRelayService> proxyRelayService_;
+  std::optional<GatewayRelayService> gatewayRelayService_;
 };
 } // namespace AtlasNet

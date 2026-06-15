@@ -163,13 +163,13 @@ spec:
 #apiVersion: v1
 #kind: Service
 #metadata:
-#  name: atlasnet-proxy
+#  name: atlasnet-gateway
 #  namespace: atlasnet
 #spec:
 #  clusterIP: None
 #  publishNotReadyAddresses: true
 #  selector:
-#    app: atlasnet-proxy
+#    app: atlasnet-gateway
 #  ports:
 #    - name: tcp
 #      port: 2555
@@ -183,22 +183,22 @@ spec:
 #apiVersion: apps/v1
 #kind: StatefulSet
 #metadata:
-#  name: atlasnet-proxy
+#  name: atlasnet-gateway
 #  namespace: atlasnet
 #spec:
-#  serviceName: atlasnet-proxy
+#  serviceName: atlasnet-gateway
 #  replicas: 0
 #  selector:
 #    matchLabels:
-#      app: atlasnet-proxy
+#      app: atlasnet-gateway
 #  template:
 #    metadata:
 #      labels:
-#        app: atlasnet-proxy
+#        app: atlasnet-gateway
 #    spec:
 #      containers:
-#        - name: proxy
-#          image: atlasnet-proxy-dev
+#        - name: gateway
+#          image: atlasnet-gateway-dev
 #          imagePullPolicy: Never
 #          ports:
 #            - containerPort: 25568

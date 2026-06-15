@@ -10,14 +10,14 @@ namespace AtlasNet
 struct LoginEntry
 {
   SocketAddress address;
-  ServiceID managingProxy;
+  ServiceID managingGateway;
   ClientID clientID;
   std::optional<EntityID> entityID;
 
   void Serialize(ByteWriter& writer) const
   {
     address.Serialize(writer);
-    writer.uuid(managingProxy);
+    writer.uuid(managingGateway);
     writer.uuid(clientID);
     if (entityID.has_value())
     {
@@ -32,7 +32,7 @@ struct LoginEntry
   void Deserialize(ByteReader& reader)
   {
     address.Deserialize(reader);
-    reader.uuid(managingProxy);
+    reader.uuid(managingGateway);
     reader.uuid(clientID);
     uint8_t hasEntityID_v;
     reader.u8(hasEntityID_v);
@@ -53,7 +53,7 @@ struct LoginEntry
   {
     j = _Json{
         {"address", address.to_string()},
-        {"managingProxy", managingProxy.to_string()},
+        {"managingGateway", managingGateway.to_string()},
         {"clientID", clientID.to_string()},
         {"entityID",
          entityID.has_value() ? entityID.value().to_string() :""},

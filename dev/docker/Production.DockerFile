@@ -20,7 +20,7 @@ COPY cmake/ cmake/
 COPY web/ web/
 
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DATLASNET_DEV=OFF -DATLASNET_EXAMPLES=OFF -DATLASNET_TESTS=OFF
-RUN cmake --build build --parallel --target AtlasNetController AtlasNetProxy AtlasNetCartographBackend AtlasNetDummy
+RUN cmake --build build --parallel --target AtlasNetController AtlasNetGateway AtlasNetCartographBackend AtlasNetDummy
 
 FROM debian:trixie-slim AS runner
 WORKDIR /atlasnet
@@ -30,9 +30,9 @@ FROM runner AS atlasnet-controller
 COPY --from=builder /atlasnet/build/AtlasNetController /atlasnet/
 ENTRYPOINT ["/atlasnet/AtlasNetController"]
 
-FROM runner AS atlasnet-proxy
-COPY --from=builder /atlasnet/build/AtlasNetProxy /atlasnet/
-ENTRYPOINT ["/atlasnet/AtlasNetProxy"]
+FROM runner AS atlasnet-gateway
+COPY --from=builder /atlasnet/build/AtlasNetGateway /atlasnet/
+ENTRYPOINT ["/atlasnet/AtlasNetGateway"]
 
 FROM runner AS atlasnet-dummy
 COPY --from=builder /atlasnet/build/AtlasNetDummy /atlasnet/

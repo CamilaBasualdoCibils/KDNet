@@ -10,7 +10,7 @@ add_custom_target(AtlasNetDevDockerBuildStage
         "${DEV_STAGE_DIR}/"
 
     COMMAND ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE:AtlasNetProxy>
+        $<TARGET_FILE:AtlasNetGateway>
         "${DEV_STAGE_DIR}/"
 
     COMMAND ${CMAKE_COMMAND} -E copy
@@ -24,7 +24,7 @@ add_custom_target(AtlasNetDevDockerBuildStage
     DEPENDS
         $<TARGET_FILE:AtlasNetCartographBackend>
         $<TARGET_FILE:AtlasNetController>
-        $<TARGET_FILE:AtlasNetProxy>
+        $<TARGET_FILE:AtlasNetGateway>
         $<TARGET_FILE:AtlasNetDummy>
     USES_TERMINAL
     VERBATIM

@@ -19,11 +19,11 @@ ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
 RUN chmod +x /atlasnet/AtlasNetController
 ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetController; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
-FROM runner AS atlasnet-proxy-dev
-COPY --from=atlasnetstage /atlasnet/AtlasNetProxy /atlasnet/AtlasNetProxy
+FROM runner AS atlasnet-gateway-dev
+COPY --from=atlasnetstage /atlasnet/AtlasNetGateway /atlasnet/AtlasNetGateway
 ARG PRELAUNCH_CMD="{EXE}"
 ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetProxy; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
+ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetGateway; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
 FROM runner AS atlasnet-dummy-dev
 COPY --from=atlasnetstage /atlasnet/AtlasNetDummy /atlasnet/AtlasNetDummy
@@ -52,7 +52,7 @@ RUN npm install && npm run build
 
 RUN apk add --no-cache gettext
 
-COPY --from=atlasnet-scr /atlasnet/src/web/proxy/nginx.conf.template /etc/nginx/nginx.conf.template
-COPY --from=atlasnet-scr /atlasnet/src/web/proxy/entrypoint.sh /entrypoint.sh
+COPY --from=atlasnet-scr /atlasnet/src/web/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=atlasnet-scr /atlasnet/src/web/nginx/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

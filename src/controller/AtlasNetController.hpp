@@ -34,6 +34,6 @@ private:
   std::shared_mutex _adapterMutex;
   std::unordered_map<WorldID, std::unique_ptr<IServiceAdapter>>
       _serviceAdapters;
-  std::unique_ptr<IServiceAdapter> _ProxyServiceAdapter;
+  std::unique_ptr<IServiceAdapter> _GatewayServiceAdapter;
 };
 } // namespace AtlasNet

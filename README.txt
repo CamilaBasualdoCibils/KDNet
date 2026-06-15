@@ -49,7 +49,7 @@ flowchart LR
     %% AtlasNet System Boundary
     subgraph AtlasNet
         Watchdog[Watchdog]
-        Proxy[Proxy]
+        Gateway[Gateway]
         Shard[Shard]
         InternalDB[(InternalDB
         Valkey - transient)]
@@ -58,18 +58,18 @@ flowchart LR
     end
 
     %% Network Flow
-    Client -->|UDP| Proxy
+    Client -->|UDP| Gateway
 
     %% Internal Routing
-    Proxy --> Shard
-    Proxy --> TaskWorker
+    Gateway --> Shard
+    Gateway --> TaskWorker
 
     %% Shard Dependencies
     Shard --> InternalDB
     Shard --> TaskWorker
 
     %% Supervision
-    Watchdog  .-> Proxy
+    Watchdog  .-> Gateway
     Watchdog .-> Shard
     Watchdog .-> TaskWorker
     Watchdog .-> InternalDB
@@ -165,8 +165,8 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
-  Proxy:
-    image: ${REGISTRY_ADDR_OPT}proxy:latest
+  Gateway:
+    image: ${REGISTRY_ADDR_OPT}gateway:latest
     networks: [AtlasNet]
     ports:
       - target: 25568

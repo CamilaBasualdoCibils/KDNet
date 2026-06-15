@@ -10,7 +10,7 @@ struct ShardSpawnClientRequest
 {
   Entity::Transform spawnTransform;
   ClientID clientID;
-  ServiceID proxyRelayID;
+  ServiceID gatewayRelayID;
   std::vector<uint8_t>
       ClientLoginPayload; // This contains developer-defined data that was given
                           // by the login services that is specific to this
@@ -20,7 +20,7 @@ struct ShardSpawnClientRequest
   {
     spawnTransform.Serialize(writer);
     writer.uuid(clientID);
-    writer.uuid(proxyRelayID);
+    writer.uuid(gatewayRelayID);
     writer.blob(std::span<const uint8_t>(ClientLoginPayload.data(),
                                          ClientLoginPayload.size()));
   }
@@ -29,7 +29,7 @@ struct ShardSpawnClientRequest
   {
     spawnTransform.Deserialize(reader);
     reader.uuid(clientID);
-    reader.uuid(proxyRelayID);
+    reader.uuid(gatewayRelayID);
     std::span<const uint8_t> payloadSpan;
     reader.blob(payloadSpan);
     ClientLoginPayload =

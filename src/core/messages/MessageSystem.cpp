@@ -92,7 +92,8 @@ AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
         }
         else
         {
-          handle.repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
+          handle.set_repeat_once(
+              std::chrono::milliseconds(1000 / Env::TickRate));
         }
 
         GNS().RunCallbacks();
@@ -567,8 +568,7 @@ void AtlasNet::MessageSystem::_Connect_to_job(JobContext& handle,
 
   const ConnectionState state = GetConnectionState(address);
 
-  if (state != ConnectionState::eConnected &&
-      state != ConnectionState::eConnecting)
+  if (state == ConnectionState::eNone)
   {
     std::cerr << std::format(
                      "Starting connection attempt to {} from state {}\n",
@@ -628,7 +628,7 @@ void AtlasNet::MessageSystem::_Connect_to_job(JobContext& handle,
 
     std::cerr << "Initiated connection to " << address.to_string() << std::endl;
 
-    handle.repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
+    handle.set_repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
     return;
   }
 
@@ -638,13 +638,25 @@ void AtlasNet::MessageSystem::_Connect_to_job(JobContext& handle,
                      "Still connecting to {}, will check again in {} ms\n",
                      address.to_string(), 1000 / Env::TickRate)
               << std::endl;
-    handle.repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
+    handle.set_repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
   }
   else if (state == ConnectionState::eConnected)
   {
     std::cerr << std::format("Successfully connected to {}\n",
                              address.to_string())
               << std::endl;
+  }
+  else if (state == ConnectionState::eClosedByPeer)
+  {
+    std::cerr << std::format(
+                     "Connection to {} was closed by peer. Aborting connection "
+                     "attempt.\n",
+                     address.to_string())
+              << std::endl;
+
+    handle.set_failure();
+    GNS().CloseConnection(GetConnectionHandle(address), 0, "Closed by peer",
+                          false);
   }
 }
 std::optional<AtlasNet::MessageSystem::Connection>

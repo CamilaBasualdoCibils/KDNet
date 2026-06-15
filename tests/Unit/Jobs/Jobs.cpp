@@ -45,7 +45,7 @@ TEST(jobs, RepeatingTask)
         {
           std::cout << "Requesting repeat from context, val = " << val.load()
                     << std::endl;
-          ctx.repeat_once(10ms);
+          ctx.set_repeat_once(10ms);
         }
         std::lock_guard lock(mtx);
         cv.notify_all();
@@ -89,7 +89,7 @@ TEST(Jobs, HigherPriorityRunsFirst)
 
         if (run < Runs - 1)
         {
-          ctx.repeat_once();
+          ctx.set_repeat_once();
         }
 
         // Try to claim this slot as Low only if nobody claimed it yet.
@@ -111,7 +111,7 @@ TEST(Jobs, HigherPriorityRunsFirst)
 
         if (run < Runs - 1)
         {
-          ctx.repeat_once();
+          ctx.set_repeat_once();
         }
 
         // Try to claim this slot as High only if nobody claimed it yet.
@@ -203,7 +203,7 @@ TEST(Jobs, RepeatFromContextRunsMoreThanOnce)
         {
           std::cout << "Requesting repeat from context\n";
 
-          ctx.repeat_once(10ms);
+          ctx.set_repeat_once(10ms);
         }
         if (n >= 2 && !signaled.exchange(true))
         {
@@ -387,7 +387,7 @@ TEST(Jobs, HandleWaitObservesRepeatCompletion)
       {
         if (calls.fetch_add(1) < desiredCalls - 1)
         {
-          ctx.repeat_once(10ms);
+          ctx.set_repeat_once(10ms);
         }
       },
       JobOpts::Name{"HandleWaitObservesRepeatCompletion"});
@@ -508,5 +508,24 @@ TEST(Jobs, JobsWithinJobs)
 
   EXPECT_EQ(output, "Hello World!");
 
+  system.Shutdown();
+}
+
+TEST(Jobs, JobFailure)
+{
+  using namespace AtlasNet;
+  JobSystem system(JobSystem::Config{});
+
+  std::atomic_bool completionTaskedRan{false};
+  auto handle = system.Submit([&](AtlasNet::JobContext& ctx) { ctx.set_failure(); },
+                              JobOpts::Name{"JobFailure"});
+  JobHandle h =
+      handle.on_complete([&](AtlasNet::JobContext& ctx, auto&&... opts)
+                         { completionTaskedRan = true; });
+
+  handle.wait();
+  h.wait();
+  EXPECT_TRUE(handle.is_failed());
+  EXPECT_FALSE(completionTaskedRan.load());
   system.Shutdown();
 }

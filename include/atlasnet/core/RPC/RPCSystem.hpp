@@ -287,16 +287,17 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
                             .payload =
                                 std::vector<uint8_t>(writeArgs.bytes().begin(),
                                                      writeArgs.bytes().end())};
-
+  std::cerr << std::format(
+                   "Sending RPC request for methodId {} callId {} to {}",
+                   methodId, callID, target.to_string())
+            << std::endl;
   auto sendMessageJobHandle = config_.messageSystem->SendMessage(
       request, target, MessageSendMode::eReliableBatched);
-  sendMessageJobHandle.wait();
+  /* sendMessageJobHandle.wait();
   assert(sendMessageJobHandle.is_completed() &&
          "Failed to send RPC request message and no fault scenarios have been "
-         "implemented");
-  std::cerr << std::format("Sent RPC request for methodId {} callId {} to {}",
-                           methodId, callID, target.to_string())
-            << std::endl;
+         "implemented"); */
+
   return future;
 }
 

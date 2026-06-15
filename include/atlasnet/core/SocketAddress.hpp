@@ -11,7 +11,7 @@ using PortType = uint16_t;
 
 class ISocketAddress
 {
-  PortType port = 0;
+  PortType port = 1;
 
 public:
   virtual ~ISocketAddress() = default;

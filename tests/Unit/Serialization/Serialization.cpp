@@ -201,7 +201,7 @@ TEST(Serialization, LoginEntrySerialization)
 {
   using namespace AtlasNet;
   LoginEntry entry;
-  //entry.address = SocketAddress();
+  entry.address = SocketAddress(IPv4(127, 0, 0, 1), 8080);
   //entry.clientID;
   //entry.managingProxy = UUID::Generate();
   //entry.entityID = EntityID::Generate();

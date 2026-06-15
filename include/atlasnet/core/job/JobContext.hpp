@@ -32,7 +32,7 @@ public:
     return *runtime_.name;
   }
 
-  JobContext& repeat_once(
+  JobContext& set_repeat_once(
       std::chrono::milliseconds delay = std::chrono::milliseconds::zero()) noexcept
   {
     std::lock_guard lock(runtime_.mutex);
@@ -45,6 +45,20 @@ public:
   {
     std::lock_guard lock(runtime_.mutex);
     return runtime_.cancelled;
+  }
+  /* void cancel() noexcept
+  {
+    std::lock_guard lock(runtime_.mutex);
+    runtime_.cancelled = true;
+    runtime_.state.store(JobState::eCancelled, std::memory_order_release);
+    runtime_.cv.notify_all();
+  } */
+
+  void set_failure() noexcept
+  {
+    std::lock_guard lock(runtime_.mutex);
+    runtime_.state.store(JobState::eFailed, std::memory_order_release);
+    runtime_.cv.notify_all();
   }
 
 private:

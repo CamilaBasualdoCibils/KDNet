@@ -29,11 +29,7 @@ void AtlasNet::AtlasNetController::OnInit()
         "Invalid service adapter type specified in environment variable "
         "ATLASNET_CONTROLLER_SERVICE_BACKEND");
   }
-  GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
-      .id = GetContainerID(),
-      .address = GetHostName(),
-      .containerType = ServiceType::Controller,
-  });
+
   GetGlobalEventSystem().On<WorldCreatedEvent>(
       [this](const WorldCreatedEvent& event) { OnWorldCreated(event); });
 

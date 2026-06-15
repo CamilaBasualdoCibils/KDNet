@@ -12,11 +12,7 @@ void AtlasNet::IAtlasNetShard::OnInit()
   _entityLedger.emplace(
       Entity::EntityLedger::Config{.rpcSystem = &GetRPCSystem()});
 
-  GetServiceRegistry().RegisterService({
-      .id = GetContainerID(),
-      .address = GetHostName(),
-      .containerType = ServiceType::Shard,
-  });
+
 
   GetRPCSystem().Bind<ShardRPC::SpawnClient>(
       [this](ShardSpawnClientRequest request)

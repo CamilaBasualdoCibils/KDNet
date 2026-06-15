@@ -57,11 +57,7 @@ private:
                 << event.address.to_string() << std::endl;
           }
         });
-    GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
-        .id = GetContainerID(),
-        .address = GetHostName(),
-        .containerType = ServiceType::Proxy,
-    });
+
   }
   void OnShutdown() override {}
 

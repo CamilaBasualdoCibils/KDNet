@@ -26,6 +26,12 @@ enum class JobNotifyLevel : std::uint8_t
   eOnAll = eOnStart | eOnComplete | eOnFailure
 };
 
+enum class JobResult
+{
+  eSuccess,
+  eFailure
+};
+
 constexpr JobNotifyLevel operator|(JobNotifyLevel a,
                                    JobNotifyLevel b) noexcept
 {

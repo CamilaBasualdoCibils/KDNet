@@ -203,7 +203,7 @@ void EntityStreamWebSockController::StartFetchJob()
             // -----------------------------
             if (!FetchJobShouldShutdown.load())
             {
-              ctx.repeat_once(std::chrono::milliseconds(50));
+              ctx.set_repeat_once(std::chrono::milliseconds(50));
             }
           });
 

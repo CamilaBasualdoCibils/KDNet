@@ -375,7 +375,8 @@ private:
         {
           runtime->state.store(JobState::ePending, std::memory_order_release);
         }
-        else
+        else if (runtime->state.load(std::memory_order_acquire) !=
+                 JobState::eFailed)
         {
           runtime->state.store(JobState::eCompleted, std::memory_order_release);
         }
@@ -396,21 +397,35 @@ private:
                                  runtime->name.value_or("<unnamed>"), threadId)
                   << std::endl;
       }
-
-      std::vector<Detail::JobContinuationFactory> continuationsToRun;
+      if (HasFlag(runtime->notify, JobNotifyLevel::eOnFailure))
       {
-        std::lock_guard lock(runtime->mutex);
-        continuationsToRun = runtime->continuations;
+        std::cout << std::format("Job '{}' failed in thread {}",
+                                 runtime->name.value_or("<unnamed>"), threadId)
+                  << std::endl;
       }
-
-      for (auto& factory : continuationsToRun)
-      {
-        if (factory.create)
+      
+        std::vector<Detail::JobContinuationFactory> continuationsToRun;
         {
-          auto next = factory.create();
-          EnqueueReady(next);
+          std::lock_guard lock(runtime->mutex);
+          continuationsToRun = runtime->continuations;
         }
-      }
+
+        for (auto& factory : continuationsToRun)
+        {
+          if (factory.create)
+          {
+            auto next = factory.create();
+            if (runtime->state.load(std::memory_order_acquire) == JobState::eCompleted)
+            EnqueueReady(next);
+            else if (runtime->state.load(std::memory_order_acquire) == JobState::eFailed)
+            {
+              std::lock_guard lock(next->mutex);
+              next->state.store(JobState::eFailed, std::memory_order_release);
+              next->cv.notify_all();
+            }
+          }
+        }
+      
     }
     catch (...)
     {
@@ -423,6 +438,9 @@ private:
 
       if (HasFlag(runtime->notify, JobNotifyLevel::eOnFailure))
       {
+        // std::cout << std::format("Job '{}' failed in thread {}",
+        // runtime->name.value_or("<unnamed>"), threadId)
+        //           << std::endl;
       }
     }
   }
@@ -494,12 +512,9 @@ JobHandle JobHandle::on_complete(F&& f, Opts&&... opts) const
   auto makeRuntime = [system,
                       factoryData]() -> std::shared_ptr<Detail::JobRuntime>
   {
-    return std::apply(
-        [&](auto& fn, auto&... options)
-        {
-          return system->MakeRuntime(fn, options...);
-        },
-        *factoryData);
+    return std::apply([&](auto& fn, auto&... options)
+                      { return system->MakeRuntime(fn, options...); },
+                      *factoryData);
   };
 
   if (!runtime_ || !system)
@@ -533,12 +548,8 @@ JobHandle JobHandle::on_complete(F&& f, Opts&&... opts) const
     }
     else
     {
-      runtime_->continuations.push_back(
-          Detail::JobContinuationFactory{
-              [continuationRuntime]
-              {
-                return continuationRuntime;
-              }});
+      runtime_->continuations.push_back(Detail::JobContinuationFactory{
+          [continuationRuntime] { return continuationRuntime; }});
     }
   }
 

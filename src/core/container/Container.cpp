@@ -119,6 +119,11 @@ void AtlasNet::IService::Init()
 
     FetchControllerInfo();
   }
+      GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
+        .id = GetContainerID(),
+        .address = GetHostName(),
+        .containerType = GetServiceType(),
+    });
   OnInit();
   while (!ShutdownRequested())
   {
@@ -143,7 +148,7 @@ void AtlasNet::IService::FetchControllerInfo()
           std::cerr << "No Controller service found. Agent initialization "
                        "failed. trying again in "
                     << retryDelay.count() << "ms" << std::endl;
-          ctx.repeat_once(retryDelay);
+          ctx.set_repeat_once(retryDelay);
           return;
         }
         const auto& controllerInfo = outServices[0];

@@ -10,13 +10,14 @@ namespace AtlasNet
 {
 enum class HandshakeRole : uint8_t
 {
-  eClient,
-  eServer
+  eClient = 0,
+  eServer = 1,
+  eInvalid = 2
 };
 struct HandshakeServerRequestData
 {
   ServiceID serviceID;
-  ServiceType serviceType;
+  ServiceType serviceType = ServiceType::Invalid;
 };
 struct HandshakeClientRequestData
 {
@@ -24,7 +25,7 @@ struct HandshakeClientRequestData
 };
 struct HandshakeIdentity
 {
-  HandshakeRole role;
+  HandshakeRole role = HandshakeRole::eInvalid;
   std::variant<HandshakeServerRequestData, HandshakeClientRequestData> data;
 
   void Serialize(ByteWriter& writer) const

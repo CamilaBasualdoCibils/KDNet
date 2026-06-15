@@ -465,6 +465,19 @@ public:
     }
     throw std::invalid_argument("Invalid SocketAddress variant index");
   }
+
+  HostAddress to_host_address() const
+  {
+    if (IsIPv4())
+      return HostAddress(get_ipv4());
+    if (IsIPv6())
+      return HostAddress(get_ipv6());
+    if (IsHostName())
+      return HostAddress(get_hostname());
+    if (IsSteamID())
+      return HostAddress(get_steam_id());
+    throw std::runtime_error("Invalid SocketAddress variant");
+  }
 };
 } // namespace AtlasNet
 namespace std

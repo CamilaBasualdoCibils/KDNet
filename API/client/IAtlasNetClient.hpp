@@ -15,7 +15,12 @@ public:
   void AtlasNetClient_Init()
   {
     jobSystem.emplace(JobSystem::Config{});
-    messageSystem.emplace(MessageSystem::Config{.jobSystem = &*jobSystem});
+    messageSystem.emplace(MessageSystem::Config{
+        .jobSystem = &*jobSystem,
+        .handshakeIdentity =
+            HandshakeIdentity{.role = HandshakeRole::eClient,
+                              .data = HandshakeClientRequestData{
+                                  .payload = {'H', 'e', 'l', 'l', 'o'}}}});
     rpcSystem.emplace(RPCSystem::Config{.messageSystem = &*messageSystem});
   }
 
@@ -35,15 +40,19 @@ public:
     jobHandle.wait(std::chrono::seconds(5));
     if (jobHandle.is_completed())
     {
-        if (error) *error = AtlasNetClientError::None;
-        if (errorMessage) *errorMessage = "";
-        return true;
+      if (error)
+        *error = AtlasNetClientError::None;
+      if (errorMessage)
+        *errorMessage = "";
+      return true;
     }
     else
     {
-        if (error) *error = AtlasNetClientError::ConnectionTimedOut;
-        if (errorMessage) *errorMessage = "Connection attempt timed out.";
-        return false;
+      if (error)
+        *error = AtlasNetClientError::ConnectionTimedOut;
+      if (errorMessage)
+        *errorMessage = "Connection attempt timed out.";
+      return false;
     }
   }
 

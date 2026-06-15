@@ -22,7 +22,9 @@ an example of a simple command requesting an entity to move to a new position:
 
 ```dot
 digraph ClientToShardCommand {
-    rankdir=LR;
+    layout=twopi;
+
+    rankdir=TB;
     node [shape=rectangle];
     Client [label="Client"];
 
@@ -45,14 +47,19 @@ digraph ClientToShardCommand {
 }
 ```
 
+
 ### Shard to Shard logic
 
 In a shard-to-shard command scenario, one shard may need to request an operation on an entity that is owned by another shard. For example, if Shard A needs to update the state of an entity owned by Shard B, it can send a command to Shard B through AtlasNet.
 
 ```dot
 digraph ShardToShardCommand {
-    rankdir=LR;
-    subgraph cluster_ShardA {
+    rankdir=TB;
+    layout=dot;
+    subgraph cluster_AtlasNet
+    {   
+        label="AtlasNet"
+        subgraph cluster_ShardA {
         label="Shard A";
 
         EntityHandle [label="Entity Handle",shape=rectangle];
@@ -66,12 +73,14 @@ digraph ShardToShardCommand {
         GameLogic [label="Game Logic"];
 
     }
+      AtlasNet [label="Relay Network",shape=box];
+    }
+    
     Signal -> EntityHandle [label="Call Signal"]
     Command -> EntityHandle [label="Call Command"];
 
-    AtlasNet [label="AtlasNet",shape=box];
-    EntityHandle -> AtlasNet [label="Dispatch Signal",shape=rectangle]
-    EntityHandle -> AtlasNet [label="Dispatch Command",shape=rectangle];
+  
+    EntityHandle -> AtlasNet [label="Dispatch",shape=rectangle]
     AtlasNet -> CommandHandler [label="Forward Command"];
     Client [label="Client"];
     AtlasNet -> Client [label="Forward Signal"]
@@ -83,7 +92,7 @@ In the event that the entity in question is in the same shard that dispatches th
 
 ```dot
 digraph ShardToSelfCommand {
-    rankdir=LR;
+    rankdir=TB;
     node [shape=rectangle];
     subgraph cluster_Shard {
         label="Shard A";

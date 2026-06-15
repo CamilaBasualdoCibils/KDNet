@@ -68,7 +68,7 @@ AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
   }
 
   SteamNetworkingUtils()->SetDebugOutputFunction(
-      k_ESteamNetworkingSocketsDebugOutputType_Debug,
+      k_ESteamNetworkingSocketsDebugOutputType_Msg,
       [](ESteamNetworkingSocketsDebugOutputType, const char* pszMsg)
       { std::cerr << "GNS Debug: " << pszMsg << std::endl; });
 
@@ -160,262 +160,23 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
   if (!pInfo)
     return;
 
-  SocketAddress address(pInfo->m_info.m_addrRemote);
-
   switch (pInfo->m_info.m_eState)
   {
   case k_ESteamNetworkingConnectionState_Connecting:
-  {
-    std::cerr << "k_ESteamNetworkingConnectionState_Connecting: "
-              << address.to_string() << std::endl;
-    const bool isIncoming =
-        (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
-
-    /* ==================== EVENTS ==================*/
-    if (config_.localEventSystem)
-    {
-      if (isIncoming)
-      {
-        SteamNetworkingIPAddr localAddr;
-        GNS().GetListenSocketAddress(pInfo->m_info.m_hListenSocket, &localAddr);
-        SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
-        ConnectionRequestReceivedEvent event;
-        event.remoteAddr = remoteAddr;
-        event.localPort = localAddr.m_port;
-        config_.localEventSystem->Emit(event);
-      }
-      else
-      {
-        ConnectionStartedInternallyEvent event;
-        SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
-        event.address = remoteAddr;
-        config_.localEventSystem->Emit(event);
-      }
-    }
-
-    /* =================  HANDSHAKE ================== */
-    if (config_.handshakeHandler)
-    {
-      // only check for handshake if incoming because if we initiated then the
-      // identity is not available to us yet
-      if (isIncoming)
-      {
-
-        /* if the identity of the other is invalid then reject*/
-        if (pInfo->m_info.m_identityRemote.IsInvalid() && isIncoming)
-        {
-          std::cerr << std::format(
-                           "WARNING: Incoming connection from {} has invalid "
-                           "identity. Rejecting connection.\n",
-                           address.to_string())
-                    << std::endl;
-          GNS().CloseConnection(pInfo->m_hConn,
-                                (int)HandshakeResponseCode::eReject,
-                                "Invalid identity", false);
-          break;
-        }
-        else /*otherwise try parse*/
-        {
-          HandshakeIdentity remoteHandshakeIdentity;
-          try
-          {
-            int cbLen = 0;
-            const uint8_t* handshakeData =
-                pInfo->m_info.m_identityRemote.GetGenericBytes(cbLen);
-            ByteReader reader(std::span<const uint8_t>(handshakeData, cbLen));
-            remoteHandshakeIdentity.Deserialize(reader);
-          }
-          catch (const std::exception& e)
-          {
-            std::cerr
-                << std::format(
-                       "Failed to parse handshake identity packet from {}: {}. "
-                       "Rejecting connection.\n",
-                       address.to_string(), e.what())
-                << std::endl;
-            GNS().CloseConnection(pInfo->m_hConn,
-                                  (int)HandshakeResponseCode::eReject,
-                                  "Failed to parse handshake data", false);
-            break;
-          }
-          /* call the handshake handler*/
-          if (HandshakeResponsePacket response =
-                  config_.handshakeHandler(remoteHandshakeIdentity, address);
-              !response.accepted)
-          {
-            std::cerr << std::format(
-                             "Handshake rejected for connection from {}. "
-                             "Closing connection. Reason: {}",
-                             address.to_string(), response.rejectReason)
-                      << std::endl;
-            GNS().CloseConnection(pInfo->m_hConn,
-                                  (int)HandshakeResponseCode::eReject,
-                                  response.rejectReason.c_str(), false);
-            break;
-          }
-          else
-          {
-            std::cerr << std::format(
-                             "Handshake accepted for connection from {}. "
-                             "Proceeding with connection.",
-                             address.to_string())
-                      << std::endl;
-          }
-        }
-      }
-    }
-
-    /* Accept the connection*/
-    if (isIncoming)
-    {
-
-      GNS().SetConnectionUserData(pInfo->m_hConn, (int64)this);
-      std::cout << "Accepting incoming connection: "
-                << pInfo->m_info.m_szConnectionDescription << std::endl;
-      const EResult r = GNS().AcceptConnection(pInfo->m_hConn);
-      if (r != k_EResultOK)
-      {
-        std::cout << "AcceptConnection failed: " << static_cast<int>(r)
-                  << " for " << pInfo->m_info.m_szConnectionDescription
-                  << std::endl;
-
-        GNS().CloseConnection(pInfo->m_hConn, 0, "AcceptConnection failed",
-                              false);
-        break;
-      }
-
-      if (!GNS().SetConnectionPollGroup(pInfo->m_hConn, _pollGroup))
-      {
-        std::cerr << "Failed to assign accepted connection to poll group"
-                  << std::endl;
-        GNS().CloseConnection(pInfo->m_hConn, 0, "Failed to assign poll group",
-                              false);
-        break;
-      }
-
-      {
-        std::unique_lock lock(_mutex);
-
-        Connection conn(*this, pInfo->m_hConn);
-        conn.authState = AuthState::eUnknown;
-        conn.connState = ConnectionState::eConnecting;
-
-        auto it = _connections.find(address);
-        if (it == _connections.end())
-        {
-          _connections.emplace(address, std::move(conn));
-        }
-        else
-        {
-          it->second.connState = ConnectionState::eConnecting;
-        }
-      }
-      if (config_.localEventSystem)
-      {
-        ConnectionAcceptedInternallyPreHandshakeEvent event;
-        event.address = address;
-        config_.localEventSystem->Emit(event);
-      }
-    }
-    else
-    {
-      std::cout << "Outgoing connection (initiated locally): "
-                << pInfo->m_info.m_szConnectionDescription << std::endl;
-    }
-
+    OnConnectionStatus_Connecting(pInfo);
     break;
-  }
 
   case k_ESteamNetworkingConnectionState_Connected:
-  {
-    std::cerr << "k_ESteamNetworkingConnectionState_Connected: "
-              << address.to_string() << std::endl;
-    const bool isIncoming =
-        (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
-    if (!isIncoming)
-    {
-      bool handshakeresult = attempt_handshake(pInfo->m_info.m_identityRemote);
-      if (!handshakeresult)
-      {
-        std::cerr << std::format(
-                         "Handshake failed for outgoing connection to {}. "
-                         "Closing connection.",
-                         address.to_string())
-                  << std::endl;
-        GNS().CloseConnection(pInfo->m_hConn,
-                              (int)HandshakeResponseCode::eReject,
-                              "Handshake failed", false);
-        std::unique_lock lock(_mutex);
-        auto it = _connections.find(address);
-        if (it != _connections.end())
-        {
-          it->second.connState = ConnectionState::eClosedByLocalHost;
-          // it->second.authState = AuthState::eHandshakePending;
-        }
-        else
-        {
-          // Defensive: callback may win race against insertion path.
-          Connection conn(*this, pInfo->m_hConn);
-          conn.connState = ConnectionState::eClosedByLocalHost;
-          // conn.authState = AuthState::eHandshakePending;
-          _connections.emplace(address, std::move(conn));
-        }
-        break;
-      }
-      std::unique_lock lock(_mutex);
-      auto it = _connections.find(address);
-      if (it != _connections.end())
-      {
-        it->second.connState = ConnectionState::eConnected;
-        // it->second.authState = AuthState::eHandshakePending;
-      }
-      else
-      {
-        // Defensive: callback may win race against insertion path.
-        Connection conn(*this, pInfo->m_hConn);
-        conn.connState = ConnectionState::eConnected;
-        // conn.authState = AuthState::eHandshakePending;
-        _connections.emplace(address, std::move(conn));
-      }
-    }
-    if (config_.localEventSystem)
-    {
-      ConnectionEstablishedEvent event;
-      event.address = address;
-      config_.localEventSystem->Emit(event);
-    }
-
-    std::cout << "Connection connected: "
-              << pInfo->m_info.m_szConnectionDescription << std::endl;
+    OnConnectionStatus_Connected(pInfo);
     break;
-  }
 
   case k_ESteamNetworkingConnectionState_ClosedByPeer:
-  {
-    std::unique_lock lock(_mutex);
-    auto it = _connections.find(address);
-    if (it != _connections.end())
-    {
-      it->second.connState = ConnectionState::eClosedByPeer;
-    }
-  }
-
-    std::cout << "Connection closed by peer: "
-              << pInfo->m_info.m_szConnectionDescription << std::endl;
+    OnConnectionStatus_ClosedByPeer(pInfo);
     break;
 
   case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-  {
-    std::unique_lock lock(_mutex);
-    auto it = _connections.find(address);
-    if (it != _connections.end())
-    {
-      it->second.connState = ConnectionState::eProblemDetectedLocally;
-    }
-  }
+    OnConnectionStatus_ProblemDetectedLocally(pInfo);
 
-    std::cout << "Problem detected locally: "
-              << pInfo->m_info.m_szConnectionDescription << std::endl;
     break;
 
   case k_ESteamNetworkingConnectionState_None:
@@ -427,10 +188,13 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
   case k_ESteamNetworkingConnectionState_Linger:
   case k_ESteamNetworkingConnectionState_Dead:
   case k_ESteamNetworkingConnectionState__Force32Bit:
+  {
+    SocketAddress address(pInfo->m_info.m_addrRemote);
     throw std::runtime_error(
         std::format("Unexpected connection state {} for {}",
                     (int)pInfo->m_info.m_eState, address.to_string()));
-    break;
+  }
+  break;
   }
 }
 
@@ -916,7 +680,8 @@ void AtlasNet::MessageSystem::Connection::SendMessage(
                                        static_cast<int>(mode), nullptr);
 }
 bool AtlasNet::MessageSystem::attempt_handshake(
-    const SteamNetworkingIdentity& identity)
+    const SteamNetworkingIdentity& identity,
+    HandshakeIdentity& handshakeIdentity)
 {
   if (config_.handshakeHandler)
   {
@@ -945,4 +710,280 @@ bool AtlasNet::MessageSystem::attempt_handshake(
     return response.accepted;
   }
   return true; // accept by default if no handler provided
+}
+void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
+    SteamNetConnectionStatusChangedCallback_t* pInfo)
+{
+  SocketAddress address(pInfo->m_info.m_addrRemote);
+  std::cerr << "k_ESteamNetworkingConnectionState_Connecting: "
+            << address.to_string() << std::endl;
+  const bool isIncoming =
+      (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
+
+  /* ==================== EVENTS ==================*/
+  if (config_.localEventSystem)
+  {
+    if (isIncoming)
+    {
+      SteamNetworkingIPAddr localAddr;
+      GNS().GetListenSocketAddress(pInfo->m_info.m_hListenSocket, &localAddr);
+      SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
+      ConnectionRequestReceivedEvent event;
+      event.remoteAddr = remoteAddr;
+      event.localPort = localAddr.m_port;
+      config_.localEventSystem->Emit(event);
+    }
+    else
+    {
+      ConnectionStartedInternallyEvent event;
+      SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
+      event.address = remoteAddr;
+      config_.localEventSystem->Emit(event);
+    }
+  }
+  std::optional<HandshakeIdentity> remoteHandshakeIdentity;
+  /* =================  HANDSHAKE ================== */
+  if (config_.handshakeHandler)
+  {
+    // only check for handshake if incoming because if we initiated then the
+    // identity is not available to us yet
+    if (isIncoming)
+    {
+
+      /* if the identity of the other is invalid then reject*/
+      if (pInfo->m_info.m_identityRemote.IsInvalid() && isIncoming)
+      {
+        std::cerr << std::format(
+                         "WARNING: Incoming connection from {} has invalid "
+                         "identity. Rejecting connection.\n",
+                         address.to_string())
+                  << std::endl;
+        GNS().CloseConnection(pInfo->m_hConn,
+                              (int)HandshakeResponseCode::eReject,
+                              "Invalid identity", false);
+        return;
+      }
+      else /*otherwise try parse*/
+      {
+
+        try
+        {
+          int cbLen = 0;
+          const uint8_t* handshakeData =
+              pInfo->m_info.m_identityRemote.GetGenericBytes(cbLen);
+          ByteReader reader(std::span<const uint8_t>(handshakeData, cbLen));
+          remoteHandshakeIdentity.emplace();
+          remoteHandshakeIdentity->Deserialize(reader);
+        }
+        catch (const std::exception& e)
+        {
+          std::cerr
+              << std::format(
+                     "Failed to parse handshake identity packet from {}: {}. "
+                     "Rejecting connection.\n",
+                     address.to_string(), e.what())
+              << std::endl;
+          GNS().CloseConnection(pInfo->m_hConn,
+                                (int)HandshakeResponseCode::eReject,
+                                "Failed to parse handshake data", false);
+          remoteHandshakeIdentity.reset();
+          return;
+        }
+        /* call the handshake handler*/
+        if (HandshakeResponsePacket response =
+                config_.handshakeHandler(*remoteHandshakeIdentity, address);
+            !response.accepted)
+        {
+          std::cerr << std::format("Handshake rejected for connection from {}. "
+                                   "Closing connection. Reason: {}",
+                                   address.to_string(), response.rejectReason)
+                    << std::endl;
+          GNS().CloseConnection(pInfo->m_hConn,
+                                (int)HandshakeResponseCode::eReject,
+                                response.rejectReason.c_str(), false);
+          return;
+        }
+        else
+        {
+          std::cerr << std::format("Handshake accepted for connection from {}. "
+                                   "Proceeding with connection.",
+                                   address.to_string())
+                    << std::endl;
+        }
+      }
+    }
+  }
+
+  /* Accept the connection*/
+  if (isIncoming)
+  {
+
+    GNS().SetConnectionUserData(pInfo->m_hConn, (int64)this);
+    std::cout << "Accepting incoming connection: "
+              << pInfo->m_info.m_szConnectionDescription << std::endl;
+    const EResult r = GNS().AcceptConnection(pInfo->m_hConn);
+    if (r != k_EResultOK)
+    {
+      std::cout << "AcceptConnection failed: " << static_cast<int>(r) << " for "
+                << pInfo->m_info.m_szConnectionDescription << std::endl;
+
+      GNS().CloseConnection(pInfo->m_hConn, 0, "AcceptConnection failed",
+                            false);
+      return;
+    }
+
+    if (!GNS().SetConnectionPollGroup(pInfo->m_hConn, _pollGroup))
+    {
+      std::cerr << "Failed to assign accepted connection to poll group"
+                << std::endl;
+      GNS().CloseConnection(pInfo->m_hConn, 0, "Failed to assign poll group",
+                            false);
+      return;
+    }
+
+    {
+      std::unique_lock lock(_mutex);
+
+      Connection conn(*this, pInfo->m_hConn);
+      conn.authState = AuthState::eUnknown;
+      conn.connState = ConnectionState::eConnecting;
+      conn.handshakeIdentity = remoteHandshakeIdentity;
+
+      auto it = _connections.find(address);
+      if (it == _connections.end())
+      {
+        _connections.emplace(address, std::move(conn));
+      }
+      else
+      {
+        it->second.connState = ConnectionState::eConnecting;
+      }
+    }
+    if (config_.localEventSystem)
+    {
+      ConnectionAcceptedInternallyPreHandshakeEvent event;
+      event.address = address;
+      config_.localEventSystem->Emit(event);
+    }
+  }
+  else
+  {
+    std::cout << "Outgoing connection (initiated locally): "
+              << pInfo->m_info.m_szConnectionDescription << std::endl;
+  }
+}
+void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
+    SteamNetConnectionStatusChangedCallback_t* pInfo)
+{
+  SocketAddress address(pInfo->m_info.m_addrRemote);
+  std::cerr << "k_ESteamNetworkingConnectionState_Connected: "
+            << address.to_string() << std::endl;
+  const bool isIncoming =
+      (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
+
+  if (!isIncoming)
+  {
+    HandshakeIdentity handshakeIdentity;
+    bool handshakeresult =
+        attempt_handshake(pInfo->m_info.m_identityRemote, handshakeIdentity);
+    if (!handshakeresult)
+    {
+      std::cerr << std::format(
+                       "Handshake failed for outgoing connection to {}. "
+                       "Closing connection.",
+                       address.to_string())
+                << std::endl;
+      GNS().CloseConnection(pInfo->m_hConn, (int)HandshakeResponseCode::eReject,
+                            "Handshake failed", false);
+      std::unique_lock lock(_mutex);
+      auto it = _connections.find(address);
+      if (it != _connections.end())
+      {
+        it->second.connState = ConnectionState::eClosedByLocalHost;
+        // it->second.authState = AuthState::eHandshakePending;
+      }
+      else
+      {
+        // Defensive: callback may win race against insertion path.
+        Connection conn(*this, pInfo->m_hConn);
+        conn.connState = ConnectionState::eClosedByLocalHost;
+        // conn.authState = AuthState::eHandshakePending;
+        _connections.emplace(address, std::move(conn));
+      }
+      return;
+    }
+    std::unique_lock lock(_mutex);
+    auto it = _connections.find(address);
+    if (it != _connections.end())
+    {
+      it->second.connState = ConnectionState::eConnected;
+      it->second.handshakeIdentity = handshakeIdentity;
+      // it->second.authState = AuthState::eHandshakePending;
+    }
+    else
+    {
+      // Defensive: callback may win race against insertion path.
+      Connection conn(*this, pInfo->m_hConn);
+      conn.connState = ConnectionState::eConnected;
+      conn.handshakeIdentity = handshakeIdentity;
+      // conn.authState = AuthState::eHandshakePending;
+      _connections.emplace(address, std::move(conn));
+    }
+  }
+  if (config_.localEventSystem)
+  {
+    std::optional<HandshakeIdentity> handshakeIdentity;
+    {
+      std::shared_lock lock(_mutex);
+      auto it = _connections.find(address);
+      if (it != _connections.end())
+      {
+        handshakeIdentity = it->second.handshakeIdentity;
+      }
+    }
+    ConnectionEstablishedEvent event;
+    event.address = address;
+    if (config_.handshakeHandler)
+    {
+      event.source = handshakeIdentity->role == HandshakeRole::eClient
+                         ? ConnectionSource::External
+                         : ConnectionSource::Internal;
+    }
+    else
+    {
+      event.source = ConnectionSource::Unverified;
+    }
+
+    config_.localEventSystem->Emit(event);
+  }
+
+  std::cout << "Connection connected: "
+            << pInfo->m_info.m_szConnectionDescription << std::endl;
+}
+void AtlasNet::MessageSystem::OnConnectionStatus_ClosedByPeer(
+    SteamNetConnectionStatusChangedCallback_t* pInfo)
+{
+  SocketAddress address(pInfo->m_info.m_addrRemote);
+  std::unique_lock lock(_mutex);
+  auto it = _connections.find(address);
+  if (it != _connections.end())
+  {
+    it->second.connState = ConnectionState::eClosedByPeer;
+  }
+  std::cout << "Connection closed by peer: "
+            << pInfo->m_info.m_szConnectionDescription << std::endl;
+}
+
+void AtlasNet::MessageSystem::OnConnectionStatus_ProblemDetectedLocally(
+    SteamNetConnectionStatusChangedCallback_t* pInfo)
+{
+  SocketAddress address(pInfo->m_info.m_addrRemote);
+  std::unique_lock lock(_mutex);
+  auto it = _connections.find(address);
+  if (it != _connections.end())
+  {
+    it->second.connState = ConnectionState::eProblemDetectedLocally;
+  }
+  std::cout << "Problem detected locally: "
+            << pInfo->m_info.m_szConnectionDescription << std::endl;
 }

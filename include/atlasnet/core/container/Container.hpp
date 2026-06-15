@@ -7,6 +7,7 @@
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
+#include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/service/ServiceRegistry.hpp"
 #include "atlasnet/core/universe/Universe.hpp"
@@ -37,33 +38,38 @@ protected:
   virtual void OnInit() = 0;
   virtual void OnShutdown() = 0;
 
-  // HostAddress GetOverlayAddressOfSelf() const;
-  HostAddress GetHostName() const
+  virtual HandshakeResponsePacket
+  HandleHandshake(const HandshakeIdentity& identity,
+                  const SocketAddress& remoteAddr)
   {
-    if (const char* envHost = std::getenv("NODE_IP"))
+    if (identity.role == HandshakeRole::eServer)
     {
-      std::cerr << "Using NODE_IP environment variable for hostname: "
-                << envHost << std::endl;
-      return HostAddress(envHost);
+      HandshakeServerRequestData requestData =
+          std::get<HandshakeServerRequestData>(identity.data);
+      std::optional<ServiceRegistry::ServiceInfo> serviceInfo =
+          GetServiceRegistry().GetServiceInfo(requestData.serviceID);
+
+      if (!serviceInfo)
+      {
+        std::cerr << "Handshake failed: requested service ID "
+                  << requestData.serviceID.to_string()
+                  << " not found in registry" << std::endl;
+        return HandshakeResponsePacket{.accepted = false,
+                                       .rejectReason =
+                                           "Requested service ID not found"};
+      }
+      return HandshakeResponsePacket{.accepted = true};
     }
     else
     {
-      std::cerr << "NODE_IP environment variable not set. Unable to determine "
-                   "Node Address. Attempting to use hostname."
-                << std::endl;
-      char actualHost[256];
-      if (gethostname(actualHost, sizeof(actualHost)) == 0)
-      {
-        return HostAddress(std::string(actualHost));
-      }
-      else
-      {
-        throw std::runtime_error(
-            "Failed to retrieve hostname using gethostname().");
-      }
+
+      return HandshakeResponsePacket{
+          .accepted = false,
+          .rejectReason = "Client handshakes not supported in base IService"};
     }
-    return HostAddress();
   }
+  // HostAddress GetOverlayAddressOfSelf() const;
+  HostAddress GetHostName() const;
   const ServiceID& GetContainerID() const
   {
     return id;
@@ -128,7 +134,7 @@ public:
            "containers fetch the controller info during initialization.");
     return controllerOverlayAddress.value();
   }
- 
+
   ServiceID GetControllerID() const
   {
     assert(controllerContainerID.has_value() &&

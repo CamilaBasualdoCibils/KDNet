@@ -31,7 +31,8 @@ class RPCSystem
 public:
   struct Config
   {
-    std::optional<PortType> port; // if not specified then listens for requests on any port
+    std::optional<PortType>
+        port; // if not specified then listens for requests on any port
     MessageSystem* messageSystem = nullptr;
   };
 
@@ -188,12 +189,17 @@ AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
       .callID = callID,
       .payload = std::vector<uint8_t>(writeArgs.bytes().begin(),
                                       writeArgs.bytes().end())};
-  std::cerr << std::format(
-                   "Sending RPC response for methodId {} callId {} to {}",
-                   response.methodId, response.callID, target.to_string())
-            << std::endl;
+
   JobHandle sendResponseHandle = config_.messageSystem->SendMessage(
       response, target, MessageSendMode::eReliableBatched);
+  sendResponseHandle.wait();
+  assert(sendResponseHandle.is_completed() &&
+         "Failed to send RPC request message and no fault scenarios have been "
+         "implemented");
+  std::cerr << std::format("Sent RPC response for methodId {} callId {} to {}",
+                           response.methodId, response.callID,
+                           target.to_string())
+            << std::endl;
   // NewActiveJob(sendResponseHandle);
 }
 

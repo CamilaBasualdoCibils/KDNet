@@ -38,32 +38,15 @@ struct ShardSpawnClientRequest
 };
 struct ShardSpawnClientResponse
 {
-  std::optional<EntityID> entityID;
+  EntityID entityID;
   void Serialize(ByteWriter& writer) const
   {
-    if (entityID.has_value())
-    {
-      writer.u8(true);
-      writer.uuid(entityID.value());
-    }
-    else
-    {
-      writer.u8(false);
-    }
+
+    writer.uuid(entityID);
   }
   void Deserialize(ByteReader& reader)
   {
-    uint8_t hasEntityID_v;
-    reader.u8(hasEntityID_v);
-    bool hasEntityID = hasEntityID_v != 0;
-    if (hasEntityID)    {
-      EntityID id;
-      reader.uuid(id);
-      entityID = id;
-    }
-    else    {
-      entityID = std::nullopt;
-    }
+    reader.uuid(entityID);
   }
 };
 ATLASNET_RPC(ShardRPC,

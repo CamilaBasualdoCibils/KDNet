@@ -4,6 +4,7 @@
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
+#include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/utils/NetUtils.hpp"
 #include "boost/describe/enum_to_string.hpp"
 #include "boost/stacktrace/stacktrace.hpp"
@@ -89,10 +90,22 @@ void AtlasNet::IService::Init()
       LocalEventSystem::Config{.jobSystem = &_jobSystem.value()});
   _globalEventSystem.emplace(GlobalEventSystem::Config{
       ._redisConn = _redisDatabase.get(), ._jobSystem = &_jobSystem.value()});
-  _messageSystem.emplace(
-      MessageSystem::Config{.jobSystem = &_jobSystem.value(),
-                            .localEventSystem = &_eventSystem.value()});
-  _rpcSystem.emplace(RPCSystem::Config{.messageSystem = &_messageSystem.value()});
+  _messageSystem.emplace(MessageSystem::Config{
+      .jobSystem = &_jobSystem.value(),
+      .localEventSystem = &_eventSystem.value(),
+      .handshakeHandler = [this](const HandshakeIdentity& handshakeIdentity,
+                                 const SocketAddress& remoteAddr)
+      { return HandleHandshake(handshakeIdentity, remoteAddr); },
+      .handshakeIdentity =
+          HandshakeIdentity{
+              .role = HandshakeRole::eServer,
+              .data =
+                  HandshakeServerRequestData{.serviceID = GetID(),
+                                             .serviceType = GetServiceType()},
+          },
+  });
+  _rpcSystem.emplace(
+      RPCSystem::Config{.messageSystem = &_messageSystem.value()});
   _serviceRegistry.emplace(
       ServiceRegistry::Config{.redisConn = _redisDatabase.get()});
   _universe.emplace(
@@ -136,9 +149,36 @@ void AtlasNet::IService::FetchControllerInfo()
         const auto& controllerInfo = outServices[0];
         std::cerr << "Controller at " << controllerInfo.address.to_string()
                   << " with ID " << controllerInfo.id.to_string() << std::endl;
-        controllerOverlayAddress = SocketAddress(controllerInfo.address, Env::InternalMessagePort);
+        controllerOverlayAddress =
+            SocketAddress(controllerInfo.address, Env::InternalMessagePort);
         controllerContainerID = controllerInfo.id;
       });
 
   jobHandle.wait();
+}
+AtlasNet::HostAddress AtlasNet::IService::GetHostName() const
+{
+  if (const char* envHost = std::getenv("NODE_IP"))
+  {
+    std::cerr << "Using NODE_IP environment variable for hostname: " << envHost
+              << std::endl;
+    return HostAddress(envHost);
+  }
+  else
+  {
+    std::cerr << "NODE_IP environment variable not set. Unable to determine "
+                 "Node Address. Attempting to use hostname."
+              << std::endl;
+    char actualHost[256];
+    if (gethostname(actualHost, sizeof(actualHost)) == 0)
+    {
+      return HostAddress(std::string(actualHost));
+    }
+    else
+    {
+      throw std::runtime_error(
+          "Failed to retrieve hostname using gethostname().");
+    }
+  }
+  return HostAddress();
 }

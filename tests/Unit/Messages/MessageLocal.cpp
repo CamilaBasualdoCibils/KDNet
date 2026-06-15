@@ -164,6 +164,59 @@ TEST(MessageSystem, SendMessage)
 
   EXPECT_TRUE(success) << "Did not receive message within timeout";
 };
+ATLASNET_MESSAGE(messagechain1, ATLASNET_MESSAGE_DATA(int, u8_val),
+                 ATLASNET_MESSAGE_DATA(std::string, str))
+ATLASNET_MESSAGE(messagechain2, ATLASNET_MESSAGE_DATA(int, u8_val),
+                 ATLASNET_MESSAGE_DATA(std::string, str))
+TEST(MessageSystem, ChainMessage)
+{
+  using namespace AtlasNet;
+
+  JobSystem jobsys(JobSystem::Config{});
+  MessageSystem msgsys(MessageSystem::Config{.jobSystem = &jobsys});
+  std::atomic_bool success = false;
+  std::mutex mtx;
+  std::condition_variable cv;
+  msgsys.On<messagechain1>(
+      [&](const messagechain1& msg, const SocketAddress& address)
+      {
+        EXPECT_EQ(msg.u8_val, 42);
+        EXPECT_EQ(msg.str, "Hello, AtlasNet!");
+        SUCCEED() << "Received messagechain1 from " << address.to_string();
+
+        messagechain2 msg2;
+        msg2.u8_val = msg.u8_val + 1;
+        msg2.str = msg.str + " Again!";
+        JobHandle SendJob2 = msgsys.SendMessage(msg2, address, AtlasNet::MessageSendMode::eReliable);
+        SendJob2.wait(std::chrono::seconds(5));
+      });
+  msgsys.On<messagechain2>(
+      [&](const messagechain2& msg, const SocketAddress& address)
+      {
+        EXPECT_EQ(msg.u8_val, 43);
+        EXPECT_EQ(msg.str, "Hello, AtlasNet! Again!");
+        SUCCEED() << "Received messagechain2 from " << address.to_string();
+        success = true;
+        std::lock_guard lock(mtx);
+        cv.notify_one();
+      });
+  PortType port = pick_available_port();
+  SocketAddress serverAddr(HostName("localhost"), port);
+  msgsys.OpenListenSocket(port);
+  JobHandle SendJob =
+      msgsys.SendMessage(messagechain1{.u8_val = 42, .str = "Hello, AtlasNet!"},
+                         serverAddr, AtlasNet::MessageSendMode::eReliable);
+
+  std::unique_lock lock(mtx);
+  EXPECT_TRUE(
+      cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success.load(); }))
+      << "Did not receive chained message within timeout";
+
+  EXPECT_TRUE(SendJob.is_completed())
+      << "SendMessage job did not complete within timeout";
+  EXPECT_TRUE(success.load())
+      << "Did not receive chained message within timeout";
+}
 
 TEST(MessageSystem, SendMessageWithoutConnecting)
 {

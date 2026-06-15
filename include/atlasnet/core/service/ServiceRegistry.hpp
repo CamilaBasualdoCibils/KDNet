@@ -31,8 +31,6 @@ public:
     ServiceID id;
     HostAddress address;
     ServiceType containerType;
-    // HostAddress overlayAddress;
-    std::optional<ServiceID> ParentAgentID;
 
     void Serialize(ByteWriter& archive) const
     {
@@ -40,9 +38,6 @@ public:
       archive(address);
       archive(containerType);
       // archive(overlayAddress);
-      archive.u8(ParentAgentID.has_value() ? 1 : 0);
-      if (ParentAgentID)
-        archive.uuid((UUID)*ParentAgentID);
     }
 
     void Deserialize(ByteReader& archive)
@@ -53,14 +48,7 @@ public:
       archive(address);
       archive(containerType);
       // archive(overlayAddress);
-      uint8_t has_parent_agent_id;
-      archive(has_parent_agent_id);
-      if (has_parent_agent_id)
-      {
-        UUID parent_agent_id_uuid;
-        archive(parent_agent_id_uuid);
-        ParentAgentID = ServiceID(parent_agent_id_uuid);
-      }
+
     }
 
     void to_json(_Json& j) const
@@ -73,8 +61,6 @@ public:
           //{"overlayAddress", overlayAddress.to_string()
 
       };
-      if (ParentAgentID)
-        j["ParentAgentID"] = ParentAgentID->to_string();
     }
   };
   void RegisterService(ServiceInfo info)
@@ -143,6 +129,22 @@ public:
     }
   }
 
+  std::optional<ServiceInfo> GetServiceInfo(const ServiceID& id)
+  {
+    ByteWriter bwKey;
+    bwKey.uuid((UUID)id);
+    if (std::optional<std::string> serviceInfoStr =
+            _redisConn->HashMap().GetSet().HGet(ContainerID2ServiceInfoKey,
+                                                bwKey.as_string_view());
+        serviceInfoStr.has_value())
+    {
+      ByteReader br(*serviceInfoStr);
+      ServiceInfo info;
+      info.Deserialize(br);
+      return info;
+    }
+    return std::nullopt;
+  }
 private:
   std::string GetContainerType2ContainerIDsSetKey(ServiceType type)
   {

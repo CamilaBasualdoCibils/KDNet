@@ -10,6 +10,7 @@
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "boost/describe/enum_to_string.hpp"
 #include "boost/multi_index/hashed_index.hpp"
 #include "boost/multi_index/indexed_by.hpp"
 #include "boost/multi_index/member.hpp"
@@ -35,6 +36,8 @@ enum class MessageSendMode
   eUnreliable = k_nSteamNetworkingSend_UnreliableNoNagle,
   eUnreliableBatched = k_nSteamNetworkingSend_Unreliable
 };
+BOOST_DESCRIBE_ENUM(MessageSendMode, eReliable, eReliableBatched, eUnreliable,
+                    eUnreliableBatched)
 enum class ConnectionState
 {
   eNone = k_ESteamNetworkingConnectionState_None,
@@ -70,6 +73,7 @@ public:
     HSteamNetConnection handle;
     ConnectionState connState;
     AuthState authState;
+    std::optional<HandshakeIdentity> handshakeIdentity;
     friend class MessageSystem;
 
   protected:
@@ -179,7 +183,17 @@ private:
     requires std::is_base_of_v<IMessage, MsgType>
   void _ensure_message_dispatcher();
 
-  bool attempt_handshake(const SteamNetworkingIdentity& identity);
+  bool attempt_handshake(const SteamNetworkingIdentity& identity,
+                         HandshakeIdentity& handshakeIdentity);
+
+  void OnConnectionStatus_Connecting(
+      SteamNetConnectionStatusChangedCallback_t* pInfo);
+  void OnConnectionStatus_Connected(
+      SteamNetConnectionStatusChangedCallback_t* pInfo);
+  void OnConnectionStatus_ClosedByPeer(
+      SteamNetConnectionStatusChangedCallback_t* pInfo);
+  void OnConnectionStatus_ProblemDetectedLocally(
+      SteamNetConnectionStatusChangedCallback_t* pInfo);
   const Config config_;
   ISteamNetworkingSockets* _GNS;
   HSteamNetPollGroup _pollGroup;
@@ -322,42 +336,54 @@ inline void MessageSystem::_ensure_message_dispatcher()
       MessageIDHash typeIdHash = MsgType::TypeIdHash;
       MsgType msg;
       msg.Deserialize(reader);
-      std::shared_lock lock(_mutex);
-      if (_handlers.contains(typeIdHash))
-      {
 
-        _handlers[typeIdHash](msg, address); // Placeholder for actual address
-      }
-      else
+      HandlerFunc handler;
+      ListenSocketHandle* listenSocket = nullptr;
       {
-        for (const auto& handler : _handlers)
+        std::shared_lock lock(_mutex);
+        if (_handlers.contains(typeIdHash))
         {
-          std::cerr << std::format(
-              "Registered handler for message type with hash {} does not match "
-              "incoming message of type hash {}\n",
-              handler.first, typeIdHash);
-        }
-      }
-      if (port_received_on.has_value())
-      {
-        if (_listenSockets.contains(*port_received_on))
-        {
-          std::cerr
-              << std::format(
-                     "Dispatching message of type hash {} received on listen "
-                     "socket port {} to listen socket dispatcher\n",
-                     typeIdHash, *port_received_on)
-              << std::endl;
-          _listenSockets.at(*port_received_on)
-              ->DispatchCallbacks(msg, typeIdHash, address);
+
+          handler = _handlers[typeIdHash]; // Placeholder for actual address
         }
         else
         {
-          std::cerr << std::format(
-              "No listen socket found for incoming message of type hash {} "
-              "received on listen socket port {}\n",
-              typeIdHash, *port_received_on);
+          for (const auto& handler : _handlers)
+          {
+            std::cerr << std::format("Registered handler for message type with "
+                                     "hash {} does not match "
+                                     "incoming message of type hash {}\n",
+                                     handler.first, typeIdHash);
+          }
         }
+        if (port_received_on.has_value())
+        {
+          if (_listenSockets.contains(*port_received_on))
+          {
+            std::cerr
+                << std::format(
+                       "Dispatching message of type hash {} received on listen "
+                       "socket port {} to listen socket dispatcher\n",
+                       typeIdHash, *port_received_on)
+                << std::endl;
+            listenSocket = _listenSockets.at(*port_received_on).get();
+          }
+          else
+          {
+            std::cerr << std::format(
+                "No listen socket found for incoming message of type hash {} "
+                "received on listen socket port {}\n",
+                typeIdHash, *port_received_on);
+          }
+        }
+      }
+      if (handler)
+      {
+        handler(msg, address);
+      }
+      if (listenSocket)
+      {
+        listenSocket->DispatchCallbacks(msg, typeIdHash, address);
       }
     };
   };
@@ -394,7 +420,7 @@ inline JobHandle MessageSystem::SendMessage(const MessageType& message,
     {
       std::cerr << std::format("Sent message of type {} to {} with mode {}",
                                MessageType::GetName(), address.to_string(),
-                               static_cast<int>(mode))
+                               boost::describe::enum_to_string(mode, "Unknown"))
                 << std::endl;
     }
   };

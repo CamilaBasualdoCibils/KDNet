@@ -210,7 +210,7 @@ public:
 
   // ---------------- Strings / blobs -----------------------------
 
-  ByteWriter& str(const std::string& s)
+  ByteWriter& str(const std::string_view& s)
   {
     return var_u32(uint32_t(s.size())).write(s.data(), s.size());
   }
@@ -231,7 +231,10 @@ public:
   {
     return var_u32(uint32_t(b.size())).write(b.data(), b.size());
   }
-
+  ByteWriter& blob( const uint8_t* data, size_t size)
+  {
+    return blob(std::span<const uint8_t>(data, size));
+  }
   // ---------------- Varints -------------------------------------
 
   ByteWriter& var_u32(uint32_t v)

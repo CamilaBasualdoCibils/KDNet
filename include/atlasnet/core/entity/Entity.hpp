@@ -9,6 +9,7 @@
 #include "boost/describe/enum_to_string.hpp"
 #include "entt/entity/fwd.hpp"
 #include <entt/entt.hpp>
+#include <ostream>
 #include <type_traits>
 #include <variant>
 
@@ -43,7 +44,7 @@ struct GeospatialPosition
   double longitude;
   double altitude;
 };
-struct Transform
+struct Position
 {
   std::variant<CartesianPosition, GeospatialPosition> position;
 
@@ -51,7 +52,7 @@ struct Transform
   {
     if (!std::holds_alternative<CartesianPosition>(position))
     {
-      throw std::runtime_error("Transform does not hold a CartesianPosition");
+      throw std::runtime_error("Position does not hold a CartesianPosition");
     }
     return std::get<CartesianPosition>(position);
   }
@@ -59,7 +60,7 @@ struct Transform
   {
     if (!std::holds_alternative<GeospatialPosition>(position))
     {
-      throw std::runtime_error("Transform does not hold a GeospatialPosition");
+      throw std::runtime_error("Position does not hold a GeospatialPosition");
     }
     return std::get<GeospatialPosition>(position);
   }
@@ -152,33 +153,67 @@ struct Transform
       position = pos;
     }
   }
+  std::string to_string() const
+  {
+    std::ostringstream oss;
+    std::visit(
+        [&oss](const auto& pos)
+        {
+          using T = std::decay_t<decltype(pos)>;
+
+          if constexpr (std::is_same_v<T, CartesianPosition>)
+          {
+            oss << "Cartesian Position: (" << pos.position.x << ", "
+                << pos.position.y << ", " << pos.position.z << ")";
+          }
+          else if constexpr (std::is_same_v<T, GeospatialPosition>)
+          {
+            oss << "Geospatial Position: (Latitude: " << pos.latitude
+                << ", Longitude: " << pos.longitude
+                << ", Altitude: " << pos.altitude << ")";
+          }
+        },
+        position);
+    return oss.str();
+  }
+  friend std::ostream& operator<<(std::ostream& os, const Position& pos)
+  {
+    os << pos.to_string();
+    return os;
+  }
 };
 struct Location
 {
   WorldID worldId;
-  Transform transform;
+  Position position;
 
   void to_json(_Json& j) const
   {
-    _Json transformJson;
-    transform.to_json(transformJson);
-    j = _Json{{"worldId", worldId.to_string()}, {"transform", transformJson}};
+    _Json positionJson;
+    position.to_json(positionJson);
+    j = _Json{{"worldId", worldId.to_string()}, {"position", positionJson}};
   }
 
   void from_json(const _Json& j)
   {
     worldId = (WorldID)WorldID::from_string(j.at("worldId").get<std::string>());
-    transform.from_json(j.at("transform"));
+    position.from_json(j.at("position"));
   }
   void Serialize(ByteWriter& writer) const
   {
    writer.uuid(worldId);
-   transform.Serialize(writer);
+   position.Serialize(writer);
   }
   void Deserialize(ByteReader& reader)
   {
     reader.uuid(worldId);
-    transform.Deserialize(reader);
+    position.Deserialize(reader);
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const Location& loc)
+  {
+    os << "WorldID: " << loc.worldId.to_string() << ", " << loc.position;
+    return os;
   }
 };
 namespace Components

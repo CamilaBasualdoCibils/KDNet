@@ -12,10 +12,12 @@ void AtlasNet::Entity::EntityLedger::SetRPCBinds()
         std::unordered_map<EntityID, Components::EntityInfo> allInfo;
         {
           auto access = GetReadAccess();
+          std::cerr << "Entity Count: " << IDMapping.size() << std::endl;
           for (const auto& [id, enttId] : IDMapping.left)
           {
             const auto& entityInfo = access.GetEntityInfo(id);
             allInfo[id] = entityInfo;
+            std::cerr << "Entity ID: " << id.to_string() <<"\npos: " << entityInfo.baseInfo.location.position << std::endl;
           }
         }
         return allInfo;

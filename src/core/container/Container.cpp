@@ -33,7 +33,7 @@ std::string get_hostname()
 
 bool AtlasNet::IService::ShutdownRequested() const
 {
-  return shutdown.load(std::memory_order_acquire);
+  return shutdown_requested.load(std::memory_order_acquire);
 }
 
 AtlasNet::IService::IService(ServiceType type) : type(type)
@@ -41,7 +41,7 @@ AtlasNet::IService::IService(ServiceType type) : type(type)
   auto handleShutdown = [](int)
   {
     std::cerr << "SIGINT received, shutting down container..." << std::endl;
-    IService::Get().shutdown.store(true, std::memory_order_release);
+    IService::Get().shutdown_requested.store(true, std::memory_order_release);
     IService::Get().cv.notify_all();
   };
 
@@ -119,16 +119,20 @@ void AtlasNet::IService::Init()
 
     FetchControllerInfo();
   }
-      GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
-        .id = GetContainerID(),
-        .address = GetHostName(),
-        .containerType = GetServiceType(),
-    });
+  GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
+      .id = GetContainerID(),
+      .address = GetHostName(),
+      .containerType = GetServiceType(),
+  });
+
   OnInit();
-  while (!ShutdownRequested())
-  {
-    std::this_thread::sleep_for(std::chrono::milliseconds(3));
-  }
+
+  // conditional variable to wait until shutdown is requested, allowing for
+  // clean shutdown when SIGINT is received
+
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this]
+          { return shutdown_requested.load(std::memory_order_acquire); });
 }
 void AtlasNet::IService::FetchControllerInfo()
 {

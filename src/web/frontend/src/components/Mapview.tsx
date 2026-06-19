@@ -129,7 +129,7 @@ export default function Mapview() {
           }
 
           const pos =
-            payload?.baseInfo?.location?.transform?.position;
+            payload?.baseInfo?.location?.position?.position;
 
           const i = index * 3;
 

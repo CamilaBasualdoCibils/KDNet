@@ -121,7 +121,7 @@ private:
               << services[0].id.to_string() << std::endl;
 
     ShardSpawnClientRequest request{
-        .spawnTransform = entry->SpawnLocation.transform,
+        .spawnTransform = entry->SpawnLocation.position,
         .clientID = entry->clientID,
         .gatewayRelayID = GetID(),
     };

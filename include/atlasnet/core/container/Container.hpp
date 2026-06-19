@@ -148,7 +148,9 @@ private:
   void FetchControllerInfo();
   ServiceID id{ServiceID::Generate()};
   ServiceType type;
-  std::atomic<bool> shutdown{false};
+
+
+  std::atomic<bool> shutdown_requested{false};
   std::mutex mutex;
   std::condition_variable cv;
 
@@ -165,6 +167,7 @@ private:
   std::optional<ServiceID> controllerContainerID;
   std::optional<SocketAddress> controllerOverlayAddress;
   // Database::InternalDB _internalDB;
+
   static inline IService& Get()
   {
     static IService& instance = []() -> IService&

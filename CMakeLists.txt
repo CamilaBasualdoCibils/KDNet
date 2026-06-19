@@ -187,18 +187,18 @@ target_link_libraries(AtlasNetClientAPI AtlasNetCore)
 target_link_libraries(AtlasNetClientAPI_s AtlasNetCore)
 
 # ========= ATLASNET DUMMY ========
-file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy/*.cpp"
-)
-add_executable(AtlasNetDummy ${_dummy_sources})
-# Optional, but common: local includes
-target_include_directories(AtlasNetDummy
-      PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy"
-)
-target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)
-target_compile_definitions(AtlasNetDummy PRIVATE ATLASNET_DUMMY_BUILD)
-
+#file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS
+#  "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy/*.cpp"
+#)
+#add_executable(AtlasNetDummy ${_dummy_sources})
+## Optional, but common: local includes
+#target_include_directories(AtlasNetDummy
+#      PRIVATE
+#    "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy"
+#)
+#target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)
+#target_compile_definitions(AtlasNetDummy PRIVATE ATLASNET_DUMMY_BUILD)
+#
 # ========= ATLASNET PHYSICS API ========
 file(GLOB_RECURSE _physics_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/API/physics/*.cpp"

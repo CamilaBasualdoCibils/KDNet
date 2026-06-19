@@ -7,27 +7,27 @@ public:
     DummyShard() = default;
     ~DummyShard() override = default;
 
-    void Run()
+    void OnShardInit() override
     {
     }
     void OnAtlasNetRequest_Shutdown() override {
         // Cleanup code for the shard
     }
 
-    void OnAtlasNetRequest_DetachEntity(const AtlasNet::EntityID& id,
+    void OnDetachEntity(const AtlasNet::EntityID& id,
                       const AtlasNet::EntityHandle& remote_handle) override
     {
         // Implementation for detaching an entity from the shard
         // Here you would add logic to remove the entity from any internal data structures
         // and ensure that any references to this entity are properly handled.
     }
-    void OnAtlasNetRequest_SerializeEntity(const AtlasNet::EntityID& id, AtlasNet::ByteWriter& writer) override
+    void OnExportEntity(const AtlasNet::EntityID& id, AtlasNet::ByteWriter& writer) override
     {
         // Implementation for serializing an entity's state
         // Here you would add logic to write the entity's state to the ByteWriter
         // This might include writing components, position, health, etc.
     }
-    void OnAtlasNetRequest_DeserializeEntity(const AtlasNet::EntityID& id, AtlasNet::ByteReader& reader) override
+    void OnAcquireEntity(const AtlasNet::EntityID& id, AtlasNet::ByteReader& reader) override
     {
         // Implementation for deserializing an entity's state
         // Here you would add logic to read the entity's state from the ByteReader

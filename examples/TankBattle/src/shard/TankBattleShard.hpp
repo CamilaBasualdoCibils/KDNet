@@ -1,5 +1,6 @@
 #pragma once
 #include "IAtlasNetShard.hpp"
+#include "ShardEnums.hpp"
 #include "World.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityHandle.hpp"
@@ -17,11 +18,12 @@ public:
   TankBattleShard() = default;
   ~TankBattleShard() override = default;
   TankBattle::World world;
-  void Run()
+  void OnShardInit() override
   {
+    std::cerr << "Starting TankBattleShard..." << std::endl;
     TankBattle::OrbitEntity* orbitEntity =
         world.AddEntity<TankBattle::OrbitEntity>();
-    AtlasNet::Entity::Transform atlasTransform;
+    AtlasNet::Entity::Position atlasTransform;
     atlasTransform.Cartesian().position = orbitEntity->transform.position;
     orbitEntity->SetAtlasEntityID(AtlasNet_RegisterEntity(atlasTransform));
 
@@ -47,16 +49,16 @@ public:
       {
         if (entity->GetAtlasEntityID())
         {
-          AtlasNet::Entity::Transform atlasTransform;
+          AtlasNet::Entity::Position atlasTransform;
           atlasTransform.Cartesian().position = entity->transform.position;
           AtlasNet_UpdateEntityTransform(entity->GetAtlasEntityID().value(),
                                          atlasTransform);
-          std::cerr << "Updated transform for entity ID "
+          /* std::cerr << "Updated transform for entity ID "
                     << entity->GetAtlasEntityID().value().to_string()
                     << std::endl;
           std::cerr << "Entity position: xyz "
                     << glm::to_string(atlasTransform.Cartesian().position)
-                    << std::endl;
+                    << std::endl; */
         }
       }
       world.Render();
@@ -81,9 +83,9 @@ public:
     ShouldShutdown.store(true);
   }
 
-  void OnAtlasNetRequest_DetachEntity(
-      const AtlasNet::EntityID& id,
-      const AtlasNet::EntityHandle& remote_handle) override
+  void OnDetachEntity(AtlasNet::EntityDetachState state,
+                      const AtlasNet::EntityID& id,
+                      const AtlasNet::EntityHandle& remote_handle) override
   {
     // Implementation for detaching an entity from the shard
     std::cerr << "Detaching entity with ID: " << id.to_string() << std::endl;
@@ -92,36 +94,42 @@ public:
     // handled.
   }
 
-  void OnAtlasNetRequest_SerializeEntity(const AtlasNet::EntityID& id,
-                                         AtlasNet::ByteWriter& writer) override
+  void OnExportEntity(const AtlasNet::EntityID& id,
+                      AtlasNet::ByteWriter& writer) override
   {
     // Implementation for serializing an entity's state
-    std::cerr << "Serializing entity with ID: " << id.to_string() << std::endl;
+    std::cerr << "Exporting entity with ID: " << id.to_string() << std::endl;
     // Here you would add logic to write the entity's state to the ByteWriter
     // This might include writing components, position, health, etc.
   }
 
-  void
-  OnAtlasNetRequest_DeserializeEntity(const AtlasNet::EntityID& id,
-                                      AtlasNet::ByteReader& reader) override
+  void OnAcquireEntity(const AtlasNet::EntityID& id,
+                       AtlasNet::ByteReader& reader) override
   {
     // Implementation for deserializing an entity's state
-    std::cerr << "Deserializing entity with ID: " << id.to_string()
-              << std::endl;
+    std::cerr << "Acquiring entity with ID: " << id.to_string() << std::endl;
     // Here you would add logic to read the entity's state from the ByteReader
     // and reconstruct the entity's components, position, health, etc.
   }
-  void OnAtlasNetRequest_LockEntity(const AtlasNet::EntityID& id) override
+
+  void OnSpawnClient(const AtlasNet::ClientSpawnInfo& info) override
   {
-    // Implementation for locking an entity
-    std::cerr << "Locking entity with ID: " << id.to_string() << std::endl;
-    // Here you would add logic to lock the entity for exclusive access
-  }
-  void OnAtlasNetRequest_UnlockEntity(const AtlasNet::EntityID& id) override
-  {
-    // Implementation for unlocking an entity
-    std::cerr << "Unlocking entity with ID: " << id.to_string() << std::endl;
-    // Here you would add logic to unlock the entity to allow access by other
-    // parts of the system
+    // Implementation for spawning a client
+    std::cerr << "Spawning client with ID: " << info.clientID.to_string()
+              << " and entity ID: " << info.entityID.to_string()
+              << " at location " << info.position << std::endl;
+
+    // set position to a random location in xz plane -100,100
+
+    vec3 randomPosition;
+    randomPosition.x = static_cast<float>(rand() % 200 - 100);
+    randomPosition.y = 0.0f;
+    randomPosition.z = static_cast<float>(rand() % 200 - 100);
+    AtlasNet::Entity::Position atlasTransform;
+    atlasTransform.Cartesian().position = randomPosition;
+    AtlasNet_UpdateEntityTransform(info.entityID, atlasTransform);
+    // Here you would add logic to handle the client spawn, such as initializing
+    // the client's entity in the world and processing any spawnShardPayload
+    // data.
   }
 };

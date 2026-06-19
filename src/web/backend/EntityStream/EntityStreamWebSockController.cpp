@@ -133,8 +133,8 @@ void EntityStreamWebSockController::StartFetchJob()
 
               futures.push_back(
                   rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
-                      AtlasNet::SocketAddress(info.address,
-                                              AtlasNet::Env::InternalMessagePort)));
+                      AtlasNet::SocketAddress(
+                          info.address, AtlasNet::Env::InternalMessagePort)));
             }
 
             // -----------------------------
@@ -158,6 +158,10 @@ void EntityStreamWebSockController::StartFetchJob()
 
                   for (auto& [entityId, entityInfo] : result)
                   {
+                    std::cerr
+                        << "Entity ID: " << entityId.to_string()
+                        << "\npos: " << entityInfo.baseInfo.location.position
+                        << std::endl;
                     entityInfoCache.emplace(entityId, entityInfo);
                   }
                 }
@@ -192,7 +196,8 @@ void EntityStreamWebSockController::StartFetchJob()
             }
 
             const std::string message = payload.dump();
-
+            std::cerr << "EntityStream Response json\n"
+                      << payload.dump(2) << std::endl;
             for (auto& ws : conns)
             {
               ws->send(message);

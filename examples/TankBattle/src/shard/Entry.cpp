@@ -3,5 +3,5 @@
 int main()
 {
     TankBattleShard shard;
-    shard.Run();
+    shard.Init();
 }

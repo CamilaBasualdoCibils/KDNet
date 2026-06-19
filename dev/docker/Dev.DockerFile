@@ -25,11 +25,11 @@ ARG PRELAUNCH_CMD="{EXE}"
 ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
 ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetGateway; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
-FROM runner AS atlasnet-dummy-dev
-COPY --from=atlasnetstage /atlasnet/AtlasNetDummy /atlasnet/AtlasNetDummy
-ARG PRELAUNCH_CMD="{EXE}"
-ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetDummy; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
+#FROM runner AS atlasnet-dummy-dev
+#COPY --from=atlasnetstage /atlasnet/AtlasNetDummy /atlasnet/AtlasNetDummy
+#ARG PRELAUNCH_CMD="{EXE}"
+#ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
+#ENTRYPOINT ["sh", "-c", "EXE=/atlasnet/AtlasNetDummy; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec sh -c \"$CMD\""]
 
 
 FROM runner AS atlasnet-cartograph-backend-dev

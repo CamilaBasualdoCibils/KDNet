@@ -5,14 +5,14 @@
 #include "atlasnet/core/entity/Entity.hpp"
 namespace AtlasNet
 {
-
+// Received by the backend of the shard
 struct ShardSpawnClientRequest
 {
-  Entity::Transform spawnTransform;
+  Entity::Position spawnTransform;
   ClientID clientID;
   ServiceID gatewayRelayID;
   std::vector<uint8_t>
-      ClientLoginPayload; // This contains developer-defined data that was given
+      clientSpawnPayload; // This contains developer-defined data that was given
                           // by the login services that is specific to this
                           // client
 
@@ -21,8 +21,8 @@ struct ShardSpawnClientRequest
     spawnTransform.Serialize(writer);
     writer.uuid(clientID);
     writer.uuid(gatewayRelayID);
-    writer.blob(std::span<const uint8_t>(ClientLoginPayload.data(),
-                                         ClientLoginPayload.size()));
+    writer.blob(std::span<const uint8_t>(clientSpawnPayload.data(),
+                                         clientSpawnPayload.size()));
   }
 
   void Deserialize(ByteReader& reader)
@@ -32,9 +32,19 @@ struct ShardSpawnClientRequest
     reader.uuid(gatewayRelayID);
     std::span<const uint8_t> payloadSpan;
     reader.blob(payloadSpan);
-    ClientLoginPayload =
+    clientSpawnPayload =
         std::vector<uint8_t>(payloadSpan.begin(), payloadSpan.end());
   }
+};
+// Received by the frontend of the shard
+struct ClientSpawnInfo
+{
+  ClientID clientID;
+  EntityID entityID;
+  Entity::Position position;
+  std::vector<uint8_t>
+      clientSpawnPayload; // This contains developer-defined data that will be
+                          // given to the shard that spawns the client
 };
 struct ShardSpawnClientResponse
 {

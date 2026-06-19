@@ -17,15 +17,15 @@ add_custom_target(AtlasNetDevDockerBuildStage
         $<TARGET_FILE:AtlasNetCartographBackend>
         "${DEV_STAGE_DIR}/"
 
-    COMMAND ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE:AtlasNetDummy>
-        "${DEV_STAGE_DIR}/"
+    #COMMAND ${CMAKE_COMMAND} -E copy
+    #    $<TARGET_FILE:AtlasNetDummy>
+    #    "${DEV_STAGE_DIR}/"
 
     DEPENDS
         $<TARGET_FILE:AtlasNetCartographBackend>
         $<TARGET_FILE:AtlasNetController>
         $<TARGET_FILE:AtlasNetGateway>
-        $<TARGET_FILE:AtlasNetDummy>
+        #$<TARGET_FILE:AtlasNetDummy>
     USES_TERMINAL
     VERBATIM
 )

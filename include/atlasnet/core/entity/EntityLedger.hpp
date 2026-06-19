@@ -96,6 +96,7 @@ public:
       entityInfo.baseInfo = info;
       entityInfo.id = id;
       _ledger._createEntity(id, entityInfo);
+      std::cerr << "Entity created with ID: " << id.to_string() << std::endl;
       return id;
     }
     void RemoveEntity(const EntityID& id)

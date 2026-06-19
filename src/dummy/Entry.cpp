@@ -3,6 +3,6 @@
 int main()
 {
     DummyShard shard;
-    shard.Run();
+    shard.Init();
     return 0;
 }

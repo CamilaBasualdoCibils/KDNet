@@ -353,8 +353,6 @@ public:
     (read_any(args), ...);
     return *this;
   }
-
-private:
   template <typename T> void read_any(T& v)
   {
     using U = std::remove_cvref_t<T>;
@@ -437,11 +435,20 @@ private:
     {
       read_vector<U::length()>(v);
     }
+    else if constexpr (Iterable<U>)
+    {
+      for (auto& elem : v)
+      {
+        read_any(elem);
+      }
+    }
     else
     {
       static_assert(!sizeof(U*), "Unsupported type for ByteReader");
     }
   }
+
+private:
   template <typename T> T read_int()
   {
     if (i + sizeof(T) > n)

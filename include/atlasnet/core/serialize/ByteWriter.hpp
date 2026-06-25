@@ -231,7 +231,7 @@ public:
   {
     return var_u32(uint32_t(b.size())).write(b.data(), b.size());
   }
-  ByteWriter& blob( const uint8_t* data, size_t size)
+  ByteWriter& blob(const uint8_t* data, size_t size)
   {
     return blob(std::span<const uint8_t>(data, size));
   }
@@ -303,7 +303,7 @@ public:
     {
       v.Serialize(*this);
     }
-    else if constexpr (SizedIterable<T>)
+    else if constexpr (ResizableIterable<T>)
     {
       uint32_t count = static_cast<uint32_t>(v.size());
       write_scalar(count);
@@ -324,15 +324,22 @@ public:
       }
     }
     else if constexpr (is_pair_v<T>)
-{
-  write_any(v.first);
-  write_any(v.second);
-}
+    {
+      write_any(v.first);
+      write_any(v.second);
+    }
     else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_convertible_v<T, std::string_view>)
       str(v);
     else if constexpr (std::is_same_v<T, UUID>)
       uuid(v);
+    else if constexpr (Iterable<T>)
+    {
+      for (const auto& elem : v)
+      {
+        write_any(elem);
+      }
+    }
     else if constexpr (std::is_same_v<T, std::span<const uint8_t>> ||
                        std::is_convertible_v<
                            T, std::span<const uint8_t>>) // or if can be
@@ -348,6 +355,7 @@ public:
       mat4(v);
     else if constexpr (is_glm_vec<T>::value)
       write_vector<T::length()>(v); // Assume its glm vec
+
     else
       static_assert(!sizeof(T*), "Unsupported type for ByteWriter");
   }

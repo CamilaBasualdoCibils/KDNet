@@ -173,18 +173,18 @@ digraph ClientToShardCommand {
     client2 -> client5 [color="red",style=dashed,dir=none];
 
     # TELECOM SFU
-    client3:n -> Gateway2:s [color="orange",style=dashed,dir=none];
-    Gateway2 -> Gateway1    [color="orange",style=dashed,dir=none];
-    Gateway2:s -> client4:n [color="orange",style=dashed,dir=none];
-    Gateway1:s -> client1:n [color="orange",style=dashed,dir=none];
-    Gateway1:s -> client2:n [color="orange",style=dashed,dir=none];
+    client3:n -> Gateway2:s [color="orange1",style=dashed,dir=none];
+    Gateway2 -> Gateway1    [color="orange1",style=dashed,dir=none];
+    Gateway2:s -> client4:n [color="orange1",style=dashed,dir=none];
+    Gateway1:s -> client1:n [color="orange1",style=dashed,dir=none];
+    Gateway1:s -> client2:n [color="orange1",style=dashed,dir=none];
 
     legend_commandS [label="", shape=none,pos="0.5,-0.7!"];
     legend_commandE [label="", shape=none,pos="2.5,-0.7!"];
     legend_commandS -> legend_commandE [label="P2P", color=red, style=dashed];
     legend_signalS [label="", shape=none,pos="0.5,-1!"];
     legend_signalE [label="", shape=none,pos="2.5,-1!"];
-    legend_signalS -> legend_signalE [label="Relay & SFU", color=orange, style=dashed];
+    legend_signalS -> legend_signalE [label="Relay & SFU", color=orange1, style=dashed];
 }
 ```
 

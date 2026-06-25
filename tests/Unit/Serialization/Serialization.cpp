@@ -33,6 +33,9 @@ TEST(Serialization, BasicOps)
   const glm::quat quat_val(1.0f, 0.0f, 0.0f, 0.0f);
   const glm::mat4 mat4_val(1.0f);
   const std::vector<uint8_t> blob_val = {0xDE, 0xAD, 0xBE, 0xEF};
+  const std::array<uint8_t, 16> array_val = {0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD,
+                                             0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF,
+                                             0xDE, 0xAD, 0xBE, 0xEF};
 
   AtlasNet::ByteWriter writer;
   writer.u8(u8_val)
@@ -50,7 +53,8 @@ TEST(Serialization, BasicOps)
       .bits(bits_val, 32)
       .quat(quat_val)
       .mat4(mat4_val)
-      .blob(std::span(blob_val));
+      .blob(std::span(blob_val))
+      .write_any(array_val);
 
   uint8_t u8_out;
   uint16_t u16_out;
@@ -68,7 +72,7 @@ TEST(Serialization, BasicOps)
   glm::quat quat_out;
   glm::mat4 mat4_out;
   std::span<const uint8_t> blob_out;
-
+  std::array<uint8_t, 16> array_out;
   AtlasNet::ByteReader reader(writer.bytes());
   reader.u8(u8_out)
       .u16(u16_out)
@@ -85,7 +89,8 @@ TEST(Serialization, BasicOps)
       .bits(32, bits_out)
       .quat(quat_out)
       .mat4(mat4_out)
-      .blob(blob_out);
+      .blob(blob_out)
+      .read_any(array_out);
 
   EXPECT_EQ(u8_out, u8_val);
   EXPECT_EQ(u16_out, u16_val);
@@ -104,6 +109,8 @@ TEST(Serialization, BasicOps)
   EXPECT_EQ(mat4_out, mat4_val);
   EXPECT_TRUE(std::equal(blob_out.begin(), blob_out.end(), blob_val.begin(),
                          blob_val.end()));
+  EXPECT_TRUE(std::equal(array_out.begin(), array_out.end(), array_val.begin(),
+                         array_val.end()));
 }
 struct Object
 {
@@ -123,7 +130,7 @@ struct Object
   glm::quat quat_val;
   glm::mat4 mat4_val;
   std::span<const uint8_t> blob_val;
-
+  std::array<uint8_t, 16> array_val;
   template <typename Archive> void serialize(Archive& ar)
   {
     ar(u8_val);
@@ -142,30 +149,31 @@ struct Object
     ar(quat_val);
     ar(mat4_val);
     ar(blob_val);
+    ar(array_val);
   }
 };
 TEST(Serialization, archivetest)
 {
 
   std::vector<uint8_t> blob = {0xDE, 0xAD, 0xBE, 0xEF};
-  Object in{
-      255,
-      65535,
-      4294967295,
-      18446744073709551615ull,
-      -128,
-      -32768,
-      -2147483648,
-      -9223372036854775807ll - 1,
-      3.14f,
-      3.141592653589793,
-      "Hello, AtlasNet!",
-      glm::vec4(1.0f, 2.0f, 3.0f, 4.0f),
-      0b10101010101010101010101010101010,
-      glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
-      glm::mat4(1.0f),
-      blob,
-  };
+  Object in{255,
+            65535,
+            4294967295,
+            18446744073709551615ull,
+            -128,
+            -32768,
+            -2147483648,
+            -9223372036854775807ll - 1,
+            3.14f,
+            3.141592653589793,
+            "Hello, AtlasNet!",
+            glm::vec4(1.0f, 2.0f, 3.0f, 4.0f),
+            0b10101010101010101010101010101010,
+            glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+            glm::mat4(1.0f),
+            blob,
+            {0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE,
+             0xEF, 0xDE, 0xAD, 0xBE, 0xEF}};
 
   AtlasNet::ByteWriter writer;
   in.serialize(writer);
@@ -191,6 +199,8 @@ TEST(Serialization, archivetest)
   EXPECT_EQ(out.mat4_val, in.mat4_val);
   EXPECT_TRUE(std::equal(out.blob_val.begin(), out.blob_val.end(),
                          in.blob_val.begin(), in.blob_val.end()));
+  EXPECT_TRUE(std::equal(out.array_val.begin(), out.array_val.end(),
+                         in.array_val.begin(), in.array_val.end()));
 }
 int main(int argc, char** argv)
 {
@@ -202,9 +212,9 @@ TEST(Serialization, LoginDataSerialization)
   using namespace AtlasNet;
   LoginData entry;
   entry.address = SocketAddress(IPv4(127, 0, 0, 1), 8080);
-  //entry.clientID;
-  //entry.managingGateway = UUID::Generate();
-  //entry.entityID = EntityID::Generate();
+  // entry.clientID;
+  // entry.managingGateway = UUID::Generate();
+  // entry.entityID = EntityID::Generate();
   ByteWriter writer;
   entry.Serialize(writer);
 

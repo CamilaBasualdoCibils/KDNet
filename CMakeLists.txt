@@ -20,10 +20,12 @@ set(ATLASNET_CARTOGRAPH ON CACHE BOOL "Build AtlasNet web interface")
 
 add_custom_target(AtlasNetDocs
     COMMAND doxygen docs/Doxyfile
+    COMMAND xdg-open docs/html/index.html
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating documentation with Doxygen"
     VERBATIM
 )
+
 if (ATLASNET_EXAMPLES)
     add_subdirectory(examples)
 endif()

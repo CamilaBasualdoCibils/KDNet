@@ -4,8 +4,7 @@
 
 std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> AtlasNet::HostName::resolve() const
 {
-  std::cerr << std::format("Resolving hostname {} to IP address\n", hostname)
-            << std::endl;
+
   if (!dirty)
     return resolved_ip;
 
@@ -14,14 +13,11 @@ std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> AtlasNet::HostName::
   hints.ai_socktype = 0;
   hints.ai_protocol = 0;
 
-  std::cerr << std::format("Calling getaddrinfo for hostname {}\n", hostname)
-            << std::endl;
+
   addrinfo* result = nullptr;
   const int rc = ::getaddrinfo(hostname.c_str(), nullptr, &hints, &result);
 
-  std::cerr << std::format("getaddrinfo returned with code {} for hostname {}\n", rc,
-                           hostname)
-            << std::endl;
+
   if (rc != 0)
   {
     resolved_ip.reset();

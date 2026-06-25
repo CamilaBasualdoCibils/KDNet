@@ -18,8 +18,8 @@ void EntityStreamWebSockController::handleNewMessage(
     const WebSocketMessageType& conn)
 {
   // write your application logic here
-  std::cerr << "Received message from WebSocket client: " << message
-            << std::endl;
+  logger->info("Received message from WebSocket client: {}", message);
+
 
   // wsConnPtr->send(message);
 }
@@ -60,16 +60,14 @@ void EntityStreamWebSockController::handleNewConnection(
                            [](const std::string& a, const std::string& b)
                            { return a + (a.empty() ? "" : ",") + b; }));
                             */
-  LOG_INFO << "EntityStreamWebSock connected with new connection.";
-  std::cerr << "New WebSocket connection established from "
-            << req->getPeerAddr().toIp().c_str() << std::endl;
+
+  logger->info("New WebSocket connection established from {}", req->getPeerAddr().toIp().c_str());
   std::unique_lock lock(ConnectionMutex);
   connectionStates[wsConnPtr] = state;
 
   if (!FetchJobRunning.load())
   {
-    LOG_INFO
-        << "Starting entity data fetch job as this is the first connection.";
+    logger->info("Starting entity data fetch job as this is the first connection.");
     StartFetchJob();
   }
   // write your application logic here
@@ -78,14 +76,13 @@ void EntityStreamWebSockController::handleConnectionClosed(
     const WebSocketConnectionPtr& wsConnPtr)
 {
   // write your application logic here
-  std::cerr << "WebSocket connection closed." << std::endl;
+  logger->info("WebSocket connection closed.");
   std::unique_lock lock(ConnectionMutex);
   connectionStates.erase(wsConnPtr);
 
   if (connectionStates.empty())
   {
-    LOG_INFO
-        << "No more WebSocket connections. Stopping entity data fetch job.";
+    logger->info("No more WebSocket connections. Stopping entity data fetch job.");
     FetchJobShouldShutdown.store(true);
     if (fetchEntityDataJob.valid())
     {
@@ -112,9 +109,8 @@ void EntityStreamWebSockController::StartFetchJob()
             std::vector<AtlasNet::ServiceRegistry::ServiceInfo> shardServices;
             backend.GetServiceRegistry().GetServicesOfType(
                 AtlasNet::ServiceType::Shard, shardServices);
-
-            std::cerr << "Fetched " << shardServices.size()
-                      << " shard services\n";
+logger->info("Fetched {} shard services", shardServices.size());
+  
 
             // -----------------------------
             // 1. Dispatch all RPC calls FIRST (no waiting yet)
@@ -128,8 +124,7 @@ void EntityStreamWebSockController::StartFetchJob()
 
             for (const auto& info : shardServices)
             {
-              std::cerr << "Dispatching shard " << info.id.to_string() << " at "
-                        << info.address.to_string() << "\n";
+              logger->info("Dispatching shard {} at {}", info.id.to_string(), info.address.to_string());
 
               futures.push_back(
                   rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
@@ -153,26 +148,22 @@ void EntityStreamWebSockController::StartFetchJob()
                 {
                   auto result = fut.get();
 
-                  std::cerr << "Fetched " << result.size()
-                            << " entities from shard\n";
+                  logger->info("Fetched {} entities from shard", result.size());
 
                   for (auto& [entityId, entityInfo] : result)
                   {
-                    std::cerr
-                        << "Entity ID: " << entityId.to_string()
-                        << "\npos: " << entityInfo.baseInfo.location.position
-                        << std::endl;
+                    logger->info("Entity ID: {}\npos: {}", entityId.to_string(), entityInfo.baseInfo.location.position);
                     entityInfoCache.emplace(entityId, entityInfo);
                   }
                 }
                 catch (const std::exception& e)
                 {
-                  std::cerr << "Shard RPC failed: " << e.what() << "\n";
+                  logger->error("Shard RPC failed: {}", e.what());
                 }
               }
               else
               {
-                std::cerr << "Shard RPC timeout\n";
+                logger->error("Shard RPC timeout");
               }
             }
 
@@ -196,8 +187,7 @@ void EntityStreamWebSockController::StartFetchJob()
             }
 
             const std::string message = payload.dump();
-            std::cerr << "EntityStream Response json\n"
-                      << payload.dump(2) << std::endl;
+            logger->info("EntityStream Response json\n{}", payload.dump(2));
             for (auto& ws : conns)
             {
               ws->send(message);

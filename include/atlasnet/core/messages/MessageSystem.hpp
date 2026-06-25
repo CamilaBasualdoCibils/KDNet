@@ -25,6 +25,8 @@
 #include <optional>
 #include <shared_mutex>
 #include <unordered_map>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 namespace AtlasNet
 {
 static void OnSteamNetConnectionStatusChanged(
@@ -230,6 +232,8 @@ private:
   std::unordered_map<MessageIDHash, DispatchFunc> _dispatchTable;
   std::optional<JobHandle> _pollJobHandle;
   std::atomic_bool shutdown = false;
+
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("MessageSystem");
 };
 template <typename MessageType>
   requires std::is_base_of_v<IMessage, MessageType>
@@ -238,10 +242,8 @@ inline MessageSystem::ListenSocketHandle& MessageSystem::ListenSocketHandle::On(
 {
   system._ensure_message_dispatcher<MessageType>();
   //_ensure_socket_message_dispatcher<MessageType>();
-  std::cout << std::format("Registered handler for message type with hash {} "
-                           "on listen socket port {}\n",
-                           MessageType::TypeIdHash, port)
-            << std::endl;
+  system.logger->info("Registered handler for message type with hash {} on listen socket port {}",
+               MessageType::TypeIdHash, port);
   std::unique_lock lock(socket_mutex);
   MessageIDHash typeIdHash = MessageType::TypeIdHash;
   AN_ASSERT(
@@ -284,8 +286,9 @@ MessageSystem::ListenSocketHandle::_ensure_socket_message_dispatcher()
       }
       else
       {
-        std::cerr << std::format(
-            "No handler registered for message type with hash {}", typeIdHash);
+      logger->error("No handler registered for message type with hash {} on listen socket port {}",
+                   typeIdHash, port);
+
       }
     };
   };
@@ -297,10 +300,8 @@ inline MessageSystem& MessageSystem::On(
     std::function<void(const MessageType&, const SocketAddress&)> handler)
 {
   _ensure_message_dispatcher<MessageType>();
-  std::cout << std::format("Registered handler for message type with hash {} "
-                           "on global message system\n",
-                           MessageType::TypeIdHash)
-            << std::endl;
+  logger->info("Registered handler for message type with hash {} on global message system",
+               MessageType::TypeIdHash);
   std::unique_lock lock(_mutex);
   MessageIDHash typeIdHash = MessageType::TypeIdHash;
   AN_ASSERT(
@@ -350,30 +351,24 @@ inline void MessageSystem::_ensure_message_dispatcher()
         {
           for (const auto& handler : _handlers)
           {
-            std::cerr << std::format("Registered handler for message type with "
-                                     "hash {} does not match "
-                                     "incoming message of type hash {}\n",
-                                     handler.first, typeIdHash);
+            logger->error("Registered handler for message type with hash {} does not match incoming message of type hash {}",
+                         handler.first, typeIdHash);
+
           }
         }
         if (port_received_on.has_value())
         {
           if (_listenSockets.contains(*port_received_on))
           {
-            std::cerr
-                << std::format(
-                       "Dispatching message of type hash {} received on listen "
-                       "socket port {} to listen socket dispatcher\n",
-                       typeIdHash, *port_received_on)
-                << std::endl;
+            logger->info("Dispatching message of type hash {} received on listen socket port {} to listen socket dispatcher",
+                         typeIdHash, *port_received_on);
             listenSocket = _listenSockets.at(*port_received_on).get();
           }
           else
           {
-            std::cerr << std::format(
-                "No listen socket found for incoming message of type hash {} "
-                "received on listen socket port {}\n",
-                typeIdHash, *port_received_on);
+            logger->error("No listen socket found for incoming message of type hash {} received on listen socket port {}",
+                         typeIdHash, *port_received_on);
+
           }
         }
       }
@@ -411,17 +406,16 @@ inline JobHandle MessageSystem::SendMessage(const MessageType& message,
 
     if (result != k_EResultOK)
     {
-      std::cerr << std::format(
-                       "SendMessageToConnection failed for {} with code {}",
-                       address.to_string(), static_cast<int>(result))
-                << std::endl;
+      logger->error("SendMessageToConnection failed for {} with code {}",
+                   address.to_string(), static_cast<int>(result));
+
     }
     else
     {
-      std::cerr << std::format("Sent message of type {} to {} with mode {}",
-                               MessageType::GetName(), address.to_string(),
-                               boost::describe::enum_to_string(mode, "Unknown"))
-                << std::endl;
+      logger->info("Sent message of type {} to {} with mode {}",
+                   MessageType::GetName(), address.to_string(),
+                   boost::describe::enum_to_string(mode, "Unknown"));
+
     }
   };
 

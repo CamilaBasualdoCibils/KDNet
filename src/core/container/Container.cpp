@@ -36,23 +36,25 @@ bool AtlasNet::IService::ShutdownRequested() const
   return shutdown_requested.load(std::memory_order_acquire);
 }
 
-AtlasNet::IService::IService(ServiceType type) : type(type)
+AtlasNet::IService::IService(ServiceType type)
+    : type(type),
+      logger(spdlog::stdout_color_mt(
+          boost::describe::enum_to_string(type, "<INVALID_SERVICE_TYPE>")))
+
 {
-  auto handleShutdown = [](int)
+  auto handleShutdown = [this](int)
   {
-    std::cerr << "SIGINT received, shutting down container..." << std::endl;
+    logger->info("SIGINT received, shutting down container...");
     IService::Get().shutdown_requested.store(true, std::memory_order_release);
     IService::Get().cv.notify_all();
   };
 
-  auto HandleUnexpectedShutdown = [](int signal)
+  auto HandleUnexpectedShutdown = [this](int signal)
   {
-    std::cerr << "Unexpected signal " << signal
-              << " received, generating stack trace..." << std::endl;
+    logger->error("Unexpected signal {} received, generating stack trace...", signal);
     auto backtrace = boost::stacktrace::stacktrace();
     ;
-    std::cerr << "======== STACK TRACE ========\n"
-              << backtrace << "\n====================\n";
+    logger->error("======== STACK TRACE ========\n{}\n====================", backtrace);
     std::_Exit(1);
   };
   std::signal(SIGINT, handleShutdown);
@@ -63,17 +65,12 @@ AtlasNet::IService::IService(ServiceType type) : type(type)
 }
 void AtlasNet::IService::Init()
 {
-  std::cerr << std::format("Container {} with ID {} starting up...",
-                           boost::describe::enum_to_string(type, "UNKNOWN"),
-                           GetContainerID().to_string())
-            << std::endl;
-  std::cerr << "Container hostname: " << GetHostName().to_string() << std::endl;
-  if (const char* test_port = std::getenv("ATLASNET_DATABASE_PORT"); test_port)
-  {
-    std::cerr << "Database port from environment: " << test_port << std::endl;
-  }
-  std::cerr << "Connecting to Redis database at " << Env::DatabaseHostName
-            << ":" << Env::DatabasePort << "..." << std::endl;
+  logger->info("Container {} with ID {} starting up...",
+               boost::describe::enum_to_string(type, "UNKNOWN"),
+               GetContainerID().to_string());
+
+  
+  logger->info("Connecting to Redis database at {}:{}...", Env::DatabaseHostName, Env::DatabasePort);
   _redisDatabase = Database::RedisConn::Connect(Database::RedisConn::Settings{
       .host = HostAddress(Env::DatabaseHostName),
       .port = Env::DatabasePort,
@@ -139,8 +136,7 @@ void AtlasNet::IService::FetchControllerInfo()
   JobHandle jobHandle = GetJobSystem().Submit(
       [this](JobContext& ctx)
       {
-        std::cerr << "Fetching Controller info from ServiceRegistry..."
-                  << std::endl;
+        logger->info("Fetching Controller info from ServiceRegistry...");
 
         std::vector<ServiceRegistry::ServiceInfo> outServices;
         GetServiceRegistry().GetServicesOfType(ServiceType::Controller,
@@ -149,15 +145,13 @@ void AtlasNet::IService::FetchControllerInfo()
         if (outServices.empty())
         {
           std::chrono::milliseconds retryDelay(500);
-          std::cerr << "No Controller service found. Agent initialization "
-                       "failed. trying again in "
-                    << retryDelay.count() << "ms" << std::endl;
+          logger->warn("No Controller service found. Agent initialization "
+                       "failed. trying again in {}ms", retryDelay.count());
           ctx.set_repeat_once(retryDelay);
           return;
         }
         const auto& controllerInfo = outServices[0];
-        std::cerr << "Controller at " << controllerInfo.address.to_string()
-                  << " with ID " << controllerInfo.id.to_string() << std::endl;
+        logger->info("Controller at {} with ID {}", controllerInfo.address.to_string(), controllerInfo.id.to_string());
         controllerOverlayAddress =
             SocketAddress(controllerInfo.address, Env::InternalMessagePort);
         controllerContainerID = controllerInfo.id;
@@ -169,15 +163,13 @@ AtlasNet::HostAddress AtlasNet::IService::GetHostName() const
 {
   if (const char* envHost = std::getenv("NODE_IP"))
   {
-    std::cerr << "Using NODE_IP environment variable for hostname: " << envHost
-              << std::endl;
+    logger->info("Using NODE_IP environment variable for hostname: {}", envHost);
     return HostAddress(envHost);
   }
   else
   {
-    std::cerr << "NODE_IP environment variable not set. Unable to determine "
-                 "Node Address. Attempting to use hostname."
-              << std::endl;
+    logger->warn("NODE_IP environment variable not set. Unable to determine "
+                 "Node Address. Attempting to use hostname.");
     char actualHost[256];
     if (gethostname(actualHost, sizeof(actualHost)) == 0)
     {

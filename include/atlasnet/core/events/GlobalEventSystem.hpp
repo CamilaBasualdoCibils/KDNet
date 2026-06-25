@@ -39,15 +39,17 @@ public:
         _jobSystem(config._jobSystem), _running(true)
   {
     _redisSubscriber.on_meta(
-        [](sw::redis::Subscriber::MsgType type,
+        [this](sw::redis::Subscriber::MsgType type,
            const std::optional<std::string>& channel, long long count)
         {
-          std::cout << "Meta event type: " << static_cast<int>(type)
-                    << ", channel: " << channel.value()
-                    << ", subscription count: " << count << "\n";
+          logger->info("Received meta event type: {} on channel: {} with subscription count: {}",
+                       static_cast<int>(type),
+                       channel.has_value() ? channel.value() : "<none>",
+                       count);
+         
         });
 
-        _redisSubscriber.on_error([](std::exception_ptr err )
+        _redisSubscriber.on_error([this](std::exception_ptr err )
         {
             try
             {
@@ -58,7 +60,7 @@ public:
             }
             catch (const std::exception& e)
             {
-                std::cerr << "Redis subscriber error: " << e.what() << std::endl;
+              logger->error("Redis subscriber error: {}", e.what());
             }
         });
     _redisSubscriber.on_message(
@@ -90,8 +92,7 @@ protected:
   void impl_On(EventID eventID,
                std::function<void(const std::string_view&)> cb) override
   {
-    std::cerr << "Registering Global listener for event ID " << eventID
-              << std::endl;
+    logger->info("Registering Global listener for event ID {}", eventID);
     std::unique_lock lock(_mutex);
 
     std::string channel = channelForEvent(eventID);
@@ -113,7 +114,7 @@ protected:
 
   JobHandle impl_Emit(EventID eventID, const std::string_view& data) override
   {
-    std::cerr << "Emitting Global event with ID " << eventID << std::endl;
+    logger->info("Emitting Global event with ID {}", eventID);
     std::string payload(data);
     std::string channel = channelForEvent(eventID);
 
@@ -191,6 +192,7 @@ private:
   }
 
 private:
+std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("GlobalEventSystem");
   Database::RedisConn* _redisConn;
   JobSystem* _jobSystem;
   sw::redis::AsyncSubscriber _redisSubscriber;

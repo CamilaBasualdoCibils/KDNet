@@ -20,6 +20,8 @@
 #include <sw/redis++/redis++.h>
 #include <sys/types.h>
 #include <variant>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 namespace AtlasNet::Database
 {
 namespace Redis
@@ -132,6 +134,7 @@ private:
   std::unique_ptr<Redis::HashMapWrapper> hashMapWrapper;
   std::unique_ptr<Redis::SetWrapper> setWrapper;
   std::unique_ptr<Redis::SortedSetWrapper> sortedSetWrapper;
+  static inline std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("Redis");
 };
 
 } // namespace AtlasNet::Database

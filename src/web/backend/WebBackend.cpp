@@ -14,7 +14,8 @@ int main(int argc, char** argv)
 }
 void AtlasNet::WebBackendService::OnInit()
 {
-  std::cerr << "Initializing AtlasNet Web Backend..." << std::endl;
+  GetLogger()->info("Initializing AtlasNet Web Backend...");
+
   // Initialize and start the Drogon HTTP server
   drogon::app().addListener("0.0.0.0", 2000);
   Setup();
@@ -22,7 +23,7 @@ void AtlasNet::WebBackendService::OnInit()
 }
 void AtlasNet::WebBackendService::OnShutdown()
 {
-  std::cerr << "Shutting down AtlasNet Web Backend..." << std::endl;
+  GetLogger()->info("Shutting down AtlasNet Web Backend...");
   // Perform any necessary cleanup before shutdown
   drogon::app().quit();
 }
@@ -39,8 +40,7 @@ void AtlasNet::WebBackendService::HandleEntityFetchRequest(
     const drogon::HttpRequestPtr& req,
     std::function<void(const drogon::HttpResponsePtr&)>&& callback)
 {
-  std::cerr << "Received entity fetch request from "
-            << req->getPeerAddr().toIp().c_str() << std::endl;
+  GetLogger()->info("Received entity fetch request from {}", req->getPeerAddr().toIp().c_str());
   // Parse incoming JSON body
   auto jsonPtr = req->getJsonObject();
 
@@ -74,7 +74,7 @@ void AtlasNet::WebBackendService::HandleEntityFetchRequest(
       response["entities"].push_back(entityJson);
     }
   }
-  std::cerr << "Sending response: " << response.dump() << std::endl;
+  GetLogger()->info("Sending response: {}", response.dump());
   // Handle the entity fetch request and send a response
   auto httpResponse = drogon::HttpResponse::newHttpResponse();
   httpResponse->setStatusCode(drogon::k200OK);

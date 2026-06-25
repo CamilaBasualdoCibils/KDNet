@@ -19,6 +19,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace AtlasNet
 {
@@ -96,8 +98,8 @@ public:
     }
 
     cv_.notify_all();
-    std::cerr << "Shutdown requested, waiting for worker threads to finish..."
-              << std::endl;
+    logger->info("Shutdown requested, waiting for worker threads to finish...");
+
     for (auto& worker : workers_)
     {
       if (worker.joinable())
@@ -107,7 +109,7 @@ public:
         worker.join();
       }
     }
-    std::cerr << "All worker threads have finished." << std::endl;
+    logger->info("All worker threads have finished.");
 
     workers_.clear();
 
@@ -351,9 +353,9 @@ private:
 
       if (HasFlag(runtime->notify, JobNotifyLevel::eOnStart))
       {
-        std::cout << std::format("Starting job '{}' in thread {}",
-                                 runtime->name.value_or("<unnamed>"), threadId)
-                  << std::endl;
+        logger->info("Starting job '{}' in thread {}",
+                     runtime->name.value_or("<unnamed>"), threadId);
+        
       }
 
       JobContext ctx(*runtime);
@@ -393,15 +395,15 @@ private:
 
       if (HasFlag(runtime->notify, JobNotifyLevel::eOnComplete))
       {
-        std::cout << std::format("Completed job '{}' in thread {}",
-                                 runtime->name.value_or("<unnamed>"), threadId)
-                  << std::endl;
+        logger->info("Completed job '{}' in thread {}",
+                     runtime->name.value_or("<unnamed>"), threadId);
+
       }
       if (HasFlag(runtime->notify, JobNotifyLevel::eOnFailure))
       {
-        std::cout << std::format("Job '{}' failed in thread {}",
-                                 runtime->name.value_or("<unnamed>"), threadId)
-                  << std::endl;
+        logger->error("Job '{}' failed in thread {}",
+                      runtime->name.value_or("<unnamed>"), threadId);
+
       }
       
         std::vector<Detail::JobContinuationFactory> continuationsToRun;
@@ -459,8 +461,10 @@ private:
   std::priority_queue<Detail::DelayedJob, std::vector<Detail::DelayedJob>,
                       Detail::DelayedJobCompare>
       delayed_;
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("JobSystem");
 
   std::atomic<std::uint64_t> sequence_{0};
+  
 
   bool started_ = false;
   bool stopRequested_ = false;

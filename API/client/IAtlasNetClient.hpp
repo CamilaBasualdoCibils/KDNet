@@ -48,10 +48,9 @@ public:
     jobHandle.wait(std::chrono::seconds(5));
     if (jobHandle.is_completed())
     {
-      std::cerr << "Successfully connected to server at "
-                << serverAddress.to_string()
-                << ". Waiting for connection complete notification..."
-                << std::endl;
+      logger->info("Successfully connected to server at {}.", serverAddress.to_string());
+      logger->info("Waiting for connection complete notification...");
+
       std::unique_lock<std::mutex> lock(lastConnectionCompleteDataMutex);
       lastConnectionCompleteDataCV.wait_for(
           lock, std::chrono::seconds(5),
@@ -65,10 +64,10 @@ public:
           *errorMessage = "Connection complete notification timed out.";
         return false;
       }
-      std::cerr << "Received connection complete notification with state "
-                << boost::describe::enum_to_string(
-                       lastConnectionCompleteData->result, "<INVALID>")
-                << std::endl;
+      logger->info("Received connection complete notification with state {}.",
+                   boost::describe::enum_to_string(
+                       lastConnectionCompleteData->result, "<INVALID>"));
+
       _serverAddress = SocketAddress(HostAddress(std::string(address)), port);
       return true;
     }
@@ -121,5 +120,7 @@ private:
   std::optional<JobSystem> jobSystem;
   std::optional<MessageSystem> messageSystem;
   std::optional<RPCSystem> rpcSystem;
+
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("AtlasNetClient");
 };
 } // namespace AtlasNet

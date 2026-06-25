@@ -33,8 +33,7 @@ protected:
   void impl_On(EventID eventID,
                std::function<void(const std::string_view&)> cb) override
   {
-    std::cerr << "Registering Local listener for event ID " << eventID
-              << std::endl;
+    logger->info("Registering Local listener for event ID {}", eventID);
     std::unique_lock lock(mutex);
     listeners[eventID].push_back(std::move(cb));
   }
@@ -66,6 +65,7 @@ protected:
 }
 
 private:
+std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("LocalEventSystem");
   JobSystem* jobSystem;
 
   std::shared_mutex mutex;

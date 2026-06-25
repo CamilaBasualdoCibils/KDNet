@@ -22,22 +22,22 @@ void TankBattle::TankBattleClient::Run()
   std::string errorMessage;
   if (!AtlasNetClient_Connect("172.17.0.1", 42000, &error, &errorMessage))
   {
-    std::cerr << "Failed to connect to AtlasNet server: " << errorMessage
-              << std::endl;
+    logger->error("Failed to connect to AtlasNet server: {}", errorMessage);
+   
     throw std::runtime_error("Failed to connect to AtlasNet server: " +
                              errorMessage);
     return;
   }
   else
   {
-    std::cerr << "Successfully connected to AtlasNet server." << std::endl;
+    logger->info("Successfully connected to AtlasNet server.");
   }
-  std::cerr << "Dispatching PlayerMoveCommand to server." << std::endl;
+  logger->info("Dispatching PlayerMoveCommand to server.");
   PlayerMoveCommand moveCommand;
   moveCommand.delta = {0.01f, 0.0f}; // Example movement delta
   AtlasNetClient_DispatchCommand(moveCommand,
                                  AtlasNet::MessageSendMode::eReliableBatched);
-  std::cerr << "Dispatched PlayerMoveCommand to server." << std::endl;
+  logger->info("Dispatched PlayerMoveCommand to server.");
   while (!WindowShouldClose())
   {
     BeginDrawing();

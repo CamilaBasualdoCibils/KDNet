@@ -96,7 +96,7 @@ public:
       entityInfo.baseInfo = info;
       entityInfo.id = id;
       _ledger._createEntity(id, entityInfo);
-      std::cerr << "Entity created with ID: " << id.to_string() << std::endl;
+      _ledger.logger->info("Entity created with ID: {}", id.to_string());
       return id;
     }
     void RemoveEntity(const EntityID& id)
@@ -133,9 +133,7 @@ protected:
     EnTTEntityID enttId = entityTable.create();
     IDMapping.insert({id, enttId});
     entityTable.emplace<Entity::Components::EntityInfo>(enttId, info);
-    std::cerr << "Entity created with ID: " << id.to_string()
-              << " with internal entt ID: " << static_cast<int>(enttId)
-              << std::endl;
+    logger->info("Entity created with ID: {} with internal entt ID: {}", id.to_string(), static_cast<int>(enttId));
     return enttId;
   }
   bool _entityExists(const EntityID& id) const
@@ -237,6 +235,7 @@ void SetRPCBinds();
     }
     throw std::runtime_error("EntityID not found in mapping");
   }
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("EntityLedger");
   const Config _config;
   boost::bimap<EntityID, EnTTEntityID> IDMapping;
   // std::unordered_map<EntityID, typename Tp>

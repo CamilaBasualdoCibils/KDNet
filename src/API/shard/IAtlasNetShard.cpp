@@ -6,40 +6,40 @@
 AtlasNet::IAtlasNetShard::IAtlasNetShard() : IService(ServiceType::Shard) {}
 void AtlasNet::IAtlasNetShard::OnInit()
 {
-  std::cerr << "Shard OnInit called." << std::endl;
+  GetLogger()->info("Shard OnInit called.");
   _entityLedger.emplace(
       Entity::EntityLedger::Config{.rpcSystem = &GetRPCSystem()});
 
   GetRPCSystem().Bind<ShardRPC::SpawnClient>(
       [this](ShardSpawnClientRequest request)
-      {
-        return impl_RPCSpawnClient(request);
-      });
+      { return impl_RPCSpawnClient(request); });
 
   OnShardInit();
 }
-AtlasNet::ShardSpawnClientResponse AtlasNet::IAtlasNetShard::impl_RPCSpawnClient(
+AtlasNet::ShardSpawnClientResponse
+AtlasNet::IAtlasNetShard::impl_RPCSpawnClient(
     const ShardSpawnClientRequest& request)
 {
   // Handle the SpawnClient request here
-        std::cerr << "Received SpawnClient request for ClientID: "
-                  << request.clientID.to_string() << std::endl;
-        EntityID newEntityID;
-        {
-          Entity::Components::BaseEntityInfo info;
-          info.location.worldId = AtlasNet_GetWorldID();
-          info.location.position = request.spawnTransform;
-          auto writeAccess = _entityLedger->GetWriteAccess();
-          newEntityID = writeAccess.CreateEntity(info);
-        }
+  GetLogger()->info("Received SpawnClient request for ClientID: {}",
+                    request.clientID.to_string());
 
-        OnSpawnClient(ClientSpawnInfo{
-            .clientID = request.clientID,
-            .entityID = newEntityID,
-            .position = request.spawnTransform,
-            .clientSpawnPayload = std::move(request.clientSpawnPayload),
-        });
-        return ShardSpawnClientResponse{.entityID = newEntityID};
+  EntityID newEntityID;
+  {
+    Entity::Components::BaseEntityInfo info;
+    info.location.worldId = AtlasNet_GetWorldID();
+    info.location.position = request.spawnTransform;
+    auto writeAccess = _entityLedger->GetWriteAccess();
+    newEntityID = writeAccess.CreateEntity(info);
+  }
+
+  OnSpawnClient(ClientSpawnInfo{
+      .clientID = request.clientID,
+      .entityID = newEntityID,
+      .position = request.spawnTransform,
+      .clientSpawnPayload = std::move(request.clientSpawnPayload),
+  });
+  return ShardSpawnClientResponse{.entityID = newEntityID};
 }
 
 AtlasNet::WorldID AtlasNet::IAtlasNetShard::AtlasNet_GetWorldID()

@@ -8,7 +8,8 @@
 #include <sys/socket.h>
 #include <thread>
 #include <vector>
-
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 int pick_available_port()
 {
   int Min = 1024;
@@ -44,8 +45,8 @@ int pick_available_port()
 }
 int main(int argc, char** argv)
 {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+ ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
 
 ATLASNET_MESSAGE(BigMessageTestMessage,
@@ -55,10 +56,11 @@ ATLASNET_MESSAGE(BigMessageTestMessage,
 ATLASNET_MESSAGE(PerfMessage,
                  ATLASNET_MESSAGE_DATA(DataArray, payload));
 
-TEST(MessagePerformance, StreamThroughput)
+TEST(MessagePerformance, ThroughputTest)
 {
     using namespace AtlasNet;
-
+    auto logger = spdlog::stdout_color_mt("MessagePerformance");
+    logger->error("Starting MessagePerformance test...");
     constexpr size_t PayloadSize = 100000;
     constexpr std::chrono::seconds TestDuration(10);
 
@@ -94,7 +96,7 @@ TEST(MessagePerformance, StreamThroughput)
 
     std::atomic<uint64_t> sentMessages = 0;
     
-    unsigned int numThreads = 2;
+    unsigned int numThreads = 1;
     std::vector<std::thread> threads;
 
     for (unsigned int i = 0; i < numThreads; ++i)
@@ -137,8 +139,10 @@ TEST(MessagePerformance, StreamThroughput)
     const double gbps =
         (bytesPerSecond * 8.0) / 1'000'000'000.0;
 
-    std::cout
-        << "\n=== AtlasNet Throughput ===\n"
+
+    EXPECT_GT(receivedMessages.load(), 0);
+
+    std::cerr << "\n=== AtlasNet Throughput ===\n"
         << "Threads:           " << numThreads << "\n"
         << "Sent Messages:     " << sentMessages.load() << "\n"
         << "Received Messages: " << receivedMessages.load() << "\n"
@@ -146,6 +150,5 @@ TEST(MessagePerformance, StreamThroughput)
         << "Bytes/sec:         " << bytesPerSecond << "\n"
         << "MB/sec:            " << mbPerSecond << "\n"
         << "Gbps:              " << gbps << "\n";
-
-    EXPECT_GT(receivedMessages.load(), 0);
 }
+

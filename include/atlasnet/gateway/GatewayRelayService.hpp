@@ -119,12 +119,13 @@ public:
               "_debug",
           clientID.to_string());
     }
-    std::cerr << "Declared gateway relay: ClientID " << clientID.to_string()
-              << " is now managed by GatewayID "
-              << config_.containerService->GetID().to_string() << std::endl;
+    logger->info("Declared gateway relay: ClientID {} is now managed by GatewayID {}",
+                 clientID.to_string(),
+                 config_.containerService->GetID().to_string());
   }
 
 private:
+std::shared_ptr<spdlog::logger> logger = spdlog::get("GatewayRelay");
   const Config config_;
 
   const std::string GatewayRelayKeyPrefix =
@@ -147,8 +148,8 @@ private:
   void HandleExternalCommand(const ExternalCommandMessage& message,
                              const ClientID& sourceClientID)
   {
-    std::cerr << "Received external command: " << message.envelope.commandName
-              << " from ClientID: " << sourceClientID.to_string() << std::endl;
+    logger->info("Received external command: {} from ClientID: {}",
+                 message.envelope.commandName, sourceClientID.to_string());
 
     // Deserialize the command name and payload
     const std::string_view commandName = message.envelope.commandName;

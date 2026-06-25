@@ -49,14 +49,14 @@ private:
           }
           else if (event.source == ConnectionSource::Internal)
           {
-            std::cerr << "Internal connection established with address "
-                      << event.address.to_string() << std::endl;
+            GetLogger()->info("Internal connection established with address {}",
+                           event.address.to_string());
+  
           }
           else
           {
-            std::cerr
-                << "Connection established with unknown source from address "
-                << event.address.to_string() << std::endl;
+            GetLogger()->warn("Connection established with unknown source from address {}",
+                         event.address.to_string());
           }
         });
   }
@@ -68,8 +68,7 @@ private:
   {
     if (identity.role == HandshakeRole::eClient)
     {
-      std::cerr << "Received handshake from client at "
-                << remoteAddr.to_string() << std::endl;
+      GetLogger()->info("Received handshake from client at {}", remoteAddr.to_string());
       return HandshakeResponsePacket{.accepted = true};
     }
     else
@@ -79,18 +78,15 @@ private:
   }
   void OnClientConnected(const ConnectionEstablishedEvent& event)
   {
-    std::cerr << "Gateway detected new client connection established: "
-              << event.address.to_string() << std::endl;
+    GetLogger()->info("Gateway detected new client connection established: {}", event.address.to_string());
 
-    std::cerr << "Logging in new client at " << event.address.to_string()
-              << std::endl;
+    GetLogger()->info("Logging in new client at {}", event.address.to_string());
     const std::optional<ClientRegistry::LoginResult> entry =
         clientRegistry->LoginClient(event.address);
     if (!entry)
       return;
 
-    std::cerr << "Declaring gateway relay for ClientID: "
-              << entry->clientID.to_string() << std::endl;
+    GetLogger()->info("Declaring gateway relay for ClientID: {}", entry->clientID.to_string());
     gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
 
     // Eventually this will be implemented
@@ -102,15 +98,15 @@ private:
     if (shardID_future.valid())
     {
       const ShardID shardID = shardID_future.get();
-      std::cerr << "Received closest shard ID " << shardID.to_string()
-                << " for client " << entry->clientID.to_string()
-                << std::endl;
+      logger->info("Received closest shard ID {} for client {}",
+                   shardID.to_string(), entry->clientID.to_string());
+
     }
     else
     {
-      std::cerr << "Failed to receive closest shard ID for client "
-                << entry->clientID.to_string() << " within timeout."
-                << std::endl;
+    logger->error("Failed to receive closest shard ID for client {} within timeout.",
+                 entry->clientID.to_string());
+
     } */
     std::vector<ServiceRegistry::ServiceInfo> services;
     GetServiceRegistry().GetServicesOfType(ServiceType::Shard, services);
@@ -118,8 +114,7 @@ private:
     if (services.empty())
       throw std::runtime_error("No shard services found in registry");
 
-    std::cerr << "Shard at " << services[0].address.to_string() << " with ID "
-              << services[0].id.to_string() << std::endl;
+    GetLogger()->info("Shard at {} with ID {}", services[0].address.to_string(), services[0].id.to_string());
 
     ShardSpawnClientRequest request{
         .spawnTransform = entry->SpawnLocation.position,
@@ -138,9 +133,8 @@ private:
     if (spawnResponse)
     {
 
-      std::cerr << "Successfully spawned client entity with ID "
-                << spawnResponse->entityID.to_string() << " on shard "
-                << services[0].id.to_string() << std::endl;
+      GetLogger()->info("Successfully spawned client entity with ID {} on shard {}",
+                        spawnResponse->entityID.to_string(), services[0].id.to_string());
 
       gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
       clientRegistry->AssociateClientWithEntity(entry->clientID,
@@ -156,9 +150,8 @@ private:
     }
     else
     {
-      std::cerr << "Failed to receive spawn result for client "
-                << entry->clientID.to_string() << " within timeout."
-                << std::endl;
+      GetLogger()->error("Failed to receive spawn result for client {} within timeout.",
+                         entry->clientID.to_string());
     }
   }
   std::optional<ClientRegistry> clientRegistry;

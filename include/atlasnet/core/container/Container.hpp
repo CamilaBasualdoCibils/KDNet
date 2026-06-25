@@ -51,9 +51,8 @@ protected:
 
       if (!serviceInfo)
       {
-        std::cerr << "Handshake failed: requested service ID "
-                  << requestData.serviceID.to_string()
-                  << " not found in registry" << std::endl;
+        logger->error("Handshake failed: requested service ID {} not found in registry",
+                     requestData.serviceID.to_string());
         return HandshakeResponsePacket{.accepted = false,
                                        .rejectReason =
                                            "Requested service ID not found"};
@@ -78,6 +77,10 @@ protected:
   {
     assert(_rpcSystem.has_value() && "RPCSystem not initialized");
     return _rpcSystem.value();
+  }
+  spdlog::logger* GetLogger() const
+  {
+    return logger.get();
   }
   LocalEventSystem& GetLocalEventSystem()
   {
@@ -149,7 +152,7 @@ private:
   ServiceID id{ServiceID::Generate()};
   ServiceType type;
 
-
+std::shared_ptr<spdlog::logger> logger;
   std::atomic<bool> shutdown_requested{false};
   std::mutex mutex;
   std::condition_variable cv;

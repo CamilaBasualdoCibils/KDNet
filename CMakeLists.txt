@@ -78,6 +78,7 @@ glm::glm
 EnTT
 nlohmann_json::nlohmann_json
 yaml-cpp::yaml-cpp
+spdlog::spdlog
 )
 
 

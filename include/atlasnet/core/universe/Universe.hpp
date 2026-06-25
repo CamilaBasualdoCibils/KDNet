@@ -52,6 +52,8 @@ protected:
   CreateWorld(const WorldDefinition& def);
 
 private:
+std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("Universe");
   GlobalEventSystem* _globalEventSystem;
   Database::RedisConn* _redisConn;
   const std::string UniverseNamePrefix =

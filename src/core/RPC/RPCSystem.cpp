@@ -41,10 +41,9 @@ AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
 void AtlasNet::RPCSystem::OnRPCRequest(const RpcRequestMessage& msg,
                                        const SocketAddress& address)
 {
-  std::cerr << std::format(
-                   "Received RPC request for methodId {} callId {} from {}",
-                   msg.methodId, msg.callID, address.to_string())
-            << std::endl;
+  logger->info("Received RPC request for methodId {} callId {} from {}",
+               msg.methodId, msg.callID, address.to_string());
+
   BindFunc handler;
   {
     std::shared_lock<std::shared_mutex> lock(_mutex);
@@ -78,10 +77,9 @@ void AtlasNet::RPCSystem::SendError(const RPCTarget& target,
 void AtlasNet::RPCSystem::OnRPCError(const RpcErrorMessage& msg,
                                      const SocketAddress& address)
 {
-  std::cerr << std::format(
-                   "Received RPC error for methodId {} callId {} from {}: {}",
-                   msg.methodId, msg.callID, address.to_string(), msg.ErrorMsg)
-            << std::endl;
+  logger->error("Received RPC error for methodId {} callId {} from {}: {}",
+                msg.methodId, msg.callID, address.to_string(), msg.ErrorMsg);
+
   (void)address;
 
   PendingRequest pending;
@@ -107,10 +105,9 @@ void AtlasNet::RPCSystem::OnRPCError(const RpcErrorMessage& msg,
 void AtlasNet::RPCSystem::OnRPCResponse(const RpcResponseMessage& msg,
                                         const SocketAddress& address)
 {
-  std::cerr << std::format(
-                   "Received RPC response for methodId {} callId {} from {}",
-                   msg.methodId, msg.callID, address.to_string())
-            << std::endl;
+  logger->info("Received RPC response for methodId {} callId {} from {}",
+               msg.methodId, msg.callID, address.to_string());
+
 
   PendingRequest pending;
   {
@@ -119,10 +116,9 @@ void AtlasNet::RPCSystem::OnRPCResponse(const RpcResponseMessage& msg,
         _pendingPromises.find(PendingPromiseKey{msg.methodId, msg.callID});
     if (it == _pendingPromises.end())
     {
-      std::cerr << std::format("No pending promise found for RPC response with "
-                               "methodId {} callId {}",
-                               msg.methodId, msg.callID)
-                << std::endl;
+      logger->error("No pending promise found for RPC response with methodId {} callId {}",
+                    msg.methodId, msg.callID);
+
       return;
     }
 

@@ -3,7 +3,8 @@
 #include "IServiceAdapter.hpp"
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
-
+#include "spdlog/logger.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
@@ -57,6 +58,7 @@ private:
   std::string _token;
   ImagePullPolicy _imagePullPolicy;
 std::vector<std::pair<PortType, PortType>> portMappings;
+std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("K8sServiceAdapter");
 private:
   static std::string DetectNamespace();
 

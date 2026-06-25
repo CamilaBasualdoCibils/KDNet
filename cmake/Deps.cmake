@@ -98,15 +98,25 @@ FetchContent_Declare(
       )
 FetchContent_MakeAvailable(Boost)
 
-#message(STATUS "TaskFlow")
-#set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-#set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-#FetchContent_Declare(taskflow 
-#URL https://github.com/taskflow/taskflow/archive/refs/tags/v4.0.0.tar.gz
-#)
-#FetchContent_MakeAvailable(taskflow)
+message(STATUS "TaskFlow")
+set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(taskflow 
+URL https://github.com/taskflow/taskflow/archive/refs/tags/v4.0.0.tar.gz
+)
+FetchContent_MakeAvailable(taskflow)
 
 
+message(STATUS "Fetching spdlog")
+FetchContent_Declare(
+    spdlog
+    URL https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
+    USES_TERMINAL_DOWNLOAD TRUE
+    #GIT_TAG v1.17.0
+)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(spdlog)
 # Fetch Kokkos
 # set (Kokkos_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 # FetchContent_Declare(

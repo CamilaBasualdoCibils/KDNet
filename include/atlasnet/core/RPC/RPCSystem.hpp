@@ -40,26 +40,25 @@ public:
   ~RPCSystem()
   {
     /* {
-      std::cerr << "RPC destructor called, shutting down RPC and waiting for "
-                   "active jobs to complete..."
-                << std::endl;
+    logger->info("RPC destructor called, shutting down RPC and waiting for
+    active jobs to complete...");
+
       std::unique_lock u(_activeJobsMutex);
       while (!activeJobs.empty())
       {
         if (!activeJobs.top().is_completed())
         {
-          std::cerr << "Waiting for active job "
-                    << activeJobs.top().name().value_or("<unnamed>")
-                    << " to complete... Current State: "
-                    << boost::describe::enum_to_string(activeJobs.top().state(),
-                                                       "UNKNOWN")
-                    << std::endl;
+        logger->info("Waiting for active job {} to complete... Current State:
+    {}", activeJobs.top().name().value_or("<unnamed>"),
+                     boost::describe::enum_to_string(activeJobs.top().state(),
+                                                    "UNKNOWN"));
+
           activeJobs.top().wait();
         }
 
         activeJobs.pop();
       }
-      std::cerr << "RPC destructor  done." << std::endl;
+        logger->info("RPC destructor done, all active jobs have completed.");
     } */
   }
 
@@ -151,6 +150,7 @@ private:
 
   std::shared_mutex _mutex;
   const Config config_;
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("RPC");
 };
 
 } // namespace AtlasNet
@@ -196,10 +196,8 @@ AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
   assert(sendResponseHandle.is_completed() &&
          "Failed to send RPC request message and no fault scenarios have been "
          "implemented");
-  std::cerr << std::format("Sent RPC response for methodId {} callId {} to {}",
-                           response.methodId, response.callID,
-                           target.to_string())
-            << std::endl;
+  logger->info("Sent RPC response for methodId {} callId {} to {}",
+               response.methodId, response.callID, target.to_string());
   // NewActiveJob(sendResponseHandle);
 }
 
@@ -231,9 +229,8 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
     }
     else
     {
-      std::cerr << "Warning: RPCSystem::Call is waiting for lock. This may "
-                   "indicate a deadlock or long-running RPC handler."
-                << std::endl;
+      logger->warn("RPCSystem::Call is waiting for lock. This may indicate a "
+                   "deadlock or long-running RPC handler.");
     }
     std::unique_lock lock(_mutex);
     callID = GetNextCallID(methodId);
@@ -287,10 +284,8 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
                             .payload =
                                 std::vector<uint8_t>(writeArgs.bytes().begin(),
                                                      writeArgs.bytes().end())};
-  std::cerr << std::format(
-                   "Sending RPC request for methodId {} callId {} to {}",
-                   methodId, callID, target.to_string())
-            << std::endl;
+  logger->info("Sending RPC request for methodId {} callId {} to {}", methodId,
+               callID, target.to_string());
   auto sendMessageJobHandle = config_.messageSystem->SendMessage(
       request, target, MessageSendMode::eReliableBatched);
   /* sendMessageJobHandle.wait();
@@ -340,7 +335,6 @@ inline void AtlasNet::RPCSystem::Bind(Func&& func)
       SendError(caller, MethodType::Id, callId, "Unhandled RPC exception");
     } */
   };
-  std::cerr << std::format("Bound RPC method {} with MethodID {}",
-                           MethodType::GetName(), MethodType::Id)
-            << std::endl;
+  logger->info("Bound RPC method {} with MethodID {}", MethodType::GetName(),
+               MethodType::Id);
 }

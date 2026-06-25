@@ -48,4 +48,7 @@ public:
   std::atomic_bool FetchJobRunning{false};
   std::atomic_bool FetchJobShouldShutdown{false};
 
+  std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("EntityStreamWebSock");
+
 };

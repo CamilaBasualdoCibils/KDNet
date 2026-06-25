@@ -117,10 +117,9 @@ public:
     std::optional<ClientID> existingClientID = GetAddressClientID(address);
     if (existingClientID)
     {
-      std::cerr << "Client with address " << address.to_string()
-                << " is already logged in with ClientID: "
-                << existingClientID->to_string() << std::endl;
-
+        logger->error("Client with address {} is already logged in with ClientID: {}",
+                     address.to_string(), existingClientID->to_string());
+     
       return std::nullopt; // Address is already logged in
     }
 
@@ -165,6 +164,8 @@ public:
   }
 
 private:
+std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("ClientRegistry");
   const Config config_;
   const std::string ClientRegistryNamespace =
       Env::DatabaseNamespace + "ClientRegistry{ATLASNET_CLIENT_REGISTRY}:";

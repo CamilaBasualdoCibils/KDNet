@@ -25,7 +25,7 @@ namespace AtlasNet
 class IAtlasNetShard : public IService
 {
   std::optional<Entity::EntityLedger> _entityLedger;
-
+  std::shared_ptr<spdlog::logger> _logger = spdlog::stdout_color_mt("AtlasNetShard");
 public:
   IAtlasNetShard();
   virtual ~IAtlasNetShard() = default;
@@ -38,7 +38,7 @@ private:
 
   void OnShutdown() override
   {
-    std::cerr << "Shard OnShutdown called." << std::endl;
+    logger->info("Shard OnShutdown called.");
     _entityLedger.reset();
   }
 

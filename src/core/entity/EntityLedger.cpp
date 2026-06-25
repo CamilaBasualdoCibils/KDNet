@@ -18,7 +18,7 @@ void AtlasNet::Entity::EntityLedger::SetRPCBinds()
           {
             const auto& entityInfo = access.GetEntityInfo(id);
             allInfo[id] = entityInfo;
-            logger->info("Entity ID: {}\npos: {}", id.to_string(), entityInfo.baseInfo.location.position);
+            logger->info("Entity ID: {}\npos: {}", id.to_string(), entityInfo.baseInfo.location.position.to_string());
           }
         }
         return allInfo;

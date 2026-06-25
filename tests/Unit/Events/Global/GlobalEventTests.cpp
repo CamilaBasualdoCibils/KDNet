@@ -3,7 +3,6 @@
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
 #include <condition_variable>
 #include <future>
 #include <gtest/gtest.h>
@@ -142,9 +141,9 @@ TEST_F(EventGlobalSystemTest, BasicEventEmission)
   // GlobalEventSystem would require setting up a Redis instance and ensuring
   // that the event system can connect to it, which is beyond the scope of this
   // unit test.
-  JobSystem jobSystem({});
+  TaskSystem taskSystem({});
   GlobalEventSystem eventSystem(
-      {._redisConn = &GetRedisConn(), ._jobSystem = &jobSystem});
+      {._redisConn = &GetRedisConn(), ._taskSystem = &taskSystem});
 
   std::atomic_bool callbackInvoked = false;
   int expectedvalue = 42;
@@ -158,8 +157,7 @@ TEST_F(EventGlobalSystemTest, BasicEventEmission)
         callbackValue.set_value(message.value);
       });
 
-  eventSystem.Emit(SimpleTestEvent(expectedvalue))
-      .wait(); // Wait for the event to be processed
+  eventSystem.Emit(SimpleTestEvent(expectedvalue))->wait(); // Wait for the event to be processed
   std::future<int> futureValue = callbackValue.get_future();
   std::future_status status = futureValue.wait_for(
       std::chrono::seconds(5)); // Wait for the callback to set the value
@@ -177,9 +175,9 @@ TEST_F(EventGlobalSystemTest, BasicEventEmission)
 
 TEST_F(EventGlobalSystemTest, MultipleListeners)
 {
-  JobSystem jobSystem({});
+  TaskSystem taskSystem({});
   GlobalEventSystem eventSystem(
-      {._redisConn = &GetRedisConn(), ._jobSystem = &jobSystem});
+      {._redisConn = &GetRedisConn(), ._taskSystem = &taskSystem});
 
   std::mutex mutex;
   std::condition_variable cv;
@@ -213,7 +211,7 @@ TEST_F(EventGlobalSystemTest, MultipleListeners)
         cv.notify_one();
       });
 
-  eventSystem.Emit(SimpleTestEvent(expectedvalue)).wait();
+  eventSystem.Emit(SimpleTestEvent(expectedvalue))->wait();
 
   {
     std::unique_lock<std::mutex> lock(mutex);
@@ -230,13 +228,13 @@ TEST_F(EventGlobalSystemTest, MultipleListeners)
 }
 TEST_F(EventGlobalSystemTest, NoListeners)
 {
-  JobSystem jobSystem({});
+  TaskSystem taskSystem({});
   GlobalEventSystem eventSystem(
-      {._redisConn = &GetRedisConn(), ._jobSystem = &jobSystem});
+      {._redisConn = &GetRedisConn(), ._taskSystem = &taskSystem});
 
   int expectedvalue = 42;
   // Should not crash or throw even if there are no listeners
-  eventSystem.Emit(SimpleTestEvent(expectedvalue)).wait();
+  eventSystem.Emit(SimpleTestEvent(expectedvalue))->wait();
   SUCCEED();
 }
 TEST_F(EventGlobalSystemTest, MultipleListenersFork)
@@ -244,9 +242,9 @@ TEST_F(EventGlobalSystemTest, MultipleListenersFork)
     int pipefd[2];
     ASSERT_EQ(::pipe(pipefd), 0);
 
-    JobSystem jobSystem({});
+    TaskSystem taskSystem({});
     GlobalEventSystem eventSystem(
-        {._redisConn = &GetRedisConn(), ._jobSystem = &jobSystem});
+        {._redisConn = &GetRedisConn(), ._taskSystem = &taskSystem});
 
     std::atomic_int callbackCount = 0;
     std::atomic_bool valueMatched = true;
@@ -290,7 +288,7 @@ TEST_F(EventGlobalSystemTest, MultipleListenersFork)
 
         try
         {
-            JobSystem childJobSystem({});
+            TaskSystem childTaskSystem({});
 
             std::unique_ptr<Database::RedisConn> childRedisConn = Database::RedisConn::Connect(
                 {.host = IPv4("127.0.0.1"),
@@ -306,12 +304,12 @@ TEST_F(EventGlobalSystemTest, MultipleListenersFork)
             }
             GlobalEventSystem childEventSystem(
                 {._redisConn = childRedisConn.get(),
-                 ._jobSystem = &childJobSystem});
+                 ._taskSystem = &childTaskSystem});
 
             // give parent a moment to subscribe (important in pub/sub systems)
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-            childEventSystem.Emit(SimpleTestEvent(expectedValue)).wait();
+            childEventSystem.Emit(SimpleTestEvent(expectedValue))->wait();
 
             const char msg[] = "OK";
             ::write(pipefd[1], msg, sizeof(msg));

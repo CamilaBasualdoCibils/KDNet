@@ -38,7 +38,7 @@ private:
 
   void OnShutdown() override
   {
-    logger->info("Shard OnShutdown called.");
+    GetLogger()->info("Shard OnShutdown called.");
     _entityLedger.reset();
   }
 

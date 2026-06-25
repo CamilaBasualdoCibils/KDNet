@@ -3,20 +3,24 @@
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/assert.hpp"
 #include "atlasnet/core/events/MessagingEvents.hpp"
-#include "atlasnet/core/job/JobContext.hpp"
-#include "atlasnet/core/job/JobEnums.hpp"
-#include "atlasnet/core/job/JobOptions.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/Message.hpp"
+#include "atlasnet/core/messages/MessageStructs.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "atlasnet/core/tasks/TaskHandle.hpp"
+#include "boost/container/small_vector.hpp"
 #include "boost/describe/enum_to_string.hpp"
 #include "enviroment/Enviroment.hpp"
 #include "steam/isteamnetworkingutils.h"
 #include "steam/steamnetworkingsockets.h"
 #include "steam/steamnetworkingtypes.h"
+#include "taskflow/core/async_task.hpp"
+#include "taskflow/core/taskflow.hpp"
 
+#include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <iostream>
@@ -28,18 +32,16 @@
 
 AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
 {
-  AN_ASSERT(config_.jobSystem, "JobSystem must be provided");
+  AN_ASSERT(config_.taskSystem, "JobSystem must be provided");
   if (config_.handshakeHandler)
   {
     logger->info("Handshake handler provided. Incoming connections will be "
                  "subject to handshake validation.");
-
   }
   else
   {
     logger->warn("No handshake handler provided. All incoming connections "
                  "will be accepted by default.");
-
   }
   SteamNetworkingIdentity identity;
   if (config_.handshakeIdentity)
@@ -83,28 +85,17 @@ AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
     throw std::runtime_error("Failed to create SteamNetworking poll group");
   }
 
-  _pollJobHandle = config_.jobSystem->Submit(
-      [this](JobContext& handle)
+  _pollThread = std::jthread(
+      [this]()
       {
-        if (shutdown.load(std::memory_order_acquire))
+        while (!shutdown.load(std::memory_order_acquire))
         {
-          logger->info("MessageSystem poll job exiting due to shutdown signal.");
-
-          return;
+          GNS().RunCallbacks();
+          _Parse_Incoming_Messages();
+          std::this_thread::sleep_for(
+              std::chrono::milliseconds(10));
         }
-        else
-        {
-          handle.set_repeat_once(
-              std::chrono::milliseconds(1000 / Env::TickRate));
-        }
-
-        GNS().RunCallbacks();
-        _Parse_Incoming_Messages();
-      },
-
-      JobOpts::Name("MessageSystem::Poll"),
-      JobOpts::Notify<JobNotifyLevel::eNone>(),
-      JobOpts::TPriority<JobPriority::eHigh>{});
+      });
 }
 
 AtlasNet::MessageSystem::ListenSocketHandle&
@@ -182,7 +173,7 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
     break;
 
   case k_ESteamNetworkingConnectionState_None:
-  logger->info("k_ESteamNetworkingConnectionState_None for: {}",
+    logger->info("k_ESteamNetworkingConnectionState_None for: {}",
                  pInfo->m_info.m_szConnectionDescription);
 
     break;
@@ -231,10 +222,11 @@ bool AtlasNet::MessageSystem::IsConnectedTo(const SocketAddress& address) const
   return GetConnectionState(address) == ConnectionState::eConnected;
 }
 
-AtlasNet::JobHandle
+AtlasNet::TaskHandle<AtlasNet::MessageConnectionResult>
 AtlasNet::MessageSystem::Connect(const SocketAddress& address)
 {
 
+  assert(address.IsValid() && "Invalid address provided to Connect()");
   {
     std::shared_lock lock(_mutex);
 
@@ -251,12 +243,12 @@ AtlasNet::MessageSystem::Connect(const SocketAddress& address)
     if (connIt != _connections.end() &&
         connIt->second.GetState() == ConnectionState::eConnected)
     {
-      return config_.jobSystem->Submit(
-          [](JobContext&) {},
-          JobOpts::Name(std::format("MessageSystem::AlreadyConnected {}",
-                                    address.to_string())),
-          JobOpts::Notify<JobNotifyLevel::eNone>(),
-          JobOpts::TPriority<JobPriority::eHigh>{});
+      return config_.taskSystem->HighPriority().dependent_async(
+          []() -> MessageConnectionResult
+          {
+            return MessageConnectionResult{
+                MessageConnectionResultCode::eAlreadyConnected};
+          });
     }
   }
 
@@ -276,43 +268,103 @@ AtlasNet::MessageSystem::Connect(const SocketAddress& address)
   if (connIt != _connections.end() &&
       connIt->second.GetState() == ConnectionState::eConnected)
   {
-    lock.unlock();
-    return config_.jobSystem->Submit(
-        [](JobContext&) {},
-        JobOpts::Name(std::format("MessageSystem::AlreadyConnected {}",
-                                  address.to_string())),
-        JobOpts::Notify<JobNotifyLevel::eNone>(),
-        JobOpts::TPriority<JobPriority::eHigh>{});
-  }
 
-  JobHandle handle = config_.jobSystem->Submit(
-      [this, address](JobContext& ctx)
-      {
-        _Connect_to_job(ctx, address);
-
-        // Clean up tracked connect jobs once the connection reaches
-        // a terminal or ready state.
-        const ConnectionState state = GetConnectionState(address);
-        if (state == ConnectionState::eConnected ||
-            state == ConnectionState::eClosedByPeer ||
-            state == ConnectionState::eProblemDetectedLocally ||
-            state == ConnectionState::eNone)
+    return config_.taskSystem->HighPriority().dependent_async(
+        []() -> MessageConnectionResult
         {
-          std::unique_lock cleanupLock(_mutex);
-          _connectJobs.erase(address);
-          logger->info("Connect job for {} completed with state {}. Cleaned up tracked job.",
-                       address.to_string(),
-                       boost::describe::enum_to_string(state, "UNKNOWN"));
-          
-        }
-      },
-      JobOpts::TPriority<JobPriority::eHigh>{},
-      JobOpts::Notify<JobNotifyLevel::eOnStartAndComplete>{},
-      JobOpts::Name(
-          std::format("MessageSystem::ConnectTo {}", address.to_string())));
+          return MessageConnectionResult{
+              MessageConnectionResultCode::eAlreadyConnected};
+        });
+  }
+  auto connectTask = config_.taskSystem->HighPriority().dependent_async(
+      [this,address = address]() -> MessageConnectionResult
+      {
+        assert(address.IsValid() && "Invalid address provided to Connect()");
+        logger->info("Starting connection to {}", address.to_string());
+        SteamNetworkingConfigValue_t opts[2];
+        opts[0].SetPtr(
+            k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
+            (void*)&OnSteamNetConnectionStatusChanged);
+        opts[1].SetInt64(k_ESteamNetworkingConfig_ConnectionUserData,
+                         (int64_t)this);
 
-  _connectJobs[address] = handle;
-  return handle;
+        SteamNetworkingIPAddr steamAddr = address.ToSteamAddr();
+
+        const HSteamNetConnection con =
+            GNS().ConnectByIPAddress(steamAddr, 2, opts);
+
+        if (con == k_HSteamNetConnection_Invalid)
+        {
+          char errMsg[1024] = {};
+          steamAddr.ToString(errMsg, sizeof(errMsg), true);
+          logger->error("Failed to connect to {}", errMsg);
+          return MessageConnectionResult{
+              MessageConnectionResultCode::eFailedToConnect};
+        }
+
+        if (!GNS().SetConnectionPollGroup(con, _pollGroup))
+        {
+          GNS().CloseConnection(con, 0, "Failed to assign poll group", false);
+          logger->error("Failed to assign outgoing connection to poll group");
+          return MessageConnectionResult{
+              MessageConnectionResultCode::eFailedToConnect};
+        }
+        {
+          std::unique_lock lock(_mutex);
+          Connection conn(*this, con);
+          conn.connState = ConnectionState::eConnecting;
+
+          auto it = _connections.find(address);
+          if (it == _connections.end())
+          {
+            _connections.emplace(address, std::move(conn));
+          }
+          else
+          {
+            it->second.connState = ConnectionState::eConnecting;
+          }
+          logger->info("Tracked new outgoing connection to {}",
+                       address.to_string());
+        }
+        return MessageConnectionResult{
+            MessageConnectionResultCode::eConnecting};
+      });
+
+  auto WaitForConnectTask = config_.taskSystem->HighPriority().dependent_async(
+      [this, address]() -> MessageConnectionResult
+      {
+        ConnectionState state = GetConnectionState(address);
+
+        while (state == ConnectionState::eConnecting || state == ConnectionState::eNone)
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(20));
+          state = GetConnectionState(address);
+        }
+
+        MessageConnectionResultCode resultCode;
+        switch (state)
+        {
+        case ConnectionState::eConnected:
+          resultCode = MessageConnectionResultCode::eSuccess;
+          break;
+        case ConnectionState::eClosedByPeer:
+          resultCode = MessageConnectionResultCode::eFailedToConnect;
+          break;
+        case ConnectionState::eProblemDetectedLocally:
+          resultCode = MessageConnectionResultCode::eFailedToConnect;
+          break;
+        default:
+          resultCode = MessageConnectionResultCode::eFailedToConnect;
+          break;
+        }
+        std::unique_lock lock(_mutex);
+        _connectJobs.erase(address);
+        return MessageConnectionResult{resultCode};
+      },
+      connectTask.first);
+
+  auto ins = _connectJobs.emplace(address, std::move(WaitForConnectTask));
+  return ins.first->second;
 }
 
 void AtlasNet::MessageSystem::Shutdown()
@@ -321,8 +373,9 @@ void AtlasNet::MessageSystem::Shutdown()
   {
     return;
   }
-  _pollJobHandle->wait();
-  
+  _pollThread.request_stop();
+  _pollThread.join();
+
   logger->info("Shutting down MessageSystem...");
 
   // If your JobSystem supports cancellation, do it here.
@@ -415,13 +468,15 @@ void AtlasNet::MessageSystem::ListenSocketHandle::DispatchCallbacks(
 
   if (found)
   {
-    system.logger->info("Dispatching message of type hash {} received on listen socket port {} to socket dispatcher",
-                 typeIdHash, port);
+    system.logger->info("Dispatching message of type hash {} received on "
+                        "listen socket port {} to socket dispatcher",
+                        typeIdHash, port);
     dispatcher(message, caller_address);
   }
   else
   {
-    system.logger->warn("No dispatcher registered for message type with hash {}", typeIdHash);
+    system.logger->warn(
+        "No dispatcher registered for message type with hash {}", typeIdHash);
   }
 }
 void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
@@ -438,100 +493,118 @@ void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
     return;
   }
 
-  for (int i = 0; i < numMsgs; ++i)
+  struct MessageInfo
   {
-    ISteamNetworkingMessage* msg = pIncomingMessages[i];
-    if (!msg)
-      continue;
+    SocketAddress from;
+    std::optional<PortType> port_received_on;
+  };
+  boost::container::small_vector<MessageInfo, 32> messageInfos;
+  boost::container::small_vector<std::vector<uint8_t>, 32> MessageBuffers;
 
-    SteamNetConnectionInfo_t info;
-    if (!GNS().GetConnectionInfo(msg->m_conn, &info))
-    {
-      logger->error("Failed to get connection info for incoming message");
-      msg->Release();
-      continue;
-    }
-
-    std::optional<PortType> ListenSocketPortReceivedOn = std::nullopt;
-    if (info.m_hListenSocket != k_HSteamListenSocket_Invalid)
-    {
-      SteamNetworkingIPAddr listenAddr;
-      if (GNS().GetListenSocketAddress(info.m_hListenSocket, &listenAddr))
+  /* parses each message and copies the data, releases the message*/
+  auto parseMessagesTask = config_.taskSystem->MediumPriority().dependent_async(
+      [this, numMsgs, &pIncomingMessages, &messageInfos, &MessageBuffers]()
       {
-        ListenSocketPortReceivedOn = listenAddr.m_port;
-      }
-    }
+        for (int i = 0; i < numMsgs; ++i)
+        {
+          ISteamNetworkingMessage* msg = pIncomingMessages[i];
+          if (!msg)
+            continue;
 
-    std::optional<SocketAddress> addressRemote;
-    if (info.m_addrRemote.IsIPv4())
-    {
-      const uint32 ip4Packed = info.m_addrRemote.GetIPv4();
-      const uint16 port = info.m_addrRemote.m_port;
-      addressRemote = SocketAddress(IPv4(ip4Packed), port);
-    }
-    else
-    {
-      addressRemote = SocketAddress(IPv6(info.m_addrRemote.m_ipv6),
-                                    info.m_addrRemote.m_port);
-    logger->info("Incoming message from {}", addressRemote->to_string());
-    }
-
-    AN_ASSERT(addressRemote->IsValid(),
-              "Invalid remote address in incoming message");
-
-    ByteReader readerID(std::span(static_cast<const uint8_t*>(msg->m_pData),
-                                  static_cast<std::size_t>(msg->m_cbSize)));
-
-    const MessageIDHash typeIdHash = IMessage::DeserializeTypeIdHash(readerID);
-    
-
-    logger->info("Message of type hash: {} {}", typeIdHash,
-                 ListenSocketPortReceivedOn.has_value()
-                     ? std::format("on listen socket port {}",
-                                   *ListenSocketPortReceivedOn)
-                     : "on client port");
-
-    // Copy dispatcher out while holding the lock, then invoke
-    // unlocked.
-    DispatchFunc dispatcher;
-    bool found = false;
-    {
-      std::shared_lock lock(_mutex);
-      auto it = _dispatchTable.find(typeIdHash);
-      if (it != _dispatchTable.end())
-      {
-        dispatcher = it->second;
-        found = true;
-      }
-    }
-
-    if (found)
-    {
-      std::vector<uint8_t> bytes;
-      bytes.assign(static_cast<const uint8_t*>(msg->m_pData),
-                   static_cast<const uint8_t*>(msg->m_pData) +
-                       static_cast<std::size_t>(msg->m_cbSize));
-
-      config_.jobSystem->Submit(
-          [this, dispatcher = dispatcher, bytes = std::move(bytes),
-           addressRemote = *addressRemote,
-           port_received_on = ListenSocketPortReceivedOn](JobContext&)
+          SteamNetConnectionInfo_t info;
+          if (!GNS().GetConnectionInfo(msg->m_conn, &info))
           {
-            ByteReader readerFull(bytes);
+            logger->error("Failed to get connection info for incoming message");
+            msg->Release();
+            continue;
+          }
+          std::optional<PortType> ListenSocketPortReceivedOn = std::nullopt;
+          if (info.m_hListenSocket != k_HSteamListenSocket_Invalid)
+          {
+            SteamNetworkingIPAddr listenAddr;
+            if (GNS().GetListenSocketAddress(info.m_hListenSocket, &listenAddr))
+            {
+              ListenSocketPortReceivedOn = listenAddr.m_port;
+            }
+          }
+
+          std::optional<SocketAddress> addressRemote;
+          if (info.m_addrRemote.IsIPv4())
+          {
+            const uint32 ip4Packed = info.m_addrRemote.GetIPv4();
+            const uint16 port = info.m_addrRemote.m_port;
+            addressRemote = SocketAddress(IPv4(ip4Packed), port);
+          }
+          else
+          {
+            addressRemote = SocketAddress(IPv6(info.m_addrRemote.m_ipv6),
+                                          info.m_addrRemote.m_port);
+            logger->info("Incoming message from {}",
+                         addressRemote->to_string());
+          }
+          AN_ASSERT(addressRemote->IsValid(),
+                    "Invalid remote address in incoming message");
+
+          MessageInfo infoStruct{.from = *addressRemote,
+                                 .port_received_on =
+                                     ListenSocketPortReceivedOn};
+          messageInfos.push_back(infoStruct);
+          MessageBuffers.emplace_back();
+          MessageBuffers.back().insert(
+              MessageBuffers.back().end(),
+              static_cast<const uint8_t*>(msg->m_pData),
+              static_cast<const uint8_t*>(msg->m_pData) +
+                  static_cast<std::size_t>(msg->m_cbSize));
+
+          msg->Release();
+        }
+      });
+  //Only wait on the parsing, no need to wait on the dispatching, as they are all dependent on the parsing task
+  parseMessagesTask.second.wait();
+  /*Dispatch each message in parallel while owning their messageData*/
+  for (int messageIndex = 0; messageIndex < numMsgs; ++messageIndex)
+  {
+    auto task = config_.taskSystem->MediumPriority().silent_dependent_async(
+        [this, messageData = std::move(MessageBuffers[messageIndex]),
+         messageInfo = messageInfos[messageIndex]]()
+        {
+          ByteReader readerID(messageData);
+
+          const MessageIDHash typeIdHash =
+              IMessage::DeserializeTypeIdHash(readerID);
+
+          logger->info("Message of type hash: {} {}", typeIdHash,
+                       messageInfo.port_received_on.has_value()
+                           ? std::format("on listen socket port {}",
+                                         *messageInfo.port_received_on)
+                           : "on client port");
+
+          // Copy dispatcher out while holding the lock, then invoke
+          // unlocked.
+          DispatchFunc dispatcher;
+          bool found = false;
+          {
+            std::shared_lock lock(_mutex);
+            auto it = _dispatchTable.find(typeIdHash);
+            if (it != _dispatchTable.end())
+            {
+              dispatcher = it->second;
+              found = true;
+            }
+          }
+
+          if (found)
+          {
+
+            ByteReader readerFull(messageData);
             AN_ASSERT(dispatcher != nullptr,
                       "Dispatcher should not be null here");
-            dispatcher(readerFull, addressRemote, port_received_on);
-          },
-          JobOpts::Name(
-              std::format("MessageSystem::DispatchMessageArrivalEvent "
-                          "typeHash {} from {}",
-                          typeIdHash, addressRemote->to_string())),
-          JobOpts::TPriority<JobPriority::eHigh>{},
-          JobOpts::Notify<JobNotifyLevel::eOnStartAndComplete>{});
-    }
-
-    msg->Release();
+            dispatcher(readerFull, messageInfo.from,
+                       messageInfo.port_received_on);
+          }
+        });
   }
+
 }
 HSteamNetConnection
 AtlasNet::MessageSystem::GetConnectionHandle(const SocketAddress& address) const
@@ -542,100 +615,14 @@ AtlasNet::MessageSystem::GetConnectionHandle(const SocketAddress& address) const
   {
     return _connections.at(address).GetHandle();
   }
-  logger->error("Connection handle requested for non-existent connection to {}", address.to_string());
+  logger->error("Connection handle requested for non-existent connection to {}",
+                address.to_string());
   logger->error("Known connections:");
   for (const auto& [addr, conn] : _connections)
   {
     logger->error(" - {}", addr.to_string());
   }
   throw std::runtime_error("Connection not found");
-}
-void AtlasNet::MessageSystem::_Connect_to_job(JobContext& handle,
-                                              const SocketAddress& address)
-{
-
-  if (shutdown.load(std::memory_order_acquire))
-  {
-    logger->info("Aborting connection attempt to {} due to shutdown signal.", address.to_string());
-    return;
-  }
-
-  const ConnectionState state = GetConnectionState(address);
-
-  if (state == ConnectionState::eNone)
-  {
-    logger->info("Starting connection attempt to {} from state {}",
-                 address.to_string(),
-                 boost::describe::enum_to_string(state, "UNKNOWN"));
-    SteamNetworkingConfigValue_t opts[2];
-    opts[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
-                   (void*)&OnSteamNetConnectionStatusChanged);
-    opts[1].SetInt64(k_ESteamNetworkingConfig_ConnectionUserData,
-                     (int64_t)this);
-
- 
-    SteamNetworkingIPAddr steamAddr = address.ToSteamAddr();
-
-    const HSteamNetConnection con =
-        GNS().ConnectByIPAddress(steamAddr, 2, opts);
-
-    if (con == k_HSteamNetConnection_Invalid)
-    {
-      char errMsg[1024] = {};
-      steamAddr.ToString(errMsg, sizeof(errMsg), true);
-      logger->error("Failed to connect to {}", errMsg);
-      return;
-    }
-
-    if (!GNS().SetConnectionPollGroup(con, _pollGroup))
-    {
-      GNS().CloseConnection(con, 0, "Failed to assign poll group", false);
-      logger->error("Failed to assign outgoing connection to poll group");
-      return;
-    }
-
-    {
-      logger->info("Getting MessageSystem Lock to track new outgoing connection to {}", address.to_string());
-      std::unique_lock lock(_mutex);
-      Connection conn(*this, con);
-      conn.connState = ConnectionState::eConnecting;
-
-      auto it = _connections.find(address);
-      if (it == _connections.end())
-      {
-        _connections.emplace(address, std::move(conn));
-      }
-      else
-      {
-        it->second.connState = ConnectionState::eConnecting;
-      }
-      logger->info("Tracked new outgoing connection to {}", address.to_string());
-    }
-
-    logger->info("Initiated connection to {}", address.to_string());
-
-    handle.set_repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
-    return;
-  }
-
-  if (state == ConnectionState::eConnecting)
-  {
-    logger->info("Still connecting to {}, will check again in {} ms",
-                 address.to_string(), 1000 / Env::TickRate);
-    handle.set_repeat_once(std::chrono::milliseconds(1000 / Env::TickRate));
-  }
-  else if (state == ConnectionState::eConnected)
-  {
-    logger->info("Successfully connected to {}", address.to_string());
-  }
-  else if (state == ConnectionState::eClosedByPeer)
-  {
-    logger->error("Connection to {} was closed by peer. Aborting connection attempt.", address.to_string());
-
-    handle.set_failure();
-    GNS().CloseConnection(GetConnectionHandle(address), 0, "Closed by peer",
-                          false);
-  }
 }
 std::optional<AtlasNet::MessageSystem::Connection>
 AtlasNet::MessageSystem::GetConnection(const SocketAddress& address) const
@@ -704,7 +691,8 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
   SocketAddress address(pInfo->m_info.m_addrRemote);
-  logger->info("k_ESteamNetworkingConnectionState_Connecting: {}", address.to_string());
+  logger->info("k_ESteamNetworkingConnectionState_Connecting: {}",
+               address.to_string());
   const bool isIncoming =
       (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
 
@@ -741,7 +729,9 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
       /* if the identity of the other is invalid then reject*/
       if (pInfo->m_info.m_identityRemote.IsInvalid() && isIncoming)
       {
-        logger->warn("Incoming connection from {} has invalid identity. Rejecting connection.", address.to_string());
+        logger->warn("Incoming connection from {} has invalid identity. "
+                     "Rejecting connection.",
+                     address.to_string());
         GNS().CloseConnection(pInfo->m_hConn,
                               (int)HandshakeResponseCode::eReject,
                               "Invalid identity", false);
@@ -761,7 +751,8 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
         }
         catch (const std::exception& e)
         {
-          logger->error("Failed to parse handshake identity packet from {}: {}. Rejecting connection.",
+          logger->error("Failed to parse handshake identity packet from {}: "
+                        "{}. Rejecting connection.",
                         address.to_string(), e.what());
           GNS().CloseConnection(pInfo->m_hConn,
                                 (int)HandshakeResponseCode::eReject,
@@ -774,7 +765,8 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
                 config_.handshakeHandler(*remoteHandshakeIdentity, address);
             !response.accepted)
         {
-          logger->warn("Handshake rejected for connection from {}. Closing connection. Reason: {}",
+          logger->warn("Handshake rejected for connection from {}. Closing "
+                       "connection. Reason: {}",
                        address.to_string(), response.rejectReason);
           GNS().CloseConnection(pInfo->m_hConn,
                                 (int)HandshakeResponseCode::eReject,
@@ -783,7 +775,9 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
         }
         else
         {
-          logger->info("Handshake accepted for connection from {}. Proceeding with connection.", address.to_string());
+          logger->info("Handshake accepted for connection from {}. Proceeding "
+                       "with connection.",
+                       address.to_string());
         }
       }
     }
@@ -795,16 +789,13 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
 
     GNS().SetConnectionUserData(pInfo->m_hConn, (int64)this);
     logger->info("Incoming connection from {} on listen socket {}",
-                 address.to_string(),
-                 pInfo->m_info.m_hListenSocket);
+                 address.to_string(), pInfo->m_info.m_hListenSocket);
 
     const EResult r = GNS().AcceptConnection(pInfo->m_hConn);
     if (r != k_EResultOK)
     {
-      logger->error("AcceptConnection failed: {} for {}",
-                    static_cast<int>(r),
+      logger->error("AcceptConnection failed: {} for {}", static_cast<int>(r),
                     pInfo->m_info.m_szConnectionDescription);
-    
 
       GNS().CloseConnection(pInfo->m_hConn, 0, "AcceptConnection failed",
                             false);
@@ -848,14 +839,14 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
   {
     logger->info("Outgoing connection (initiated locally) to {}",
                  address.to_string());
-
   }
 }
 void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
   SocketAddress address(pInfo->m_info.m_addrRemote);
-  logger->info("k_ESteamNetworkingConnectionState_Connected: {}", address.to_string());
+  logger->info("k_ESteamNetworkingConnectionState_Connected: {}",
+               address.to_string());
   const bool isIncoming =
       (pInfo->m_info.m_hListenSocket != k_HSteamListenSocket_Invalid);
 
@@ -866,7 +857,9 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
         attempt_handshake(pInfo->m_info.m_identityRemote, handshakeIdentity);
     if (!handshakeresult)
     {
-      logger->error("Handshake failed for outgoing connection to {}. Closing connection.", address.to_string());
+      logger->error(
+          "Handshake failed for outgoing connection to {}. Closing connection.",
+          address.to_string());
       GNS().CloseConnection(pInfo->m_hConn, (int)HandshakeResponseCode::eReject,
                             "Handshake failed", false);
       std::unique_lock lock(_mutex);
@@ -932,7 +925,6 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
   }
   logger->info("Connection established: {}",
                pInfo->m_info.m_szConnectionDescription);
-
 }
 void AtlasNet::MessageSystem::OnConnectionStatus_ClosedByPeer(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
@@ -945,8 +937,7 @@ void AtlasNet::MessageSystem::OnConnectionStatus_ClosedByPeer(
     it->second.connState = ConnectionState::eClosedByPeer;
   }
   logger->info("Connection closed by peer: {}",
-                pInfo->m_info.m_szConnectionDescription);
-
+               pInfo->m_info.m_szConnectionDescription);
 }
 
 void AtlasNet::MessageSystem::OnConnectionStatus_ProblemDetectedLocally(
@@ -960,6 +951,5 @@ void AtlasNet::MessageSystem::OnConnectionStatus_ProblemDetectedLocally(
     it->second.connState = ConnectionState::eProblemDetectedLocally;
   }
   logger->warn("Problem detected locally: {}",
-                pInfo->m_info.m_szConnectionDescription);
-
+               pInfo->m_info.m_szConnectionDescription);
 }

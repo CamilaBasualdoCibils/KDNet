@@ -26,7 +26,7 @@ class WebBackendService : public IService
     static WebBackendService instance;
     return instance;
   }
-  using IService::GetJobSystem;
+  using IService::GetTaskSystem;
   using IService::GetMessageSystem;
   using IService::GetRPCSystem;
   using IService::GetServiceRegistry;

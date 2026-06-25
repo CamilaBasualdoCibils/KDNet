@@ -1,11 +1,12 @@
 // EntityStreamWebSock.h
 #pragma once
-#include "atlasnet/core/job/JobHandle.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/service/ServiceRegistry.hpp"
 #include <atomic>
 #include <drogon/WebSocketController.h>
 #include <shared_mutex>
+#include <thread>
 using namespace drogon;
 class EntityStreamWebSockController
     : public drogon::WebSocketController<EntityStreamWebSockController>
@@ -43,7 +44,7 @@ public:
   std::unordered_map<drogon::WebSocketConnectionPtr,
                      std::shared_ptr<ConnectionState>>
       connectionStates;
-  AtlasNet::JobHandle fetchEntityDataJob;
+      std::jthread fetchEntityDataThread;
   void StartFetchJob();
   std::atomic_bool FetchJobRunning{false};
   std::atomic_bool FetchJobShouldShutdown{false};

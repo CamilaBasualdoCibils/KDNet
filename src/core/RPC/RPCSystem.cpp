@@ -1,7 +1,6 @@
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/assert.hpp"
-#include "atlasnet/core/job/JobHandle.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include <iostream>
@@ -68,7 +67,7 @@ void AtlasNet::RPCSystem::SendError(const RPCTarget& target,
   RpcErrorMessage error{
       .methodId = methodId, .callID = callID, .ErrorMsg = std::move(errorMsg)};
 
-  JobHandle sendErrorHandle = config_.messageSystem->SendMessage(
+  auto sendErrorHandle = config_.messageSystem->TrySendMessage(
       error, target, MessageSendMode::eReliableBatched);
 
   // NewActiveJob(sendErrorHandle);

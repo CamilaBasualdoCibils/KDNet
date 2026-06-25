@@ -6,7 +6,7 @@
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/service/ServiceRegistry.hpp"
@@ -33,7 +33,7 @@ protected:
     OnShutdown();
 
     _messageSystem->Shutdown();
-    _jobSystem->Shutdown();
+    _taskSystem->Shutdown();
   }
   virtual void OnInit() = 0;
   virtual void OnShutdown() = 0;
@@ -98,10 +98,10 @@ protected:
     assert(_messageSystem.has_value() && "MessageSystem not initialized");
     return _messageSystem.value();
   }
-  JobSystem& GetJobSystem()
+  TaskSystem& GetTaskSystem()
   {
-    assert(_jobSystem.has_value() && "JobSystem not initialized");
-    return _jobSystem.value();
+    assert(_taskSystem.has_value() && "TaskSystem not initialized");
+    return _taskSystem.value();
   }
   ServiceRegistry& GetServiceRegistry()
   {
@@ -157,7 +157,7 @@ std::shared_ptr<spdlog::logger> logger;
   std::mutex mutex;
   std::condition_variable cv;
 
-  std::optional<JobSystem> _jobSystem;
+  std::optional<TaskSystem> _taskSystem;
   std::optional<LocalEventSystem> _eventSystem;
   std::optional<GlobalEventSystem> _globalEventSystem;
   std::optional<MessageSystem> _messageSystem;

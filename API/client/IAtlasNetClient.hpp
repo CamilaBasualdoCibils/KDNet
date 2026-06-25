@@ -3,8 +3,6 @@
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/entity/command/Command.hpp"
-#include "atlasnet/core/job/JobHandle.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "boost/describe/enum_to_string.hpp"
@@ -18,9 +16,9 @@ class IAtlasNetClient
 public:
   void AtlasNetClient_Init()
   {
-    jobSystem.emplace(JobSystem::Config{});
+    taskSystem.emplace(TaskSystem::Config{});
     messageSystem.emplace(MessageSystem::Config{
-        .jobSystem = &*jobSystem,
+        .taskSystem = &*taskSystem,
         .handshakeIdentity =
             HandshakeIdentity{.role = HandshakeRole::eClient,
                               .data = HandshakeClientRequestData{
@@ -43,10 +41,10 @@ public:
                               std::string* errorMessage = nullptr)
   {
     SocketAddress serverAddress(HostAddress(std::string(address)), port);
-    JobHandle jobHandle = messageSystem->Connect(serverAddress);
+    TaskHandle<MessageConnectionResult> jobHandle = messageSystem->Connect(serverAddress);
 
-    jobHandle.wait(std::chrono::seconds(5));
-    if (jobHandle.is_completed())
+    jobHandle->wait_for(std::chrono::seconds(5));
+    if (jobHandle.GetTask().is_done())
     {
       logger->info("Successfully connected to server at {}.", serverAddress.to_string());
       logger->info("Waiting for connection complete notification...");
@@ -88,9 +86,8 @@ public:
     ExternalCommandMessage message;
     message.envelope.commandName.assign(commandName.data(), commandName.size());
     message.envelope.payload.assign(commanddata.begin(), commanddata.end());
-    JobHandle jobHandle = messageSystem->SendMessage(
-        message, _serverAddress, sendMode, MessagePriority::eHigh);
-    jobHandle.wait();
+    MessageSendResult jobHandle = messageSystem->TrySendMessage(
+        message, _serverAddress, sendMode);
   }
 
   template <typename CMD>
@@ -117,7 +114,7 @@ private:
   std::condition_variable lastConnectionCompleteDataCV;
 
   SocketAddress _serverAddress;
-  std::optional<JobSystem> jobSystem;
+  std::optional<TaskSystem> taskSystem;
   std::optional<MessageSystem> messageSystem;
   std::optional<RPCSystem> rpcSystem;
 

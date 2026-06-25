@@ -360,40 +360,7 @@ public:
     {
       v.Deserialize(*this);
     }
-    else if constexpr (ResizableIterable<U>)
-    {
-      uint32_t count{};
-      read_scalar(count);
 
-      v.resize(count);
-      for (auto& elem : v)
-      {
-        read_any(elem);
-      }
-    }
-    else if constexpr (is_associative_container_v<U>)
-    {
-      uint32_t count{};
-      read_scalar(count);
-
-      for (uint32_t i = 0; i < count; ++i)
-      {
-        using value_type = typename U::value_type;
-        using raw_key_type = typename value_type::first_type;
-        using raw_mapped_type = typename value_type::second_type;
-
-        using key_type = std::remove_cvref_t<raw_key_type>;
-        using mapped_type = std::remove_cvref_t<raw_mapped_type>;
-
-        key_type key{};
-        mapped_type value{};
-
-        read_any(key);
-        read_any(value);
-
-        v.emplace(std::move(key), std::move(value));
-      }
-    }
     else if constexpr (is_pair_v<U>)
     {
       read_any(v.first);
@@ -435,13 +402,74 @@ public:
     {
       read_vector<U::length()>(v);
     }
-    else if constexpr (Iterable<U>)
+    else if constexpr (resizable_byte_container<T>)
     {
+
+      std::span<const uint8_t> span;
+      blob(span);
+      v.assign(span.begin(), span.end());
+    }
+    else if constexpr (fixed_byte_container<T>)
+    {
+      // uint32_t size{};
+      // read_scalar(size);
+
+      // safety check
+      // if v is literally a span then just blob(v)
+      if constexpr (std::is_same_v<U, std::span<const uint8_t>>)
+      {
+        blob(v);
+        return;
+      }
+      else if constexpr (std::is_same_v<U, std::span<uint8_t>>)
+      {
+        static_assert(false, "Cannot read into a non-const span");
+      }
+      else
+      {
+        // if v is a fixed size container then just read the blob into it
+        std::span<const uint8_t> span;
+        blob(span);
+        if (span.size() != v.size())
+          throw ByteError("Fixed-size container mismatch");
+        std::memcpy(v.data(), span.data(), span.size());
+      }
+    }
+    else if constexpr (ResizableIterable<U>)
+    {
+      uint32_t count{};
+      read_scalar(count);
+
+      v.resize(count);
       for (auto& elem : v)
       {
         read_any(elem);
       }
     }
+    else if constexpr (is_associative_container_v<U>)
+    {
+      uint32_t count{};
+      read_scalar(count);
+
+      for (uint32_t i = 0; i < count; ++i)
+      {
+        using value_type = typename U::value_type;
+        using raw_key_type = typename value_type::first_type;
+        using raw_mapped_type = typename value_type::second_type;
+
+        using key_type = std::remove_cvref_t<raw_key_type>;
+        using mapped_type = std::remove_cvref_t<raw_mapped_type>;
+
+        key_type key{};
+        mapped_type value{};
+
+        read_any(key);
+        read_any(value);
+
+        v.emplace(std::move(key), std::move(value));
+      }
+    }
+
     else
     {
       static_assert(!sizeof(U*), "Unsupported type for ByteReader");

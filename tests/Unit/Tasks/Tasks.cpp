@@ -1,7 +1,6 @@
-#include "atlasnet/core/job/JobContext.hpp"
-#include "atlasnet/core/job/JobEnums.hpp"
-#include "atlasnet/core/job/JobOptions.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+
+#include "atlasnet/core/tasks/TaskSystem.hpp"
+#include "taskflow/core/taskflow.hpp"
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -12,8 +11,127 @@
 #include <vector>
 
 using namespace std::chrono_literals;
+int main(int argc, char** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+TEST(Tasks, TasksWithinTasks)
+{
+  using namespace AtlasNet;
 
-TEST(Jobs, SubmitRunsCallable)
+  TaskSystem system(TaskSystem::Config{});
+
+  std::string output;
+
+  auto outer = system.HighPriority().async(
+      [&]
+      {
+        std::string s = "Hello ";
+
+        system.HighPriority().async([s = s, &output]
+                                    { output = s + "World!"; });
+      });
+
+  outer.wait();
+
+  system.HighPriority().wait_for_all();
+
+  EXPECT_EQ(output, "Hello World!");
+}
+TEST(Tasks, CompletionCascade)
+{
+  using namespace AtlasNet;
+
+  TaskSystem jobsystem(TaskSystem::Config{});
+
+  std::atomic<int> value{0};
+
+  tf::Taskflow chain;
+  auto [A, B, C, D] = chain.emplace([&] { value = 1; }, [&] { value = 2; },
+                                    [&] { value = 3; }, [&] { value = 4; });
+  B.succeed(A);
+  C.succeed(B);
+  D.succeed(C);
+  jobsystem.HighPriority().run(chain).wait();
+
+  EXPECT_EQ(value.load(), 4);
+}
+
+TEST(Tasks, SubmitRunsCallable2)
+{
+  using namespace AtlasNet;
+  TaskSystem system(TaskSystem::Config{});
+
+  std::atomic<int> calls{0};
+
+  auto& executor = system.HighPriority();
+  auto future = executor.async([&]() { ++calls; });
+
+  future.wait();
+
+  EXPECT_EQ(calls.load(), 1);
+}
+TEST(Tasks, RepeatingTask)
+{
+  std::atomic_uint16_t val;
+  using namespace AtlasNet;
+
+  TaskSystem system(TaskSystem::Config{});
+  std::mutex mtx;
+  std::condition_variable cv;
+  auto& executor = system.HighPriority();
+  auto future = executor.async(
+      [&]()
+      {
+        val++;
+        if (val < 5)
+        {
+          std::cout << "Requesting repeat from context, val = " << val.load()
+                    << std::endl;
+          executor.async([&]() { val++; });
+        }
+        std::lock_guard lock(mtx);
+        cv.notify_all();
+      });
+
+  std::unique_lock lock(mtx);
+  cv.wait_for(lock, 2s, [&] { return val.load() >= 5; });
+  EXPECT_GE(val.load(), 5);
+}
+TEST(Tasks, ManyTasksAllExecute)
+{
+  using namespace AtlasNet;
+
+  TaskSystem system(TaskSystem::Config{});
+
+  constexpr int kTaskCount = 20000;
+
+  std::atomic<int> completed{0};
+
+  std::vector<std::future<void>> futures;
+  futures.reserve(kTaskCount);
+
+  auto& high = system.HighPriority();
+  auto& low = system.LowPriority();
+
+  for (int i = 0; i < kTaskCount; ++i)
+  {
+    auto& executor = (i % 2 == 0) ? high : low;
+
+    futures.push_back(executor.async(
+        [&] { completed.fetch_add(1, std::memory_order_relaxed); }));
+  }
+
+  for (auto& future : futures)
+  {
+    future.wait();
+  }
+
+  EXPECT_EQ(completed.load(), kTaskCount);
+}
+
+/* TEST(Jobs, SubmitRunsCallable)
 {
   using namespace AtlasNet;
   JobSystem system(JobSystem::Config{});
@@ -57,6 +175,7 @@ TEST(jobs, RepeatingTask)
   handle.cancel();
   EXPECT_GE(val.load(), 5);
 };
+
 
 TEST(Jobs, HigherPriorityRunsFirst)
 {
@@ -474,11 +593,7 @@ TEST(Jobs, FinishJobsBeforeQuitting)
   system.Shutdown();
   EXPECT_GE(calls.load(), desiredRuns);
 }
-int main(int argc, char** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+
 
 TEST(Jobs, JobsWithinJobs)
 {
@@ -509,16 +624,15 @@ TEST(Jobs, JobsWithinJobs)
   EXPECT_EQ(output, "Hello World!");
 
   system.Shutdown();
-}
-
-TEST(Jobs, JobFailure)
+}TEST(Jobs, JobFailure)
 {
   using namespace AtlasNet;
   JobSystem system(JobSystem::Config{});
 
   std::atomic_bool completionTaskedRan{false};
-  auto handle = system.Submit([&](AtlasNet::JobContext& ctx) { ctx.set_failure(); },
-                              JobOpts::Name{"JobFailure"});
+  auto handle =
+      system.Submit([&](AtlasNet::JobContext& ctx) { ctx.set_failure(); },
+                    JobOpts::Name{"JobFailure"});
   JobHandle h =
       handle.on_complete([&](AtlasNet::JobContext& ctx, auto&&... opts)
                          { completionTaskedRan = true; });
@@ -528,4 +642,4 @@ TEST(Jobs, JobFailure)
   EXPECT_TRUE(handle.is_failed());
   EXPECT_FALSE(completionTaskedRan.load());
   system.Shutdown();
-}
+} */

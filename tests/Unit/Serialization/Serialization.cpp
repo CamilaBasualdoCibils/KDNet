@@ -129,7 +129,7 @@ struct Object
   uint32_t bits_val;
   glm::quat quat_val;
   glm::mat4 mat4_val;
-  std::span<const uint8_t> blob_val;
+  std::vector<uint8_t> blob_val;
   std::array<uint8_t, 16> array_val;
   template <typename Archive> void serialize(Archive& ar)
   {

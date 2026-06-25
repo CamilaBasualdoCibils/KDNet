@@ -5,13 +5,14 @@
 #include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityLedgerRPC.hpp"
-#include "atlasnet/core/job/JobContext.hpp"
+
 #include "enviroment/Enviroment.hpp"
 #include <algorithm>
 #include <execution>
 #include <future>
 #include <iostream>
 #include <numeric>
+#include <thread>
 
 void EntityStreamWebSockController::handleNewMessage(
     const WebSocketConnectionPtr& wsConnPtr, std::string&& message,
@@ -19,7 +20,6 @@ void EntityStreamWebSockController::handleNewMessage(
 {
   // write your application logic here
   logger->info("Received message from WebSocket client: {}", message);
-
 
   // wsConnPtr->send(message);
 }
@@ -61,13 +61,15 @@ void EntityStreamWebSockController::handleNewConnection(
                            { return a + (a.empty() ? "" : ",") + b; }));
                             */
 
-  logger->info("New WebSocket connection established from {}", req->getPeerAddr().toIp().c_str());
+  logger->info("New WebSocket connection established from {}",
+               req->getPeerAddr().toIp().c_str());
   std::unique_lock lock(ConnectionMutex);
   connectionStates[wsConnPtr] = state;
 
   if (!FetchJobRunning.load())
   {
-    logger->info("Starting entity data fetch job as this is the first connection.");
+    logger->info(
+        "Starting entity data fetch job as this is the first connection.");
     StartFetchJob();
   }
   // write your application logic here
@@ -82,11 +84,13 @@ void EntityStreamWebSockController::handleConnectionClosed(
 
   if (connectionStates.empty())
   {
-    logger->info("No more WebSocket connections. Stopping entity data fetch job.");
+    logger->info(
+        "No more WebSocket connections. Stopping entity data fetch job.");
     FetchJobShouldShutdown.store(true);
-    if (fetchEntityDataJob.valid())
+    if (fetchEntityDataThread.joinable())
     {
-      fetchEntityDataJob.wait();
+      fetchEntityDataThread.request_stop();
+      fetchEntityDataThread.join();
     }
     FetchJobRunning.store(false);
     FetchJobShouldShutdown.store(false);
@@ -96,21 +100,22 @@ EntityStreamWebSockController::EntityStreamWebSockController() {}
 
 void EntityStreamWebSockController::StartFetchJob()
 {
-  assert((!fetchEntityDataJob.valid() || !FetchJobRunning.load()) &&
+  assert((!fetchEntityDataThread.joinable()) &&
          "Fetch job is already running");
 
-  fetchEntityDataJob =
-      AtlasNet::WebBackendService::GetInstance().GetJobSystem().Submit(
-          [this](AtlasNet::JobContext& ctx)
+  fetchEntityDataThread =
+     std::jthread(
+          [this](std::stop_token st)
           {
             auto& backend = AtlasNet::WebBackendService::GetInstance();
             auto& rpcSystem = backend.GetRPCSystem();
 
-            std::vector<AtlasNet::ServiceRegistry::ServiceInfo> shardServices;
+            while (!st.stop_requested() && !FetchJobShouldShutdown.load())
+            {
+              std::vector<AtlasNet::ServiceRegistry::ServiceInfo> shardServices;
             backend.GetServiceRegistry().GetServicesOfType(
                 AtlasNet::ServiceType::Shard, shardServices);
-logger->info("Fetched {} shard services", shardServices.size());
-  
+            logger->info("Fetched {} shard services", shardServices.size());
 
             // -----------------------------
             // 1. Dispatch all RPC calls FIRST (no waiting yet)
@@ -124,7 +129,8 @@ logger->info("Fetched {} shard services", shardServices.size());
 
             for (const auto& info : shardServices)
             {
-              logger->info("Dispatching shard {} at {}", info.id.to_string(), info.address.to_string());
+              logger->info("Dispatching shard {} at {}", info.id.to_string(),
+                           info.address.to_string());
 
               futures.push_back(
                   rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
@@ -152,7 +158,9 @@ logger->info("Fetched {} shard services", shardServices.size());
 
                   for (auto& [entityId, entityInfo] : result)
                   {
-                    logger->info("Entity ID: {}\npos: {}", entityId.to_string(), entityInfo.baseInfo.location.position);
+                    logger->info(
+                        "Entity ID: {}\npos: {}", entityId.to_string(),
+                        entityInfo.baseInfo.location.position.to_string());
                     entityInfoCache.emplace(entityId, entityInfo);
                   }
                 }
@@ -196,10 +204,13 @@ logger->info("Fetched {} shard services", shardServices.size());
             // -----------------------------
             // 4. Reschedule
             // -----------------------------
-            if (!FetchJobShouldShutdown.load())
+            if (FetchJobShouldShutdown.load())
             {
-              ctx.set_repeat_once(std::chrono::milliseconds(50));
+             break;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            
           });
 
   FetchJobRunning.store(true);

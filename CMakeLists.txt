@@ -68,13 +68,14 @@ Boost::bimap
 Boost::describe
 Boost::dynamic_bitset
 Boost::flyweight
+Boost::lockfree
 Boost::multi_array
 Boost::multi_index
 Boost::stacktrace_addr2line 
 Boost::static_string
 Boost::uuid
 glm::glm
-#Taskflow::Taskflow
+Taskflow::Taskflow
 EnTT
 nlohmann_json::nlohmann_json
 yaml-cpp::yaml-cpp

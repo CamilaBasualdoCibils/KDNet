@@ -1,18 +1,55 @@
 #pragma once
-#include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/RPC/RPCMacros.hpp"
+#include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+
 #include "atlasnet/core/messages/MessageSystem.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 
 #include <condition_variable>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <mutex>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
+
+int pick_available_port()
+{
+  int Min = 1024;
+  int Max = 65535;
+  if (Min > Max)
+    std::swap(Min, Max);
+
+  auto can_bind = [](int port, int sock_type) -> bool
+  {
+    int fd = ::socket(AF_INET, sock_type, 0);
+    if (fd < 0)
+      return false;
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(static_cast<uint16_t>(port));
+
+    const bool ok =
+        (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+    ::close(fd);
+    return ok;
+  };
+
+  for (int port = Min; port <= Max; ++port)
+  {
+    // Consider the port "available" only if both TCP and UDP can bind.
+    if (can_bind(port, SOCK_STREAM) && can_bind(port, SOCK_DGRAM))
+      return port;
+  }
+
+  return -1; // no free port in range
+}
 using namespace AtlasNet;
 int main(int argc, char** argv)
 {
@@ -40,9 +77,9 @@ ATLASNET_RPC(MyOtherRPC,
 
 TEST(RPC, BaseMessage)
 {
-  JobSystem jobsystem(JobSystem::Config{});
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobsystem});
-  const PortType port = 41001;
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  const PortType port = pick_available_port();
   std::mutex mutex;
   bool success = false;
   std::condition_variable cv;
@@ -59,9 +96,11 @@ TEST(RPC, BaseMessage)
                 .callID = msg.callID,
                 .payload = std::vector<uint8_t>{1, 2, 3, 4, 5},
             };
-            msgSystem.SendMessage(response,
-                                  SocketAddress(IPv4(127, 0, 0, 1), port),
-                                  MessageSendMode::eReliableBatched);
+            auto messageHandle = msgSystem.QueueMessage(response,
+                                   SocketAddress(IPv4(127, 0, 0, 1), port),
+                                   MessageSendMode::eReliableBatched);
+            EXPECT_EQ(messageHandle->get().code,
+                      MessageSendResultCode::eSuccess);
           })
       .On<RpcResponseMessage>(
           [&](const RpcResponseMessage& msg, const SocketAddress&)
@@ -75,20 +114,23 @@ TEST(RPC, BaseMessage)
       .callID = 456,
       .payload = std::vector<uint8_t>{10, 20, 30},
   };
-  msgSystem.SendMessage(request, SocketAddress(IPv4(127, 0, 0, 1), port),
-                        MessageSendMode::eReliableBatched);
+  auto messageHandle =
+      msgSystem.QueueMessage(request, SocketAddress(IPv4(127, 0, 0, 1), port),
+                             MessageSendMode::eReliableBatched);
+  EXPECT_EQ(messageHandle->get().code, MessageSendResultCode::eSuccess);
+
   std::unique_lock lock(mutex);
   cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
   EXPECT_TRUE(success);
 }
 TEST(RPC, SelfReceive)
 {
-  JobSystem jobSystem(JobSystem::Config{});
-  const PortType port = 41001;
+  TaskSystem taskSystem(TaskSystem::Config{});
+  const PortType port = pick_available_port();
   bool success = false;
   std::mutex mutex;
   std::condition_variable cv;
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
 
   RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
@@ -110,10 +152,10 @@ TEST(RPC, SelfReceive)
 }
 TEST(RPC, SelfReceiveAndReply)
 {
-  JobSystem jobSystem(JobSystem::Config{});
+  TaskSystem taskSystem(TaskSystem::Config{});
 
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
-  const PortType port = 41001;
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  const PortType port = pick_available_port();
   bool success = false;
 
   RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
@@ -153,10 +195,10 @@ TEST(RPC, SelfReceiveAndReply)
 }
 TEST(RPC, SelfReceiveWrongPort)
 {
-  JobSystem jobSystem(JobSystem::Config{});
-  const PortType port = 41001;
+  TaskSystem taskSystem(TaskSystem::Config{});
+  const PortType port = pick_available_port();
 
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
   RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
   bool success = false;
@@ -179,12 +221,12 @@ TEST(RPC, SelfReceiveWrongPort)
 }
 TEST(RPC, SelfReceiveAnyPort)
 {
-  JobSystem jobSystem(JobSystem::Config{});
+  TaskSystem taskSystem(TaskSystem::Config{});
 
-
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
-  msgSystem.OpenListenSocket(12345);
-  RPCSystem rpc(RPCSystem::Config{ .messageSystem = &msgSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  const PortType port = pick_available_port();
+  msgSystem.OpenListenSocket(port);
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem});
 
   bool success = false;
   std::mutex mutex;
@@ -197,7 +239,7 @@ TEST(RPC, SelfReceiveAnyPort)
         success = true;
         cv.notify_one();
       });
-  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), 12345), 42,
+  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), port), 42,
                                 3.14f);
 
   std::unique_lock lock(mutex);
@@ -206,8 +248,8 @@ TEST(RPC, SelfReceiveAnyPort)
 }
 TEST(RPC, ForkParentCallsChildAndGetsResult)
 {
-  const PortType parentPort = 41011;
-  const PortType childPort = 41012;
+  const PortType parentPort = pick_available_port();
+  const PortType childPort = pick_available_port();
 
   int readyPipe[2];
   ASSERT_EQ(pipe(readyPipe), 0) << "Failed to create pipe";
@@ -222,9 +264,9 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
     // Child process: hosts RPC server on childPort.
     close(readyPipe[0]);
 
-    JobSystem childJobSystem(JobSystem::Config{});
+    TaskSystem childTaskSystem(TaskSystem::Config{});
     MessageSystem childMsgSystem(
-        MessageSystem::Config{.jobSystem = &childJobSystem});
+        MessageSystem::Config{.taskSystem = &childTaskSystem});
     RPCSystem childRpc(
         RPCSystem::Config{.port = childPort, .messageSystem = &childMsgSystem});
 
@@ -265,9 +307,9 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
       << "Parent failed waiting for child readiness";
   close(readyPipe[0]);
 
-  JobSystem parentJobSystem(JobSystem::Config{});
+  TaskSystem parentTaskSystem(TaskSystem::Config{});
   MessageSystem parentMsgSystem(
-      MessageSystem::Config{.jobSystem = &parentJobSystem});
+      MessageSystem::Config{.taskSystem = &parentTaskSystem});
   RPCSystem parentRpc(
       RPCSystem::Config{.port = parentPort, .messageSystem = &parentMsgSystem});
 

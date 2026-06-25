@@ -303,6 +303,47 @@ public:
     {
       v.Serialize(*this);
     }
+
+    else if constexpr (is_pair_v<T>)
+    {
+      write_any(v.first);
+      write_any(v.second);
+    }
+    else if constexpr (std::is_same_v<T, std::string> ||
+                       std::is_convertible_v<T, std::string_view>)
+      str(v);
+    else if constexpr (std::is_same_v<T, UUID>)
+      uuid(v);
+
+    else if constexpr (std::is_same_v<T, std::span<const uint8_t>> ||
+                       std::is_convertible_v<
+                           T, std::span<const uint8_t>>) // or if can be
+                                                         // converted to span
+      blob((std::span<const uint8_t>(std::span(v))));
+    else if constexpr (std::is_arithmetic_v<T>)
+      write_scalar(v);
+    else if constexpr (std::is_enum_v<T>)
+      write_scalar(v);
+    else if constexpr (std::is_same_v<T, glm::quat>)
+      quat(v);
+    else if constexpr (std::is_same_v<T, glm::mat4>)
+      mat4(v);
+    else if constexpr (is_glm_vec<T>::value)
+      write_vector<T::length()>(v); // Assume its glm vec
+    else if constexpr (fixed_byte_container<T>)
+    {
+      uint32_t size = static_cast<uint32_t>(v.size());
+      write_scalar(size);
+
+      blob(std::span<const uint8_t>(v.data(), v.size()));
+    }
+    else if constexpr (resizable_byte_container<T>)
+    {
+      uint32_t size = static_cast<uint32_t>(v.size());
+      write_scalar(size);
+
+      blob(std::span<uint8_t>(v.data(), v.size()));
+    }
     else if constexpr (ResizableIterable<T>)
     {
       uint32_t count = static_cast<uint32_t>(v.size());
@@ -323,39 +364,6 @@ public:
         write_any(value);
       }
     }
-    else if constexpr (is_pair_v<T>)
-    {
-      write_any(v.first);
-      write_any(v.second);
-    }
-    else if constexpr (std::is_same_v<T, std::string> ||
-                       std::is_convertible_v<T, std::string_view>)
-      str(v);
-    else if constexpr (std::is_same_v<T, UUID>)
-      uuid(v);
-    else if constexpr (Iterable<T>)
-    {
-      for (const auto& elem : v)
-      {
-        write_any(elem);
-      }
-    }
-    else if constexpr (std::is_same_v<T, std::span<const uint8_t>> ||
-                       std::is_convertible_v<
-                           T, std::span<const uint8_t>>) // or if can be
-                                                         // converted to span
-      blob((std::span<const uint8_t>(std::span(v))));
-    else if constexpr (std::is_arithmetic_v<T>)
-      write_scalar(v);
-    else if constexpr (std::is_enum_v<T>)
-      write_scalar(v);
-    else if constexpr (std::is_same_v<T, glm::quat>)
-      quat(v);
-    else if constexpr (std::is_same_v<T, glm::mat4>)
-      mat4(v);
-    else if constexpr (is_glm_vec<T>::value)
-      write_vector<T::length()>(v); // Assume its glm vec
-
     else
       static_assert(!sizeof(T*), "Unsupported type for ByteWriter");
   }

@@ -60,7 +60,7 @@ private:
 std::vector<std::pair<PortType, PortType>> portMappings;
 std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("K8sServiceAdapter");
 private:
-  static std::string DetectNamespace();
+  std::string DetectNamespace();
 
   void LoadToken();
 

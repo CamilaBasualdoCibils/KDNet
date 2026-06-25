@@ -68,6 +68,6 @@ AtlasNet::Universe::CreateWorld(const AtlasNet::WorldDefinition& def)
   event.worldID = potentialWorldID;
   event.worldName = def.name;
   event.worldDefinition = def;
-  _globalEventSystem->Emit(event).wait();
+  _globalEventSystem->Emit(event)->wait();
   return {WorldCreationResult::Success, potentialWorldID};
 }

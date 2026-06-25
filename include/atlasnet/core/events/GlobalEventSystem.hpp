@@ -3,9 +3,9 @@
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/events/IEvent.hpp"
 #include "atlasnet/core/events/IEventSystem.hpp"
-#include "atlasnet/core/job/JobHandle.hpp"
-#include "atlasnet/core/job/JobOptions.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+
+#include "atlasnet/core/tasks/TaskHandle.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "enviroment/Enviroment.hpp"
 #include "sw/redis++/async_subscriber.h"
 #include "sw/redis++/subscriber.h"
@@ -30,38 +30,38 @@ public:
   struct Config
   {
     Database::RedisConn* _redisConn;
-    JobSystem* _jobSystem;
+    TaskSystem* _taskSystem;
   };
 
   explicit GlobalEventSystem(const Config& config)
       : _redisConn(config._redisConn),
         _redisSubscriber(_redisConn->AsyncSubscribe()),
-        _jobSystem(config._jobSystem), _running(true)
+        _taskSystem(config._taskSystem), _running(true)
   {
     _redisSubscriber.on_meta(
         [this](sw::redis::Subscriber::MsgType type,
-           const std::optional<std::string>& channel, long long count)
+               const std::optional<std::string>& channel, long long count)
         {
-          logger->info("Received meta event type: {} on channel: {} with subscription count: {}",
+          logger->info("Received meta event type: {} on channel: {} with "
+                       "subscription count: {}",
                        static_cast<int>(type),
-                       channel.has_value() ? channel.value() : "<none>",
-                       count);
-         
+                       channel.has_value() ? channel.value() : "<none>", count);
         });
 
-        _redisSubscriber.on_error([this](std::exception_ptr err )
+    _redisSubscriber.on_error(
+        [this](std::exception_ptr err)
         {
-            try
+          try
+          {
+            if (err)
             {
-                if (err)
-                {
-                    std::rethrow_exception(err);
-                }
+              std::rethrow_exception(err);
             }
-            catch (const std::exception& e)
-            {
-              logger->error("Redis subscriber error: {}", e.what());
-            }
+          }
+          catch (const std::exception& e)
+          {
+            logger->error("Redis subscriber error: {}", e.what());
+          }
         });
     _redisSubscriber.on_message(
         [this](const std::string& channel, const std::string& message)
@@ -112,15 +112,15 @@ protected:
     _subCv.notify_all();
   }
 
-  JobHandle impl_Emit(EventID eventID, const std::string_view& data) override
+  TaskHandle<> impl_Emit(EventID eventID, const std::string_view& data) override
   {
     logger->info("Emitting Global event with ID {}", eventID);
     std::string payload(data);
     std::string channel = channelForEvent(eventID);
 
-    return _jobSystem->Submit([this, channel = std::move(channel),
-                               payload = std::move(payload)](JobContext&)
-                              { _redisConn->Publish(channel, payload); });
+    return _taskSystem->MediumPriority().dependent_async(
+        [this, channel = std::move(channel), payload = std::move(payload)]()
+        { _redisConn->Publish(channel, payload); });
   }
 
 private:
@@ -185,22 +185,23 @@ private:
       subscribedChannels.clear();
       listeners.clear();
     }
-    //shouldShutdown = true;
-    //subscriberThread.join();
+    // shouldShutdown = true;
+    // subscriberThread.join();
     {
     }
   }
 
 private:
-std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("GlobalEventSystem");
+  std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("GlobalEventSystem");
   Database::RedisConn* _redisConn;
-  JobSystem* _jobSystem;
+  TaskSystem* _taskSystem;
   sw::redis::AsyncSubscriber _redisSubscriber;
   std::condition_variable_any _subCv;
   bool _hasSubscription = false;
   std::atomic_bool shouldShutdown{false};
   std::atomic_bool _running;
-  //std::jthread subscriberThread;
+  // std::jthread subscriberThread;
   std::shared_mutex _mutex;
 
   std::unordered_set<std::string> subscribedChannels;

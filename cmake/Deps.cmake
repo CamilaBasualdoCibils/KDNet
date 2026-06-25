@@ -85,7 +85,7 @@ FetchContent_MakeAvailable(GameNetworkingSockets)
 
 message(STATUS "Fetching Boost")
 set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Use static Boost libraries" FORCE)
-set(BOOST_INCLUDE_LIBRARIES beast bimap describe dynamic_bitset flyweight math multi_array multi_index stacktrace static_string uuid)
+set(BOOST_INCLUDE_LIBRARIES beast bimap describe dynamic_bitset flyweight math multi_array multi_index lockfree stacktrace static_string uuid)
 set(BOOST_ENABLE_MPI ON)
 set(BOOST_ENABLE_CMAKE ON)
 FetchContent_Declare(

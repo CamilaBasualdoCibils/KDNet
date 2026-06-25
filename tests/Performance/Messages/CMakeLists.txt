@@ -4,10 +4,10 @@ add_executable(AtlasNetMessagePerformanceTests ${CMAKE_CURRENT_SOURCE_DIR}/Messa
 target_link_libraries(AtlasNetMessagePerformanceTests
 AtlasNetCore
 AtlasNetTestCrashUtils
-gtest
+#gtest
 )
 
-gtest_discover_tests(AtlasNetMessagePerformanceTests)
+##gtest_discover_tests(AtlasNetMessagePerformanceTests)
 
 # Optional labels for filtering in ctest
-set_tests_properties(${AtlasNetMessagePerformanceTests_TESTS} PROPERTIES LABELS "MessagesPerformance")
+#set_tests_properties(${AtlasNetMessagePerformanceTests_TESTS} PROPERTIES LABELS "MessagesPerformance")

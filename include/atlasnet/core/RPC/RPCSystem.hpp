@@ -3,10 +3,10 @@
 #include "atlasnet/core/RPC/RPCMessage.hpp"
 
 #include "RPCConcepts.hpp"
-#include "atlasnet/core/job/JobHandle.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "boost/describe/enum_to_string.hpp"
 #include "enviroment/Enviroment.hpp"
 #include <functional>
@@ -169,7 +169,7 @@ AtlasNet::RPCSystem::SendRequest(const RPCTarget& target, Args&&... args)
                                 std::vector<uint8_t>(writeArgs.bytes().begin(),
                                                      writeArgs.bytes().end())};
 
-  JobHandle sendRequestHandle = config_.messageSystem->SendMessage(
+  auto sendRequestHandle = config_.messageSystem->QueueMessage(
       request, target, MessageSendMode::eReliableBatched);
   // NewActiveJob(sendRequestHandle);
   return std::make_pair(request.methodId, request.callID);
@@ -190,10 +190,10 @@ AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
       .payload = std::vector<uint8_t>(writeArgs.bytes().begin(),
                                       writeArgs.bytes().end())};
 
-  JobHandle sendResponseHandle = config_.messageSystem->SendMessage(
+  auto sendResponseHandle = config_.messageSystem->QueueMessage(
       response, target, MessageSendMode::eReliableBatched);
-  sendResponseHandle.wait();
-  assert(sendResponseHandle.is_completed() &&
+  sendResponseHandle->wait();
+  assert(sendResponseHandle.GetTask().is_done() && 
          "Failed to send RPC request message and no fault scenarios have been "
          "implemented");
   logger->info("Sent RPC response for methodId {} callId {} to {}",
@@ -286,7 +286,7 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
                                                      writeArgs.bytes().end())};
   logger->info("Sending RPC request for methodId {} callId {} to {}", methodId,
                callID, target.to_string());
-  auto sendMessageJobHandle = config_.messageSystem->SendMessage(
+  auto sendMessageJobHandle = config_.messageSystem->QueueMessage(
       request, target, MessageSendMode::eReliableBatched);
   /* sendMessageJobHandle.wait();
   assert(sendMessageJobHandle.is_completed() &&

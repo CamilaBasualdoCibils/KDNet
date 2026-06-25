@@ -92,9 +92,7 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
                 opts.host, opts.port,
                 boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
                 settings.MaxConnectRetries);
-             boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
-             settings.MaxConnectRetries)
-      << std::endl;
+        
   return nullptr;
 }
 AtlasNet::Database::Redis::KeyValWrapper&

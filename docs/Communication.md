@@ -11,12 +11,76 @@ AtlasNet is designed as a distributed control and data layer where all runtime b
 Because AtlasNet separates simulation authority, state propagation, and peer interaction, all systems built on top of it must adhere to a defined set of communication channels. These channels ensure that every piece of data has a clear origin, direction, and responsibility boundary.
 
 The communication models are as follows:
+- Messages
+- RPC
+- Events
 - Commands
 - Signals
 - Telecom
 
+### Messages
+
+Messages are the fundamental unit of communication in AtlasNet. They are structured data packets that can be sent between clients, shards, and other AtlasNet components. Messages can carry commands, signals, or any other type of information necessary for the simulation.
+
+They are the bare-bones transport mechanism, and all higher-level communication constructs (like commands and signals) are built on top of this messaging layer. It is best used for low-level communication, batching, and custom extensions where the standard command and signal structures do not suffice.
+```dot
+digraph MessageFlow {
+    layout=neato;
+    rankdir=TB;
+    
+    Client1 [label="Client A",pos="-1,0!"];
+    Client2 [label="Client B",pos="1,0!"];
+    Gateway [label="Gateway",pos="0,1!"];
+    ShardA [label="Shard A",pos="-1,2!"];
+    ShardB [label="Shard B",pos="1,2!"];
+    LoginServer [label="Login Server",pos="2,1!"];
+
+    Client1 -> Gateway [color="black",style=dashed,dir=none];
+    Client2 -> Gateway [color="black",style=dashed,dir=none];
+    Gateway -> ShardA [color="black",style=dashed,dir=none];
+    Gateway -> ShardB [color="black",style=dashed,dir=none];
+    ShardA -> ShardB [color="black",style=dashed,dir=none];
+    LoginServer -> Gateway [color="black",style=dashed,dir=none];
+    Client1 -> Client2 [color="black",style=dashed,dir=none];
+}
+
+```
+### RPC
+
+//this section is about RPC
+
+RPC (Remote Procedure Call) is a communication pattern that allows any component to invoke methods on remote servers as if they were local. In AtlasNet, RPCs are used for synchronous operations where a client needs to request data or trigger an action on the server and wait for a response.
+
+The RPC system is built on top of the messaging layer, providing a higher-level abstraction for request-response interactions. It is particularly useful for operations that require immediate feedback or confirmation, such as authentication, data retrieval, or configuration changes.
+
+```dot
+digraph RPCFlow {
+    layout=neato;
+    rankdir=LR;
+
+
+
+    ExampleFuncA [label="ExecuteFunc(int,float) -> void",shape=box,style=filled,fillcolor=lightblue,pos="2.5,1!"];
+   SystemA_1 [label="System A",pos="0,0!"];
+   SystemB_1 [label="System B",pos="5,0!"];
+   mid_1 [style=invis,shape=point,pos="2.5,0!"];
+   SystemA_1 -> mid_1 [color="black",style=dashed,dir=none,taillabel="Call(4, 1.63f)"];
+   mid_1 -> SystemB_1 [color="black",style=dashed];
+   ExampleFuncA:s -> mid_1:n
+
+      ExampleFuncB [label="GetData() -> string",shape=box,style=filled,fillcolor=lightblue,pos="2.5,-0.5!"];
+   SystemA_2 [label="System A",pos="0,-2!"];
+   SystemB_2 [label="System B",pos="5,-2!"];
+   mid_2 [style=invis,shape=point,pos="2.5,-1.5!"];
+   mid_2B [style=invis,shape=point,pos="2.5,-2.5!"];
+   SystemA_2 -> mid_2 [color="black",style=dashed,label="Call()",dir=none];
+   mid_2 -> SystemB_2 [color="black",style=dashed];
+   SystemB_2 -> mid_2B [color="black",style=dashed,dir=none,label="Response(\"Hello\")"];
+   mid_2B -> SystemA_2 [color="black",style=dashed];
+   ExampleFuncB:s -> mid_2:n
+}
+```
 ### Commands
-Commands represent intent to change the simulation.
 
 Commands represent authoritative intent directed toward a specific entity within the simulation.
 

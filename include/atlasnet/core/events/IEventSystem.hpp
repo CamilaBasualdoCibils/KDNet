@@ -1,7 +1,8 @@
 #pragma once
 
 #include "atlasnet/core/events/IEvent.hpp"
-#include "atlasnet/core/job/JobHandle.hpp"
+#include "atlasnet/core/tasks/TaskHandle.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <functional>
@@ -30,7 +31,7 @@ public:
   }
 
   template <typename EventType>
-  JobHandle Emit(const EventType& event)
+  TaskHandle<> Emit(const EventType& event)
     requires(std::derived_from<EventType, IEvent>)
   {
     ByteWriter writer;
@@ -41,7 +42,7 @@ public:
   void On(EventID eventID, std::function<void(const std::string_view&)> cb) {
     impl_On(eventID, std::move(cb));
   }
-  JobHandle Emit(EventID eventID, const std::string_view data)
+  TaskHandle<> Emit(EventID eventID, const std::string_view data)
   {
     return impl_Emit(eventID, data);
   }
@@ -49,7 +50,7 @@ public:
 protected:
   virtual void impl_On(EventID eventID,
                        std::function<void(const std::string_view&)> cb) = 0;
-  virtual JobHandle impl_Emit(EventID eventID, const std::string_view& data) = 0;
+  virtual TaskHandle<> impl_Emit(EventID eventID, const std::string_view& data) = 0;
 
 private:
   template <typename EventType>

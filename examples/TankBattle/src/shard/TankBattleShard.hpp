@@ -113,7 +113,7 @@ public:
   {
     // Implementation for spawning a client
     logger->info("Spawning client with ID: {} and entity ID: {} at location {}",
-                 info.clientID.to_string(), info.entityID.to_string(), info.position);
+                 info.clientID.to_string(), info.entityID.to_string(), info.position.to_string());
 
     // set position to a random location in xz plane -100,100
 

@@ -1,0 +1,1 @@
+#include "atlasnet/core/client/ClientRegistry.hpp"

@@ -1,18 +1,18 @@
 #pragma once
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/container/Container.hpp"
 #include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
-#include "atlasnet/core/login/LoginEntry.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "enviroment/Enviroment.hpp"
 namespace AtlasNet
 {
-class LoginService
+class ClientRegistry
 {
 public:
   struct Config
@@ -22,7 +22,7 @@ public:
     IService* containerService;
   };
 
-  LoginService(const Config& config) : config_(config)
+  ClientRegistry(const Config& config) : config_(config)
   {
     assert(config_._globalEventSystem &&
            "GlobalEventSystem pointer cannot be null");
@@ -67,6 +67,40 @@ public:
     address.Deserialize(reader);
     return address;
   }
+  void AssociateClientWithEntity(const ClientID& clientID,
+                                 const EntityID& entityID)
+  {
+    ByteWriter clientIDWriter;
+    clientIDWriter.uuid(clientID);
+    ByteWriter entityIDWriter;
+    entityIDWriter.uuid(entityID);
+
+    assert(config_.__redisConn->HashMap().Exists().HExists(
+               ClientID2EntityIDHashKey, clientIDWriter.as_string_view()) ==
+               false &&
+           "ClientID is already associated with an EntityID");
+
+    assert(config_.__redisConn->HashMap().Exists().HExists(
+               EntityID2ClientIDHashKey, entityIDWriter.as_string_view()) ==
+               false &&
+           "EntityID is already associated with a ClientID");
+    config_.__redisConn->HashMap().GetSet().HSet(
+        ClientID2EntityIDHashKey, clientIDWriter.as_string_view(),
+        entityIDWriter.as_string_view());
+    config_.__redisConn->HashMap().GetSet().HSet(
+        EntityID2ClientIDHashKey, entityIDWriter.as_string_view(),
+        clientIDWriter.as_string_view());
+
+    if (Env::DebugMode)
+    {
+      config_.__redisConn->HashMap().GetSet().HSet(
+          ClientID2EntityIDHashKey + "_debug", clientID.to_string(),
+          entityID.to_string());
+      config_.__redisConn->HashMap().GetSet().HSet(
+          EntityID2ClientIDHashKey + "_debug", entityID.to_string(),
+          clientID.to_string());
+    }
+  }
   struct LoginResult
   {
 
@@ -83,12 +117,16 @@ public:
     std::optional<ClientID> existingClientID = GetAddressClientID(address);
     if (existingClientID)
     {
+      std::cerr << "Client with address " << address.to_string()
+                << " is already logged in with ClientID: "
+                << existingClientID->to_string() << std::endl;
+
       return std::nullopt; // Address is already logged in
     }
 
     ClientID newClientID = ClientID::Generate();
     ByteWriter addressWriter;
-    LoginEntry entry;
+    LoginData entry;
     entry.address = address;
     entry.clientID = newClientID;
     entry.managingGateway = config_.containerService->GetID();
@@ -114,19 +152,30 @@ public:
       _Json j;
       entry.to_json(j);
       config_.__redisConn->HashMap().GetSet().HSet(
-          ClientDataHashKey + ":Debug", entry.clientID.to_string(), j.dump());
+          ClientDataHashKey + "_Debug", entry.clientID.to_string(), j.dump());
+
+      config_.__redisConn->HashMap().GetSet().HSet(
+          AddressToClientIDHashKey + "_Debug", address.to_string(),
+          newClientID.to_string());
+      config_.__redisConn->HashMap().GetSet().HSet(
+          ClientIDToAddressHashKey + "_Debug", newClientID.to_string(),
+          address.to_string());
     }
     return LoginResult{newClientID, Entity::Location{}};
   }
 
 private:
   const Config config_;
-  const std::string LoginSystemNamespace =
-      Env::DatabaseNamespace + "LoginSystem{ATLASNET_LOGIN_SYSTEM}:";
+  const std::string ClientRegistryNamespace =
+      Env::DatabaseNamespace + "ClientRegistry{ATLASNET_CLIENT_REGISTRY}:";
   const std::string AddressToClientIDHashKey =
-      LoginSystemNamespace + "AddressToClientID";
+      ClientRegistryNamespace + "AddressToClientID";
   const std::string ClientIDToAddressHashKey =
-      LoginSystemNamespace + "ClientIDToAddress";
-  const std::string ClientDataHashKey = LoginSystemNamespace + "ClientData";
+      ClientRegistryNamespace + "ClientIDToAddress";
+  const std::string ClientID2EntityIDHashKey =
+      ClientRegistryNamespace + "ClientIDToEntityID";
+  const std::string EntityID2ClientIDHashKey =
+      ClientRegistryNamespace + "EntityIDToClientID";
+  const std::string ClientDataHashKey = ClientRegistryNamespace + "ClientData";
 };
 } // namespace AtlasNet

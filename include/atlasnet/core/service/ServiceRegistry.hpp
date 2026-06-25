@@ -81,11 +81,11 @@ public:
     {
       _Json debugJson;
       info.to_json(debugJson);
-      _redisConn->HashMap().GetSet().HSet(ContainerID2ServiceInfoKey + ":Debug",
+      _redisConn->HashMap().GetSet().HSet(ContainerID2ServiceInfoKey + "_debug",
                                           info.id.to_string(),
                                           debugJson.dump(4));
       _redisConn->Set().Modify().SAdd(
-          GetContainerType2ContainerIDsSetKey(info.containerType) + ":Debug",
+          GetContainerType2ContainerIDsSetKey(info.containerType) + "_debug",
           info.id.to_string());
     }
   }

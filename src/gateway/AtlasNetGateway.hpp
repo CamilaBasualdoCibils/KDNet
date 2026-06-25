@@ -1,12 +1,12 @@
 #pragma once
 
+#include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/controller/ControllerRPC.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/client/ClientRegistry.hpp"
 #include "atlasnet/core/container/Container.hpp"
 #include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/events/MessagingEvents.hpp"
-#include "atlasnet/core/login/LoginEntry.hpp"
-#include "atlasnet/core/login/LoginService.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/service/ServiceRegistry.hpp"
 #include "atlasnet/gateway/GatewayRelayService.hpp"
@@ -28,7 +28,7 @@ private:
   void OnInit() override
   {
 
-    loginService_.emplace(LoginService::Config{
+    clientRegistry.emplace(ClientRegistry::Config{
         ._globalEventSystem = &GetGlobalEventSystem(),
         .__redisConn = &GetRedisConn(),
         .containerService = this,
@@ -36,6 +36,8 @@ private:
     gatewayRelayService_.emplace(GatewayRelayService::Config{
         .redisConn = &GetRedisConn(),
         .containerService = this,
+        .messageSystem = &GetMessageSystem(),
+        .clientRegistry = &*clientRegistry,
     });
     GetMessageSystem().OpenListenSocket(Env::GatewayListenPort);
     GetLocalEventSystem().On<ConnectionEstablishedEvent>(
@@ -57,7 +59,6 @@ private:
                 << event.address.to_string() << std::endl;
           }
         });
-
   }
   void OnShutdown() override {}
 
@@ -83,8 +84,8 @@ private:
 
     std::cerr << "Logging in new client at " << event.address.to_string()
               << std::endl;
-    const std::optional<LoginService::LoginResult> entry =
-        loginService_->LoginClient(event.address);
+    const std::optional<ClientRegistry::LoginResult> entry =
+        clientRegistry->LoginClient(event.address);
     if (!entry)
       return;
 
@@ -140,6 +141,18 @@ private:
       std::cerr << "Successfully spawned client entity with ID "
                 << spawnResponse->entityID.to_string() << " on shard "
                 << services[0].id.to_string() << std::endl;
+
+      gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
+      clientRegistry->AssociateClientWithEntity(entry->clientID,
+                                                spawnResponse->entityID);
+
+      ClientConnectionCompleteData result;
+      result.clientID = entry->clientID;
+      result.entityID = spawnResponse->entityID;
+      result.result = ClientConnectionResult::Success;
+
+      GetRPCSystem().Call<ClientRPC::ClientConnectionCompleteNotification>(
+          event.address, result);
     }
     else
     {
@@ -148,7 +161,7 @@ private:
                 << std::endl;
     }
   }
-  std::optional<LoginService> loginService_;
+  std::optional<ClientRegistry> clientRegistry;
   std::optional<GatewayRelayService> gatewayRelayService_;
 };
 } // namespace AtlasNet

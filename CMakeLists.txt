@@ -140,6 +140,20 @@ AtlasNetCore
 drogon
 )
 target_compile_definitions(AtlasNetCartographBackend PRIVATE ATLASNET_CARTOGRAPH_BACKEND_BUILD)
+
+add_custom_target(AtlasNetCartographFrontend_DevRun
+    COMMAND npm install
+    COMMAND npm run dev
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/web/frontend
+    COMMENT "Developing AtlasNet Cartograph frontend"
+    VERBATIM
+)
+add_custom_target(AtlasNetCartographFrontend_Clean
+    COMMAND npm run clean
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/web/frontend
+    COMMENT "Cleaning AtlasNet Cartograph frontend"
+    VERBATIM
+)
 endif()
 
 # ========= ATLASNET SHARD API ========

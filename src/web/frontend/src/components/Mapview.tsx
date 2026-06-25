@@ -296,17 +296,15 @@ export default function Mapview() {
       <div style={{ display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}>
         <div className="btn-group">
           <button
-            className={`btn btn-sm ${
-              mode === "2d" ? "btn-primary" : "btn-outline-primary"
-            }`}
+            className={`btn btn-sm ${mode === "2d" ? "btn-primary" : "btn-outline-primary"
+              }`}
             onClick={() => setMode("2d")}
           >
             2D
           </button>
           <button
-            className={`btn btn-sm ${
-              mode === "3d" ? "btn-primary" : "btn-outline-primary"
-            }`}
+            className={`btn btn-sm ${mode === "3d" ? "btn-primary" : "btn-outline-primary"
+              }`}
             onClick={() => setMode("3d")}
           >
             3D
@@ -315,21 +313,19 @@ export default function Mapview() {
 
         <div className="btn-group">
           <button
-            className={`btn btn-sm ${
-              handedness === "lhs"
+            className={`btn btn-sm ${handedness === "lhs"
                 ? "btn-primary"
                 : "btn-outline-primary"
-            }`}
+              }`}
             onClick={() => setHandedness("lhs")}
           >
             LHS
           </button>
           <button
-            className={`btn btn-sm ${
-              handedness === "rhs"
+            className={`btn btn-sm ${handedness === "rhs"
                 ? "btn-primary"
                 : "btn-outline-primary"
-            }`}
+              }`}
             onClick={() => setHandedness("rhs")}
           >
             RHS
@@ -338,17 +334,15 @@ export default function Mapview() {
 
         <div className="btn-group">
           <button
-            className={`btn btn-sm ${
-              upAxis === "y" ? "btn-primary" : "btn-outline-primary"
-            }`}
+            className={`btn btn-sm ${upAxis === "y" ? "btn-primary" : "btn-outline-primary"
+              }`}
             onClick={() => setUpAxis("y")}
           >
             Y-Up
           </button>
           <button
-            className={`btn btn-sm ${
-              upAxis === "z" ? "btn-primary" : "btn-outline-primary"
-            }`}
+            className={`btn btn-sm ${upAxis === "z" ? "btn-primary" : "btn-outline-primary"
+              }`}
             onClick={() => setUpAxis("z")}
           >
             Z-Up

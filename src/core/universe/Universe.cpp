@@ -59,7 +59,7 @@ AtlasNet::Universe::CreateWorld(const AtlasNet::WorldDefinition& def)
   {
     _Json debugJson;
     def.to_json(debugJson);
-    _redisConn->KeyVal().GetSet().Set(worldIDKey + ":debug", debugJson.dump());
+    _redisConn->KeyVal().GetSet().Set(worldIDKey + "_debug", debugJson.dump());
   }
   std::cerr << std::format("Created World {} with ID {}", def.name,
                            potentialWorldID.to_string())

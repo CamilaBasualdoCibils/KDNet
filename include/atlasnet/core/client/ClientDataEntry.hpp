@@ -7,7 +7,7 @@
 
 namespace AtlasNet
 {
-struct LoginEntry
+struct LoginData
 {
   SocketAddress address;
   ServiceID managingGateway;

@@ -1,9 +1,13 @@
 #pragma once
+#include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/entity/command/Command.hpp"
 #include "atlasnet/core/job/JobHandle.hpp"
 #include "atlasnet/core/job/JobSystem.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
+#include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "boost/describe/enum_to_string.hpp"
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -22,6 +26,10 @@ public:
                               .data = HandshakeClientRequestData{
                                   .payload = {'H', 'e', 'l', 'l', 'o'}}}});
     rpcSystem.emplace(RPCSystem::Config{.messageSystem = &*messageSystem});
+
+    rpcSystem->Bind<ClientRPC::ClientConnectionCompleteNotification>(
+        [this](const ClientConnectionCompleteData& data)
+        { OnClientConnectionCompleteNotification(data); });
   }
 
   enum class AtlasNetClientError
@@ -40,10 +48,28 @@ public:
     jobHandle.wait(std::chrono::seconds(5));
     if (jobHandle.is_completed())
     {
-      if (error)
-        *error = AtlasNetClientError::None;
-      if (errorMessage)
-        *errorMessage = "";
+      std::cerr << "Successfully connected to server at "
+                << serverAddress.to_string()
+                << ". Waiting for connection complete notification..."
+                << std::endl;
+      std::unique_lock<std::mutex> lock(lastConnectionCompleteDataMutex);
+      lastConnectionCompleteDataCV.wait_for(
+          lock, std::chrono::seconds(5),
+          [this]() { return lastConnectionCompleteData.has_value(); });
+
+      if (!lastConnectionCompleteData.has_value())
+      {
+        if (error)
+          *error = AtlasNetClientError::ConnectionTimedOut;
+        if (errorMessage)
+          *errorMessage = "Connection complete notification timed out.";
+        return false;
+      }
+      std::cerr << "Received connection complete notification with state "
+                << boost::describe::enum_to_string(
+                       lastConnectionCompleteData->result, "<INVALID>")
+                << std::endl;
+      _serverAddress = SocketAddress(HostAddress(std::string(address)), port);
       return true;
     }
     else
@@ -56,7 +82,42 @@ public:
     }
   }
 
+  void AtlasNetClient_DispatchCommand(
+      const std::string_view& commandName, const std::string_view& commanddata,
+      MessageSendMode sendMode = MessageSendMode::eReliableBatched)
+  {
+    ExternalCommandMessage message;
+    message.envelope.commandName.assign(commandName.data(), commandName.size());
+    message.envelope.payload.assign(commanddata.begin(), commanddata.end());
+    JobHandle jobHandle = messageSystem->SendMessage(
+        message, _serverAddress, sendMode, MessagePriority::eHigh);
+    jobHandle.wait();
+  }
+
+  template <typename CMD>
+    requires(std::is_base_of_v<AtlasNet::ICommandSerializable, CMD>)
+  void AtlasNetClient_DispatchCommand(
+      const CMD& command,
+      MessageSendMode sendMode = MessageSendMode::eReliableBatched)
+  {
+    ByteWriter writer;
+    command.Serialize(writer);
+    AtlasNetClient_DispatchCommand(command.GetName(), writer.as_string_view(),
+                                   sendMode);
+  }
+
 private:
+  void OnClientConnectionCompleteNotification(
+      const ClientConnectionCompleteData& data)
+  {
+    lastConnectionCompleteData = data;
+    lastConnectionCompleteDataCV.notify_all();
+  }
+  std::optional<ClientConnectionCompleteData> lastConnectionCompleteData;
+  std::mutex lastConnectionCompleteDataMutex;
+  std::condition_variable lastConnectionCompleteDataCV;
+
+  SocketAddress _serverAddress;
   std::optional<JobSystem> jobSystem;
   std::optional<MessageSystem> messageSystem;
   std::optional<RPCSystem> rpcSystem;

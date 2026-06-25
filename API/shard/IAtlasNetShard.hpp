@@ -8,7 +8,7 @@
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityHandle.hpp"
 #include "atlasnet/core/entity/EntityLedger.hpp"
-#include "atlasnet/core/login/LoginStructs.hpp"
+#include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"

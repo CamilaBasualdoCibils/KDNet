@@ -43,7 +43,7 @@ public:
 // hash name (unchanged logic, but FIXED consistency issue)
 // =====================================================
 
-#define ATLASNET_HASH_NAME(Name)                                               \
+#define ATLASNET_MESSAGE_HASH_NAME(Name)                                               \
 const static inline std::string GetName() { return #Name; } \
   const static inline AtlasNet::MessageIDHash TypeIdHash =                     \
       std::hash<std::string_view>{}(GetName());
@@ -58,7 +58,7 @@ const static inline std::string GetName() { return #Name; } \
   {                                                                            \
     ATLASNET_FOR_EACH(ATLASNET_DECLARE_FIELD, ATLASNET_SEP_NONE, __VA_ARGS__) \
                                                                                \
-    ATLASNET_HASH_NAME(Name);                                                  \
+    ATLASNET_MESSAGE_HASH_NAME(Name);                                                  \
                                                                                \
     void Serialize(AtlasNet::ByteWriter& archive) const                        \
     {                                                                          \

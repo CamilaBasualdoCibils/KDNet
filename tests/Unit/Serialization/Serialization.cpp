@@ -2,7 +2,7 @@
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/login/LoginEntry.hpp"
+#include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "glm/ext/quaternion_relational.hpp"
@@ -197,10 +197,10 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-TEST(Serialization, LoginEntrySerialization)
+TEST(Serialization, LoginDataSerialization)
 {
   using namespace AtlasNet;
-  LoginEntry entry;
+  LoginData entry;
   entry.address = SocketAddress(IPv4(127, 0, 0, 1), 8080);
   //entry.clientID;
   //entry.managingGateway = UUID::Generate();
@@ -209,7 +209,7 @@ TEST(Serialization, LoginEntrySerialization)
   entry.Serialize(writer);
 
   ByteReader reader(writer.bytes());
-  LoginEntry deserializedEntry;
+  LoginData deserializedEntry;
   deserializedEntry.Deserialize(reader);
   EXPECT_EQ(entry.address, deserializedEntry.address);
   EXPECT_EQ(entry.clientID, deserializedEntry.clientID);

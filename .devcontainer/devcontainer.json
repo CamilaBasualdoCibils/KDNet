@@ -1,0 +1,40 @@
+{
+	"name": "AtlasNet Dev Environment",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	  "remoteUser": "vscode",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"moby": false
+		},
+		"ghcr.io/devcontainers/features/copilot-cli:1": {},
+		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
+	},
+	"runArgs": [
+		"--init",
+		"--cap-add=SYS_PTRACE",
+		"--security-opt=seccomp=unconfined",
+		"--network=host"
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"bbenoist.Doxygen",
+				"IBM.output-colorizer",
+				"ms-vscode.cpptools-extension-pack",
+				"llvm-vs-code-extensions.vscode-clangd",
+				"fredericbonnet.cmake-test-adapter",
+				"ms-vscode.cmake-tools",
+				"ms-azuretools.vscode-containers",
+				"cweijan.vscode-database-client2",
+				"ms-azuretools.vscode-docker",
+				"cschlosser.doxdocgen",
+				"mhutchie.git-graph",
+				"ms-vscode.hexeditor",
+				"shd101wyy.markdown-preview-enhanced",
+				"ms-kubernetes-tools.vscode-kubernetes-tools"
+			]
+		}
+	}
+}

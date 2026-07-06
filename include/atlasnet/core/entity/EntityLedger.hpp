@@ -96,7 +96,7 @@ public:
       entityInfo.baseInfo = info;
       entityInfo.id = id;
       _ledger._createEntity(id, entityInfo);
-      _ledger.logger->info("Entity created with ID: {}", id.to_string());
+      _ledger.logger->info("Entity created with ID: {}", id.toString());
       return id;
     }
     void RemoveEntity(const EntityID& id)
@@ -133,7 +133,7 @@ protected:
     EnTTEntityID enttId = entityTable.create();
     IDMapping.insert({id, enttId});
     entityTable.emplace<Entity::Components::EntityInfo>(enttId, info);
-    logger->info("Entity created with ID: {} with internal entt ID: {}", id.to_string(), static_cast<int>(enttId));
+    logger->info("Entity created with ID: {} with internal entt ID: {}", id.toString(), static_cast<int>(enttId));
     return enttId;
   }
   bool _entityExists(const EntityID& id) const

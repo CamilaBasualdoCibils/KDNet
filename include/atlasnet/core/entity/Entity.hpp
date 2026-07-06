@@ -1,5 +1,6 @@
 #pragma once
 #include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/Snowflake.hpp"
 #include "atlasnet/core/UUID.hpp"
 #include "atlasnet/core/entity/collider/Collider.hpp"
 #include "atlasnet/core/geometry/Vec.hpp"
@@ -18,11 +19,17 @@ namespace AtlasNet
 /* struct EntityIDTag
 {
 }; */
-using EntityID = UUID;
+
+/**
+ * @brief Represents a unique identifier for an entity within the AtlasNet system.
+ * 4-bit sequence, 7-bit worker, and 53-bit timestamp.
+ * 
+ */
+using EntityID = Snowflake;
 /* struct ClientIDTag
 {
 }; */
-using ClientID = UUID;
+using ClientID = Snowflake;
 namespace Entity
 {
 
@@ -252,11 +259,19 @@ struct EntityInfo : public EntityComponent
   {
     _Json baseInfoJson;
     baseInfo.to_json(baseInfoJson);
-    j = _Json{{"id", id.to_string()}, {"baseInfo", baseInfoJson}};
+    j = _Json{{"id", id.toString()}, {"baseInfo", baseInfoJson}};
   }
   void from_json(const _Json& j)
   {
-    id = (EntityID)EntityID::from_string(j.at("id").get<std::string>());
+    std::optional<EntityID> optId = EntityID::fromString(j.at("id").get<std::string>());
+    if(optId.has_value())
+    {
+        id = optId.value();
+    }
+    else
+    {
+      throw std::runtime_error("Invalid EntityID string");
+    }
     baseInfo.from_json(j.at("baseInfo"));
   };
   void Serialize(ByteWriter& writer) const
@@ -286,11 +301,19 @@ struct ClientInfo : public EntityComponent
   ClientID id;
   void to_json(_Json& j) const
   {
-    j = _Json{{"id", id.to_string()}};
+    j = _Json{{"id", id.toString()}};
   }
   void from_json(const _Json& j)
   {
-    id = (ClientID)ClientID::from_string(j.at("id").get<std::string>());
+    std::optional<ClientID> optId = ClientID::fromString(j.at("id").get<std::string>());
+    if(optId.has_value())
+    {
+        id = optId.value();
+    }
+    else
+    {
+      throw std::runtime_error("Invalid ClientID string");
+    }
   }
 };
 struct ColliderInfo : public EntityComponent

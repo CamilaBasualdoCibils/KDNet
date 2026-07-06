@@ -18,11 +18,11 @@ struct LoginData
   {
     address.Serialize(writer);
     writer.uuid(managingGateway);
-    writer.uuid(clientID);
+    clientID.Serialize(writer);
     if (entityID.has_value())
     {
       writer.u8(true);
-      writer.uuid(entityID.value());
+      entityID.value().Serialize(writer);
     }
     else
     {
@@ -33,14 +33,14 @@ struct LoginData
   {
     address.Deserialize(reader);
     reader.uuid(managingGateway);
-    reader.uuid(clientID);
+    clientID.Deserialize(reader);
     uint8_t hasEntityID_v;
     reader.u8(hasEntityID_v);
     bool hasEntityID = hasEntityID_v != 0;
     if (hasEntityID)
     {
       EntityID id;
-      reader.uuid(id);
+      id.Deserialize(reader);
       entityID = id;
     }
     else
@@ -54,9 +54,9 @@ struct LoginData
     j = _Json{
         {"address", address.to_string()},
         {"managingGateway", managingGateway.to_string()},
-        {"clientID", clientID.to_string()},
+        {"clientID", clientID.toString()},
         {"entityID",
-         entityID.has_value() ? entityID.value().to_string() :""},
+         entityID.has_value() ? entityID.value().toString() :""},
     };
   }
 };

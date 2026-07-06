@@ -112,7 +112,7 @@ void EntityStreamWebSockController::StartFetchJob()
 
             while (!st.stop_requested() && !FetchJobShouldShutdown.load())
             {
-              std::vector<AtlasNet::ServiceRegistry::ServiceInfo> shardServices;
+              std::vector<AtlasNet::PresenceService::ServiceInfo> shardServices;
             backend.GetServiceRegistry().GetServicesOfType(
                 AtlasNet::ServiceType::Shard, shardServices);
             logger->info("Fetched {} shard services", shardServices.size());

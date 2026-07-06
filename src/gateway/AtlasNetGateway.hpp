@@ -108,7 +108,7 @@ private:
                  entry->clientID.to_string());
 
     } */
-    std::vector<ServiceRegistry::ServiceInfo> services;
+    std::vector<PresenceService::ServiceInfo> services;
     GetServiceRegistry().GetServicesOfType(ServiceType::Shard, services);
 
     if (services.empty())

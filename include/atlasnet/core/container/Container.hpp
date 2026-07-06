@@ -46,7 +46,7 @@ protected:
     {
       HandshakeServerRequestData requestData =
           std::get<HandshakeServerRequestData>(identity.data);
-      std::optional<ServiceRegistry::ServiceInfo> serviceInfo =
+      std::optional<PresenceService::ServiceInfo> serviceInfo =
           GetServiceRegistry().GetServiceInfo(requestData.serviceID);
 
       if (!serviceInfo)
@@ -103,7 +103,7 @@ protected:
     assert(_taskSystem.has_value() && "TaskSystem not initialized");
     return _taskSystem.value();
   }
-  ServiceRegistry& GetServiceRegistry()
+  PresenceService& GetServiceRegistry()
   {
     assert(_serviceRegistry.has_value() && "ServiceRegistry not initialized");
     return _serviceRegistry.value();
@@ -164,7 +164,7 @@ std::shared_ptr<spdlog::logger> logger;
   std::optional<MessageSystem::ListenSocketHandle*> _internalMessageSocket;
   std::optional<RPCSystem> _rpcSystem;
   std::optional<Universe> _universe;
-  std::optional<ServiceRegistry> _serviceRegistry;
+  std::optional<PresenceService> _serviceRegistry;
   std::unique_ptr<Database::RedisConn> _redisDatabase;
 
   std::optional<ServiceID> controllerContainerID;

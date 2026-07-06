@@ -12,7 +12,7 @@
 #include <unordered_map>
 namespace AtlasNet
 {
-class ServiceRegistry
+class PresenceService
 {
 
 public:
@@ -20,7 +20,7 @@ public:
   {
     Database::RedisConn* redisConn;
   };
-  ServiceRegistry(const Config& config)
+  PresenceService(const Config& config)
   {
     _redisConn = config.redisConn;
     assert(_redisConn != nullptr);

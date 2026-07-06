@@ -56,7 +56,7 @@ struct InternalCommandEnvelope
     serializer.blob(std::span<const uint8_t>(
         reinterpret_cast<const uint8_t*>(commandName.data()),
         commandName.size()));
-    serializer.uuid(targetEntity);
+    targetEntity.Serialize(serializer);
     serializer.u64(logical_entity_sequence);
     serializer.u8(static_cast<uint8_t>(senderType));
     serializer.uuid(sender);
@@ -69,7 +69,7 @@ struct InternalCommandEnvelope
     deserializer.blob(commandNameSpan);
     commandName.assign(reinterpret_cast<const char*>(commandNameSpan.data()),
                        commandNameSpan.size());
-    deserializer.uuid(targetEntity);
+    targetEntity.Deserialize(deserializer);
     deserializer.u64(logical_entity_sequence);
     deserializer.u8(reinterpret_cast<uint8_t&>(senderType));
     deserializer.uuid(sender);

@@ -4,10 +4,11 @@
 #include <unordered_map>
 
 #include "atlasnet/core/Snowflake.hpp"
+#include "atlasnet/core/serialize/ByteReader.hpp"
 #include "spdlog/logger.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 using namespace AtlasNet;
-using SnowflakeId = Snowflake<12, 10, 42>;
+using SnowflakeId = TSnowflake<12, 10, 42>;
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
@@ -94,7 +95,8 @@ TEST(Snowflake, ZeroToString)
 {
     auto id = SnowflakeId::FromParts(0,0,0);
 
-    EXPECT_EQ(id.toString(), "0");
+    SnowflakeId::Str str = id.toString();
+    EXPECT_EQ(str.find_first_not_of("0-"), std::string::npos);
 }
 TEST(Snowflake, MaximumToString)
 {
@@ -107,7 +109,7 @@ TEST(Snowflake, MaximumToString)
         SnowflakeId::fromString(id.toString());
 
     ASSERT_TRUE(parsed);
-
+        logger->info("Parsed ID: {}", parsed.value().toString());
     EXPECT_EQ(*parsed, id);
 }
 TEST(Snowflake, InvalidStringLetters)
@@ -196,7 +198,8 @@ TEST(Snowflake, RandomizedStringRoundTrip)
 
     for (int i = 0; i < 100000; ++i)
     {
-        auto id = SnowflakeId(rng());
+        uint64_t value = rng();
+        auto id = SnowflakeId(value);
 
         auto parsed =
             SnowflakeId::fromString(
@@ -205,5 +208,18 @@ TEST(Snowflake, RandomizedStringRoundTrip)
         ASSERT_TRUE(parsed);
 
         EXPECT_EQ(*parsed, id);
+        EXPECT_EQ(value,parsed.value().value());
+
     }
+}
+
+TEST(Snowflake, SerializeDeserialize)
+{
+    auto id = SnowflakeId::FromParts(1, 2, 3);
+    ByteWriter bw;
+    id.Serialize(bw);
+    ByteReader br(bw.bytes());
+    SnowflakeId deserialized;
+    deserialized.Deserialize(br);
+    EXPECT_EQ(id, deserialized);
 }

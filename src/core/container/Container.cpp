@@ -115,7 +115,7 @@ void AtlasNet::IService::Init()
   _rpcSystem.emplace(
       RPCSystem::Config{.messageSystem = &_messageSystem.value()});
   _serviceRegistry.emplace(
-      ServiceRegistry::Config{.redisConn = _redisDatabase.get()});
+      PresenceService::Config{.redisConn = _redisDatabase.get()});
   _universe.emplace(
       Universe::Config{._globalEventSystem = &_globalEventSystem.value(),
                        .__redisConfig = _redisDatabase.get()});
@@ -127,7 +127,7 @@ void AtlasNet::IService::Init()
 
     FetchControllerInfo();
   }
-  GetServiceRegistry().RegisterService(ServiceRegistry::ServiceInfo{
+  GetServiceRegistry().RegisterService(PresenceService::ServiceInfo{
       .id = GetContainerID(),
       .address = GetHostName(),
       .containerType = GetServiceType(),
@@ -148,7 +148,7 @@ void AtlasNet::IService::FetchControllerInfo()
   {
     logger->info("Fetching Controller info from ServiceRegistry...");
 
-    std::vector<ServiceRegistry::ServiceInfo> outServices;
+    std::vector<PresenceService::ServiceInfo> outServices;
     GetServiceRegistry().GetServicesOfType(ServiceType::Controller,
                                            outServices);
 

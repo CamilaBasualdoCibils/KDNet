@@ -216,22 +216,3 @@ target_link_libraries(AtlasNetClientAPI_s AtlasNetCore)
 #)
 #target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)
 #target_compile_definitions(AtlasNetDummy PRIVATE ATLASNET_DUMMY_BUILD)
-#
-# ========= ATLASNET PHYSICS API ========
-file(GLOB_RECURSE _physics_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/API/physics/*.cpp"
-)
-add_library(AtlasNetPhysicsAPI ${_physics_sources})
-target_include_directories(AtlasNetPhysicsAPI
-      PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/API/physics"
-)
-target_link_libraries(AtlasNetPhysicsAPI AtlasNetCore)
-
-# ======== ATLASNET JOLT PHYSICS ========
-file(GLOB_RECURSE _physics_jolt_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/jolt/*.cpp"
-)
-add_executable(AtlasNetJoltPhysics ${_physics_jolt_sources})
-target_compile_definitions(AtlasNetJoltPhysics PRIVATE ATLASNET_PHYSICS_JOLT_BUILD)
-#target_link_libraries(AtlasNetJoltPhysics AtlasNetPhysicsAPI Jolt::Jolt)

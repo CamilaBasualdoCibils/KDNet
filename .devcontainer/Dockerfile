@@ -7,3 +7,5 @@ RUN apt install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi
 RUN apt install -y  python3-venv 
 # Install Drogon dependencies
 RUN apt install -y zlib1g-dev
+
+USER ubuntu

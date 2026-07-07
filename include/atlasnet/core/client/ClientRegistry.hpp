@@ -2,11 +2,11 @@
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
-#include "atlasnet/core/container/Container.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
+#include "atlasnet/core/node/AtlasNetNode.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "enviroment/Enviroment.hpp"
@@ -19,7 +19,7 @@ public:
   {
     GlobalEventSystem* _globalEventSystem;
     Database::RedisConn* __redisConn;
-    IService* containerService;
+    ClientID::Generator* _clientIDGenerator;
   };
 
   ClientRegistry(const Config& config) : config_(config)
@@ -27,8 +27,8 @@ public:
     assert(config_._globalEventSystem &&
            "GlobalEventSystem pointer cannot be null");
     assert(config_.__redisConn && "RedisConn pointer cannot be null");
-    assert(config_.containerService &&
-           "Container service pointer cannot be null");
+    assert(config_._clientIDGenerator &&
+           "ClientID generator pointer cannot be null");
   };
 
   std::optional<ClientID> GetAddressClientID(const SocketAddress& address)
@@ -46,14 +46,14 @@ public:
     ByteReader reader(std::span<const uint8_t>(
         reinterpret_cast<const uint8_t*>(value->data()), value->size()));
     ClientID clientID;
-    reader.uuid(clientID);
+    reader(clientID);
     return clientID;
   }
 
   std::optional<SocketAddress> GetClientIDAddress(const ClientID& clientID)
   {
     ByteWriter clientIDWriter;
-    clientIDWriter.uuid(clientID);
+    clientIDWriter(clientID);
     std::optional<std::string> value =
         config_.__redisConn->HashMap().GetSet().HGet(
             ClientIDToAddressHashKey, clientIDWriter.as_string_view());
@@ -71,9 +71,10 @@ public:
                                  const EntityID& entityID)
   {
     ByteWriter clientIDWriter;
-    clientIDWriter.uuid(clientID);
+        clientIDWriter(clientID);
+
     ByteWriter entityIDWriter;
-    entityIDWriter.uuid(entityID);
+    entityIDWriter(entityID);
 
     assert(config_.__redisConn->HashMap().Exists().HExists(
                ClientID2EntityIDHashKey, clientIDWriter.as_string_view()) ==
@@ -111,7 +112,7 @@ public:
                            // given to the shard that spawns the client
   };
   [[nodiscard]] std::optional<LoginResult>
-  LoginClient(const SocketAddress& address)
+  LoginClient(const SocketAddress& address,AtlasNetGatewayID managingGatewayID)
   {
 
     std::optional<ClientID> existingClientID = GetAddressClientID(address);
@@ -123,15 +124,15 @@ public:
       return std::nullopt; // Address is already logged in
     }
 
-    ClientID newClientID = ClientID::Generate();
+    ClientID newClientID = config_._clientIDGenerator->Next();
     ByteWriter addressWriter;
     LoginData entry;
     entry.address = address;
     entry.clientID = newClientID;
-    entry.managingGateway = config_.containerService->GetID();
+    entry.managingGateway = managingGatewayID;
     entry.address.Serialize(addressWriter);
     ByteWriter clientIDWriter;
-    clientIDWriter.uuid(newClientID);
+    clientIDWriter(newClientID);
 
     config_.__redisConn->HashMap().GetSet().HSet(
         AddressToClientIDHashKey, addressWriter.as_string_view(),
@@ -160,7 +161,7 @@ public:
           ClientIDToAddressHashKey + "_Debug", newClientID.to_string(),
           address.to_string());
     }
-    return LoginResult{newClientID, Entity::Location{}};
+    return LoginResult{newClientID, Entity::Location{}, std::vector<uint8_t>{}};
   }
 
 private:

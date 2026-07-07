@@ -3,9 +3,12 @@
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "boost/static_string/static_string.hpp"
+#include "spdlog/logger.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <bitset>
 #include <chrono>
 #include <cstdint>
+#include <mutex>
 namespace AtlasNet
 {
 template <uint64_t SequenceBits, uint64_t WorkerBits, uint64_t TimestampBits>
@@ -13,6 +16,8 @@ template <uint64_t SequenceBits, uint64_t WorkerBits, uint64_t TimestampBits>
 class TSnowflake
 {
 
+  static inline std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("Snowflake");
   uint64_t _value;
 
   constexpr static uint64_t SequenceMask = (1ULL << SequenceBits) - 1;
@@ -29,16 +34,23 @@ class TSnowflake
   constexpr static uint64_t StringLength =
       TimestampHexDigits + WorkerHexDigits + SequenceHexDigits + 2; // hyphens
 
-  
-
 public:
-using Str = boost::static_string<StringLength>;
+  constexpr static uint64_t MaxWorkers = WorkerMask;
+  using Str = boost::static_string<StringLength>;
   class Generator
   {
   public:
-    explicit Generator(uint64_t workerId) : m_worker(workerId) {}
+    explicit Generator(uint64_t workerId) : m_worker(workerId)
+    {
+      assert(workerId < MaxWorkers &&
+             "Worker ID exceeds the maximum allowed value");
+      logger->error("Worker ID {} exceeds the maximum allowed value {} from {} "
+                    "worker bits",
+                    workerId, MaxWorkers, WorkerBits);
+    }
     TSnowflake Next()
     {
+      std::unique_lock lock(mutex);
       auto now = CurrentMilliseconds();
 
       if (now == m_lastTimestamp)
@@ -73,6 +85,7 @@ using Str = boost::static_string<StringLength>;
       return duration_cast<milliseconds>(system_clock::now().time_since_epoch())
           .count();
     }
+    std::mutex mutex;
     uint64_t m_worker;
     uint64_t m_sequence = 0;
     uint64_t m_lastTimestamp = 0;
@@ -82,7 +95,6 @@ using Str = boost::static_string<StringLength>;
   explicit TSnowflake(uint64_t value) : _value(value) {}
 
 protected:
-
 public:
   [[nodiscard]] constexpr uint64_t value() const
   {
@@ -102,11 +114,11 @@ public:
   }
   [[nodiscard]]
   static constexpr TSnowflake FromParts(uint64_t timestamp, uint64_t worker,
-                                       uint64_t sequence)
+                                        uint64_t sequence)
   {
     return TSnowflake(((timestamp & TimestampMask) << TimestampShift) |
-                     ((worker & WorkerMask) << WorkerShift) |
-                     ((sequence & SequenceMask) << SequenceShift));
+                      ((worker & WorkerMask) << WorkerShift) |
+                      ((sequence & SequenceMask) << SequenceShift));
   }
 
   constexpr auto operator<=>(const TSnowflake&) const = default;
@@ -116,13 +128,12 @@ public:
    *
    * @return Str
    */
-  Str toString() const
+  Str to_string() const
   {
     Str str;
     str.resize(StringLength);
 
-    auto writeField =
-        [&](uint64_t value, uint64_t digits, std::size_t& pos)
+    auto writeField = [&](uint64_t value, uint64_t digits, std::size_t& pos)
     {
       for (int i = static_cast<int>(digits) - 1; i >= 0; --i)
       {
@@ -148,15 +159,13 @@ public:
     return str;
   }
 
-  static std::optional<TSnowflake> fromString(std::string_view str)
+  static std::optional<TSnowflake> from_string(std::string_view str)
   {
     if (str.size() != StringLength)
       return std::nullopt;
 
-    auto parseField =
-        [&](std::size_t& pos,
-            uint64_t digits,
-            uint64_t& out) -> bool
+    auto parseField = [&](std::size_t& pos, uint64_t digits,
+                          uint64_t& out) -> bool
     {
       out = 0;
 
@@ -172,7 +181,7 @@ public:
 
       return true;
     };
-     uint64_t timestamp;
+    uint64_t timestamp;
     uint64_t worker;
     uint64_t sequence;
 
@@ -204,7 +213,8 @@ public:
   {
     br.u64(_value);
   }
-  private:
+
+private:
   static constexpr char Hex[] = "0123456789ABCDEF";
 
   static constexpr bool HexToNibble(char c, uint64_t& out)
@@ -229,15 +239,15 @@ public:
 
     return false;
   }
-
 };
 
 /**
  * 5-bit sequence: allows for 32 unique IDs per worker per timestamp.
- * 7-bit worker: allows for 128 unique workers
- * 52-bit timestamp: allows for a large range of timestamps, providing uniqueness over time.
+ * 8-bit worker: allows for 256 unique workers
+ * 51-bit timestamp: allows for a large range of timestamps, providing
+ * uniqueness over time.
  */
-using Snowflake = TSnowflake<5, 7, 52>;
+using Snowflake = TSnowflake<5, 8, 51>;
 }; // namespace AtlasNet
 namespace std
 {
@@ -252,4 +262,3 @@ struct hash<AtlasNet::TSnowflake<SequenceBits, WorkerBits, TimestampBits>>
   }
 };
 } // namespace std
-

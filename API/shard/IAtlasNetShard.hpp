@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ShardEnums.hpp"
-#include "atlasnet/core/container/Container.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
+
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityHandle.hpp"
 #include "atlasnet/core/entity/EntityLedger.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
+#include "atlasnet/core/node/AtlasNetNode.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
@@ -22,7 +22,7 @@ namespace AtlasNet
  * The interface ensures consistent management and communication of shards
  * within the AtlasNet ecosystem.
  */
-class IAtlasNetShard : public IService
+class IAtlasNetShard : public IAtlasNetNode
 {
   std::optional<Entity::EntityLedger> _entityLedger;
   std::shared_ptr<spdlog::logger> _logger = spdlog::stdout_color_mt("AtlasNetShard");

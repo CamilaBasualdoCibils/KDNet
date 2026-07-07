@@ -1,9 +1,8 @@
 #include "IAtlasNetShard.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 
-AtlasNet::IAtlasNetShard::IAtlasNetShard() : IService(ServiceType::Shard) {}
+AtlasNet::IAtlasNetShard::IAtlasNetShard() : IAtlasNetNode(AtlasNetNodeType::Shard) {}
 void AtlasNet::IAtlasNetShard::OnInit()
 {
   GetLogger()->info("Shard OnInit called.");

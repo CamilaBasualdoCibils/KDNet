@@ -10,6 +10,13 @@
 		"ghcr.io/devcontainers/features/copilot-cli:1": {},
 		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
 	},
+	"containerEnv": {
+    "WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
+    "XDG_RUNTIME_DIR": "/tmp/runtime"
+},
+"mounts": [
+    "source=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY},target=/tmp/runtime/${localEnv:WAYLAND_DISPLAY},type=bind"
+],
 	"runArgs": [
 		"--init",
 		"--cap-add=SYS_PTRACE",

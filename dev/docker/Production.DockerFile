@@ -17,7 +17,7 @@ COPY src/ src/
 COPY include/ include/
 COPY CMakeLists.txt CMakeLists.txt
 COPY cmake/ cmake/
-COPY web/ web/
+
 
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DATLASNET_DEV=OFF -DATLASNET_EXAMPLES=OFF -DATLASNET_TESTS=OFF
 RUN cmake --build build --parallel --target AtlasNetController AtlasNetGateway AtlasNetCartographBackend AtlasNetDummy

@@ -83,9 +83,9 @@ TEST(Snowflake, StringRoundTrip)
     auto original =
         SnowflakeId::FromParts(123456, 42, 1337);
 
-    auto str = original.toString();
+    auto str = original.to_string();
     logger->info("Original ID as string: {}", str);
-    auto parsed = SnowflakeId::fromString(str);
+    auto parsed = SnowflakeId::from_string(str);
 
     ASSERT_TRUE(parsed.has_value());
 
@@ -95,7 +95,7 @@ TEST(Snowflake, ZeroToString)
 {
     auto id = SnowflakeId::FromParts(0,0,0);
 
-    SnowflakeId::Str str = id.toString();
+    SnowflakeId::Str str = id.to_string();
     EXPECT_EQ(str.find_first_not_of("0-"), std::string::npos);
 }
 TEST(Snowflake, MaximumToString)
@@ -106,32 +106,32 @@ TEST(Snowflake, MaximumToString)
         (1ULL<<12)-1);
 
     auto parsed =
-        SnowflakeId::fromString(id.toString());
+        SnowflakeId::from_string(id.to_string());
 
     ASSERT_TRUE(parsed);
-        logger->info("Parsed ID: {}", parsed.value().toString());
+        logger->info("Parsed ID: {}", parsed.value().to_string());
     EXPECT_EQ(*parsed, id);
 }
 TEST(Snowflake, InvalidStringLetters)
 {
     EXPECT_FALSE(
-        SnowflakeId::fromString("hello"));
+        SnowflakeId::from_string("hello"));
 }
 TEST(Snowflake, EmptyString)
 {
     EXPECT_FALSE(
-        SnowflakeId::fromString(""));
+        SnowflakeId::from_string(""));
 }
 TEST(Snowflake, OverflowString)
 {
     EXPECT_FALSE(
-        SnowflakeId::fromString(
+        SnowflakeId::from_string(
             "18446744073709551616"));
 }
 TEST(Snowflake, RejectTrailingCharacters)
 {
     EXPECT_FALSE(
-        SnowflakeId::fromString("123abc"));
+        SnowflakeId::from_string("123abc"));
 }
 TEST(Snowflake, Equality)
 {
@@ -202,8 +202,8 @@ TEST(Snowflake, RandomizedStringRoundTrip)
         auto id = SnowflakeId(value);
 
         auto parsed =
-            SnowflakeId::fromString(
-                id.toString());
+            SnowflakeId::from_string(
+                id.to_string());
 
         ASSERT_TRUE(parsed);
 

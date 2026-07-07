@@ -2,7 +2,7 @@
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
-#include "atlasnet/core/shard/shard.hpp"
+
 #include "boost-src/libs/container/include/boost/container/small_vector.hpp"
 #include "boost-src/libs/static_string/include/boost/static_string/static_string.hpp"
 #include <atlasnet/core/entity/Entity.hpp>

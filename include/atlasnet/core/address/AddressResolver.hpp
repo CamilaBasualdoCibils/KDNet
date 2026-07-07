@@ -2,9 +2,8 @@
 
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/cache/Cache.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
-#include "atlasnet/core/shard/shard.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include <optional>
 namespace AtlasNet
 {
@@ -16,56 +15,59 @@ public:
   struct Config
   {
   };
-  AddressResolver(const Config& config) {}
+  AddressResolver(const Config& config)
+      : config_(config), clientCache_([this](const ClientID& id)
+                                      { return ClientAddressProvider(id); }),
+        entityCache_([this](const EntityID& id)
+                     { return EntityAddressProvider(id); }),
+        shardCache_([this](const AtlasNetShardID& id)
+                    { return ShardAddressProvider(id); }),
+        serviceCache_([this](const AtlasNetNodeID& id)
+                      { return ServiceAddressProvider(id); })
+  {
+  }
   std::optional<SocketAddress> ResolveClient(const ClientID& clientID)
   {
-    return clientCache_.FindEnsured(
-        clientID, [this](const ClientID& clientID)
-        { return ClientAddressProvider(clientID); });
+    return clientCache_.Get(clientID);
   }
   std::optional<SocketAddress> ResolveEntity(const EntityID& entityID)
   {
-    return entityCache_.FindEnsured(
-        entityID, [this](const EntityID& entityID)
-        { return EntityAddressProvider(entityID); });
+    return entityCache_.Get(entityID);
   }
-  std::optional<SocketAddress> ResolveShard(const ShardID& shardID)
+  std::optional<SocketAddress> ResolveShard(const AtlasNetShardID& shardID)
   {
-    return shardCache_.FindEnsured(shardID, [this](const ShardID& shardID)
-                                   { return ShardAddressProvider(shardID); });
+    return shardCache_.Get(shardID);
   }
-  std::optional<SocketAddress> ResolveService(const ServiceID& serviceID)
+  std::optional<SocketAddress> ResolveService(const AtlasNetNodeID& serviceID)
   {
-    return serviceCache_.FindEnsured(
-        serviceID, [this](const ServiceID& serviceID)
-        { return ServiceAddressProvider(serviceID); });
+    return serviceCache_.Get(serviceID);
   }
 
 private:
   Config config_;
+  Cache<ClientID, SocketAddress> clientCache_;
+  Cache<EntityID, SocketAddress> entityCache_;
+    Cache<AtlasNetShardID, SocketAddress> shardCache_;
+      Cache<AtlasNetNodeID, SocketAddress> serviceCache_;
+      
   std::optional<SocketAddress> ClientAddressProvider(const ClientID& clientID)
   {
     return std::nullopt;
   }
-  Cache<ClientID, SocketAddress> clientCache_;
-
   std::optional<SocketAddress> EntityAddressProvider(const EntityID& entityID)
   {
     return std::nullopt;
   }
-  Cache<EntityID, SocketAddress> entityCache_;
-
-  std::optional<SocketAddress> ShardAddressProvider(const ShardID& shardID)
-  {
-    return std::nullopt;
-  }
-  Cache<ShardID, SocketAddress> shardCache_;
-
   std::optional<SocketAddress>
-  ServiceAddressProvider(const ServiceID& serviceID)
+  ShardAddressProvider(const AtlasNetShardID& shardID)
   {
     return std::nullopt;
   }
-  Cache<ServiceID, SocketAddress> serviceCache_;
+  std::optional<SocketAddress>
+  ServiceAddressProvider(const AtlasNetNodeID& serviceID)
+  {
+    return std::nullopt;
+  }
+
 };
 } // namespace AtlasNet

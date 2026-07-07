@@ -2,10 +2,10 @@
 #include "WebBackend.hpp"
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityLedgerRPC.hpp"
 
+#include "atlasnet/core/node/NodeRegistry.hpp"
 #include "enviroment/Enviroment.hpp"
 #include <algorithm>
 #include <execution>
@@ -100,118 +100,118 @@ EntityStreamWebSockController::EntityStreamWebSockController() {}
 
 void EntityStreamWebSockController::StartFetchJob()
 {
-  assert((!fetchEntityDataThread.joinable()) &&
-         "Fetch job is already running");
-
-  fetchEntityDataThread =
-     std::jthread(
-          [this](std::stop_token st)
-          {
-            auto& backend = AtlasNet::WebBackendService::GetInstance();
-            auto& rpcSystem = backend.GetRPCSystem();
-
-            while (!st.stop_requested() && !FetchJobShouldShutdown.load())
+  assert((!fetchEntityDataThread.joinable()) && "Fetch job is already running");
+  /*
+    fetchEntityDataThread =
+       std::jthread(
+            [this](std::stop_token st)
             {
-              std::vector<AtlasNet::PresenceService::ServiceInfo> shardServices;
-            backend.GetServiceRegistry().GetServicesOfType(
-                AtlasNet::ServiceType::Shard, shardServices);
-            logger->info("Fetched {} shard services", shardServices.size());
+              auto& backend = AtlasNet::WebBackendService::GetInstance();
+              auto& rpcSystem = backend.GetRPCSystem();
 
-            // -----------------------------
-            // 1. Dispatch all RPC calls FIRST (no waiting yet)
-            // -----------------------------
-            using ResultType =
-                std::unordered_map<AtlasNet::EntityID,
-                                   AtlasNet::Entity::Components::EntityInfo>;
-
-            std::vector<std::future<ResultType>> futures;
-            futures.reserve(shardServices.size());
-
-            for (const auto& info : shardServices)
-            {
-              logger->info("Dispatching shard {} at {}", info.id.to_string(),
-                           info.address.to_string());
-
-              futures.push_back(
-                  rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
-                      AtlasNet::SocketAddress(
-                          info.address, AtlasNet::Env::InternalMessagePort)));
-            }
-
-            // -----------------------------
-            // 2. Collect results (single-threaded, safe .get())
-            // -----------------------------
-            std::unordered_map<AtlasNet::EntityID,
-                               AtlasNet::Entity::Components::EntityInfo>
-                entityInfoCache;
-
-            for (auto& fut : futures)
-            {
-              if (fut.wait_for(std::chrono::seconds(1)) ==
-                  std::future_status::ready)
+              while (!st.stop_requested() && !FetchJobShouldShutdown.load())
               {
-                try
+                std::vector<AtlasNet::NodeRegistry::ServiceInfo> shardServices;
+              backend.GetServiceRegistry().GetServicesOfType(
+                  AtlasNet::AtlasNetNodeType::Shard, shardServices);
+              logger->info("Fetched {} shard services", shardServices.size());
+
+              // -----------------------------
+              // 1. Dispatch all RPC calls FIRST (no waiting yet)
+              // -----------------------------
+              using ResultType =
+                  std::unordered_map<AtlasNet::EntityID,
+                                     AtlasNet::Entity::Components::EntityInfo>;
+
+              std::vector<std::future<ResultType>> futures;
+              futures.reserve(shardServices.size());
+
+              for (const auto& info : shardServices)
+              {
+                logger->info("Dispatching shard {} at {}", info.id.to_string(),
+                             info.address.to_string());
+
+                futures.push_back(
+                    rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
+                        AtlasNet::SocketAddress(
+                            info.address, AtlasNet::Env::InternalMessagePort)));
+              }
+
+              // -----------------------------
+              // 2. Collect results (single-threaded, safe .get())
+              // -----------------------------
+              std::unordered_map<AtlasNet::EntityID,
+                                 AtlasNet::Entity::Components::EntityInfo>
+                  entityInfoCache;
+
+              for (auto& fut : futures)
+              {
+                if (fut.wait_for(std::chrono::seconds(1)) ==
+                    std::future_status::ready)
                 {
-                  auto result = fut.get();
-
-                  logger->info("Fetched {} entities from shard", result.size());
-
-                  for (auto& [entityId, entityInfo] : result)
+                  try
                   {
-                    logger->info(
-                        "Entity ID: {}\npos: {}", entityId.to_string(),
-                        entityInfo.baseInfo.location.position.to_string());
-                    entityInfoCache.emplace(entityId, entityInfo);
+                    auto result = fut.get();
+
+                    logger->info("Fetched {} entities from shard",
+    result.size());
+
+                    for (auto& [entityId, entityInfo] : result)
+                    {
+                      logger->info(
+                          "Entity ID: {}\npos: {}", entityId.to_string(),
+                          entityInfo.baseInfo.location.position.to_string());
+                      entityInfoCache.emplace(entityId, entityInfo);
+                    }
+                  }
+                  catch (const std::exception& e)
+                  {
+                    logger->error("Shard RPC failed: {}", e.what());
                   }
                 }
-                catch (const std::exception& e)
+                else
                 {
-                  logger->error("Shard RPC failed: {}", e.what());
+                  logger->error("Shard RPC timeout");
                 }
               }
-              else
+
+              // -----------------------------
+              // 3. Broadcast to all connections (snapshot first!)
+              // -----------------------------
+              std::vector<WebSocketConnectionPtr> conns;
               {
-                logger->error("Shard RPC timeout");
+                std::lock_guard lock(ConnectionMutex);
+                for (auto& [ws, _] : connectionStates)
+                  conns.push_back(ws);
               }
-            }
 
-            // -----------------------------
-            // 3. Broadcast to all connections (snapshot first!)
-            // -----------------------------
-            std::vector<WebSocketConnectionPtr> conns;
-            {
-              std::lock_guard lock(ConnectionMutex);
-              for (auto& [ws, _] : connectionStates)
-                conns.push_back(ws);
-            }
+              _Json payload;
 
-            _Json payload;
+              for (const auto& [entityId, entityInfo] : entityInfoCache)
+              {
+                _Json entityJson;
+                entityInfo.to_json(entityJson);
+                payload[entityId.to_string()] = entityJson;
+              }
 
-            for (const auto& [entityId, entityInfo] : entityInfoCache)
-            {
-              _Json entityJson;
-              entityInfo.to_json(entityJson);
-              payload[entityId.to_string()] = entityJson;
-            }
+              const std::string message = payload.dump();
+              logger->info("EntityStream Response json\n{}", payload.dump(2));
+              for (auto& ws : conns)
+              {
+                ws->send(message);
+              }
 
-            const std::string message = payload.dump();
-            logger->info("EntityStream Response json\n{}", payload.dump(2));
-            for (auto& ws : conns)
-            {
-              ws->send(message);
-            }
+              // -----------------------------
+              // 4. Reschedule
+              // -----------------------------
+              if (FetchJobShouldShutdown.load())
+              {
+               break;
+              }
+              std::this_thread::sleep_for(std::chrono::milliseconds(50));
+              }
 
-            // -----------------------------
-            // 4. Reschedule
-            // -----------------------------
-            if (FetchJobShouldShutdown.load())
-            {
-             break;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-            
-          });
-
+            });
+   */
   FetchJobRunning.store(true);
 }

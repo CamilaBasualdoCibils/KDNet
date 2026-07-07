@@ -2,7 +2,8 @@
 #pragma once
 
 #include "atlasnet/core/tasks/TaskSystem.hpp"
-#include "atlasnet/core/service/ServiceRegistry.hpp"
+#include "spdlog/sinks/stdout_color_sinks-inl.h"
+
 #include <atomic>
 #include <drogon/WebSocketController.h>
 #include <shared_mutex>

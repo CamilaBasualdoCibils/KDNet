@@ -1,15 +1,17 @@
 #pragma once
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/Snowflake.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
+#include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
-#include "atlasnet/core/service/ServiceRegistry.hpp"
+#include "atlasnet/core/node/NodeRegistry.hpp"
 #include "atlasnet/core/universe/Universe.hpp"
 #include <atomic>
 #include <boost/describe.hpp>
@@ -22,11 +24,11 @@
 namespace AtlasNet
 {
 
-class IService
+class IAtlasNetNode
 {
 protected:
-  IService(ServiceType type);
-  virtual ~IService() = default;
+  IAtlasNetNode(AtlasNetNodeType type);
+  virtual ~IAtlasNetNode() = default;
   bool ShutdownRequested() const;
   void Shutdown()
   {
@@ -42,11 +44,12 @@ protected:
   HandleHandshake(const HandshakeIdentity& identity,
                   const SocketAddress& remoteAddr)
   {
-    if (identity.role == HandshakeRole::eServer)
+    return HandshakeResponsePacket{.accepted = true};
+    /* if (identity.role == HandshakeRole::eServer)
     {
       HandshakeServerRequestData requestData =
           std::get<HandshakeServerRequestData>(identity.data);
-      std::optional<PresenceService::ServiceInfo> serviceInfo =
+      std::optional<NodeRegistry::ServiceInfo> serviceInfo =
           GetServiceRegistry().GetServiceInfo(requestData.serviceID);
 
       if (!serviceInfo)
@@ -65,14 +68,10 @@ protected:
       return HandshakeResponsePacket{
           .accepted = false,
           .rejectReason = "Client handshakes not supported in base IService"};
-    }
+    } */
   }
   // HostAddress GetOverlayAddressOfSelf() const;
   HostAddress GetHostName() const;
-  const ServiceID& GetContainerID() const
-  {
-    return id;
-  }
   RPCSystem& GetRPCSystem()
   {
     assert(_rpcSystem.has_value() && "RPCSystem not initialized");
@@ -103,7 +102,7 @@ protected:
     assert(_taskSystem.has_value() && "TaskSystem not initialized");
     return _taskSystem.value();
   }
-  PresenceService& GetServiceRegistry()
+  NodeRegistry& GetServiceRegistry()
   {
     assert(_serviceRegistry.has_value() && "ServiceRegistry not initialized");
     return _serviceRegistry.value();
@@ -121,36 +120,21 @@ protected:
 
 public:
   void Init();
-  ServiceType GetServiceType() const
+  AtlasNetNodeType GetNodeType() const
   {
     return type;
   }
-  ServiceID GetID() const
+  AtlasNetNodeID GetNodeID() const
   {
-    return id;
-  }
-  SocketAddress GetControllerAddress() const
-  {
-    assert(controllerOverlayAddress.has_value() &&
-           "Controller address not set. This should never happen as "
-           "non-controller "
-           "containers fetch the controller info during initialization.");
-    return controllerOverlayAddress.value();
+    assert(id.has_value() && "ID not set");
+    return *id;
   }
 
-  ServiceID GetControllerID() const
-  {
-    assert(controllerContainerID.has_value() &&
-           "Controller container ID not set. This should never happen as "
-           "non-controller "
-           "containers fetch the controller info during initialization.");
-    return controllerContainerID.value();
-  }
 
 private:
-  void FetchControllerInfo();
-  ServiceID id{ServiceID::Generate()};
-  ServiceType type;
+
+  std::optional<AtlasNetNodeID> id;
+  const AtlasNetNodeType type;
 
 std::shared_ptr<spdlog::logger> logger;
   std::atomic<bool> shutdown_requested{false};
@@ -164,16 +148,13 @@ std::shared_ptr<spdlog::logger> logger;
   std::optional<MessageSystem::ListenSocketHandle*> _internalMessageSocket;
   std::optional<RPCSystem> _rpcSystem;
   std::optional<Universe> _universe;
-  std::optional<PresenceService> _serviceRegistry;
+  std::optional<NodeRegistry> _serviceRegistry;
   std::unique_ptr<Database::RedisConn> _redisDatabase;
 
-  std::optional<ServiceID> controllerContainerID;
-  std::optional<SocketAddress> controllerOverlayAddress;
   // Database::InternalDB _internalDB;
-
-  static inline IService& Get()
+  static inline IAtlasNetNode& Get()
   {
-    static IService& instance = []() -> IService&
+    static IAtlasNetNode& instance = []() -> IAtlasNetNode&
     {
       throw std::runtime_error(
           "IContainer instance not set. Create a concrete container class that "

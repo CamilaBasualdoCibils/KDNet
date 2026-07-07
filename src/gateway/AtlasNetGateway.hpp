@@ -4,11 +4,12 @@
 #include "atlasnet/controller/ControllerRPC.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
-#include "atlasnet/core/container/Container.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
+
+#include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/MessagingEvents.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
-#include "atlasnet/core/service/ServiceRegistry.hpp"
+#include "atlasnet/core/node/AtlasNetNode.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/gateway/GatewayRelayService.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 #include <chrono>
@@ -18,24 +19,29 @@
 
 namespace AtlasNet
 {
-class AtlasNetGateway : public IService
+class AtlasNetGateway : public IAtlasNetNode
 {
 public:
-  AtlasNetGateway() : IService(ServiceType::Gateway) {}
+  AtlasNetGateway() : IAtlasNetNode(AtlasNetNodeType::Gateway) {}
   ~AtlasNetGateway() override = default;
+
+  AtlasNetGatewayID GetGatewayID() const
+  {
+    return AtlasNetGatewayID(0);
+  }
 
 private:
   void OnInit() override
   {
-
+    clientIDGenerator.emplace(GetNodeID());
     clientRegistry.emplace(ClientRegistry::Config{
         ._globalEventSystem = &GetGlobalEventSystem(),
         .__redisConn = &GetRedisConn(),
-        .containerService = this,
+        ._clientIDGenerator = &*clientIDGenerator,
     });
     gatewayRelayService_.emplace(GatewayRelayService::Config{
         .redisConn = &GetRedisConn(),
-        .containerService = this,
+        .gateway = this,
         .messageSystem = &GetMessageSystem(),
         .clientRegistry = &*clientRegistry,
     });
@@ -50,13 +56,13 @@ private:
           else if (event.source == ConnectionSource::Internal)
           {
             GetLogger()->info("Internal connection established with address {}",
-                           event.address.to_string());
-  
+                              event.address.to_string());
           }
           else
           {
-            GetLogger()->warn("Connection established with unknown source from address {}",
-                         event.address.to_string());
+            GetLogger()->warn(
+                "Connection established with unknown source from address {}",
+                event.address.to_string());
           }
         });
   }
@@ -68,25 +74,28 @@ private:
   {
     if (identity.role == HandshakeRole::eClient)
     {
-      GetLogger()->info("Received handshake from client at {}", remoteAddr.to_string());
+      GetLogger()->info("Received handshake from client at {}",
+                        remoteAddr.to_string());
       return HandshakeResponsePacket{.accepted = true};
     }
     else
     {
-      return IService::HandleHandshake(identity, remoteAddr);
+      return IAtlasNetNode::HandleHandshake(identity, remoteAddr);
     }
   }
   void OnClientConnected(const ConnectionEstablishedEvent& event)
   {
-    GetLogger()->info("Gateway detected new client connection established: {}", event.address.to_string());
+    GetLogger()->info("Gateway detected new client connection established: {}",
+                      event.address.to_string());
 
     GetLogger()->info("Logging in new client at {}", event.address.to_string());
     const std::optional<ClientRegistry::LoginResult> entry =
-        clientRegistry->LoginClient(event.address);
+        clientRegistry->LoginClient(event.address, GetGatewayID());
     if (!entry)
       return;
 
-    GetLogger()->info("Declaring gateway relay for ClientID: {}", entry->clientID.to_string());
+    GetLogger()->info("Declaring gateway relay for ClientID: {}",
+                      entry->clientID.to_string());
     gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
 
     // Eventually this will be implemented
@@ -97,24 +106,25 @@ private:
     shardID_future.wait_for(std::chrono::seconds(5));
     if (shardID_future.valid())
     {
-      const ShardID shardID = shardID_future.get();
+      const AtlasNetShardID shardID = shardID_future.get();
       logger->info("Received closest shard ID {} for client {}",
                    shardID.to_string(), entry->clientID.to_string());
 
     }
     else
     {
-    logger->error("Failed to receive closest shard ID for client {} within timeout.",
-                 entry->clientID.to_string());
+    logger->error("Failed to receive closest shard ID for client {} within
+    timeout.", entry->clientID.to_string());
 
-    } */
+    } *//* 
     std::vector<PresenceService::ServiceInfo> services;
     GetServiceRegistry().GetServicesOfType(ServiceType::Shard, services);
 
     if (services.empty())
       throw std::runtime_error("No shard services found in registry");
 
-    GetLogger()->info("Shard at {} with ID {}", services[0].address.to_string(), services[0].id.to_string());
+    GetLogger()->info("Shard at {} with ID {}", services[0].address.to_string(),
+                      services[0].id.to_string());
 
     ShardSpawnClientRequest request{
         .spawnTransform = entry->SpawnLocation.position,
@@ -133,8 +143,9 @@ private:
     if (spawnResponse)
     {
 
-      GetLogger()->info("Successfully spawned client entity with ID {} on shard {}",
-                        spawnResponse->entityID.to_string(), services[0].id.to_string());
+      GetLogger()->info(
+          "Successfully spawned client entity with ID {} on shard {}",
+          spawnResponse->entityID.to_string(), services[0].id.to_string());
 
       gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
       clientRegistry->AssociateClientWithEntity(entry->clientID,
@@ -150,11 +161,13 @@ private:
     }
     else
     {
-      GetLogger()->error("Failed to receive spawn result for client {} within timeout.",
-                         entry->clientID.to_string());
-    }
+      GetLogger()->error(
+          "Failed to receive spawn result for client {} within timeout.",
+          entry->clientID.to_string());
+    } */
   }
   std::optional<ClientRegistry> clientRegistry;
   std::optional<GatewayRelayService> gatewayRelayService_;
+  std::optional<ClientID::Generator> clientIDGenerator;
 };
 } // namespace AtlasNet

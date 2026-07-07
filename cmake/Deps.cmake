@@ -137,17 +137,3 @@ message(STATUS "Nlohmann Json")
 FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(nlohmann_json)
 include(FetchContent)
-
-FetchContent_Declare(
-  yaml-cpp
-  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-  GIT_TAG yaml-cpp-0.9.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
-)
-FetchContent_MakeAvailable(yaml-cpp)
-
-FetchContent_Declare(
-  JoltPhysics
-  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
-  GIT_TAG v5.5.0
-)
-FetchContent_MakeAvailable(JoltPhysics)

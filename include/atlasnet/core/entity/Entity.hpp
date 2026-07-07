@@ -259,11 +259,11 @@ struct EntityInfo : public EntityComponent
   {
     _Json baseInfoJson;
     baseInfo.to_json(baseInfoJson);
-    j = _Json{{"id", id.toString()}, {"baseInfo", baseInfoJson}};
+    j = _Json{{"id", id.to_string()}, {"baseInfo", baseInfoJson}};
   }
   void from_json(const _Json& j)
   {
-    std::optional<EntityID> optId = EntityID::fromString(j.at("id").get<std::string>());
+    std::optional<EntityID> optId = EntityID::from_string(j.at("id").get<std::string>());
     if(optId.has_value())
     {
         id = optId.value();
@@ -301,11 +301,11 @@ struct ClientInfo : public EntityComponent
   ClientID id;
   void to_json(_Json& j) const
   {
-    j = _Json{{"id", id.toString()}};
+    j = _Json{{"id", id.to_string()}};
   }
   void from_json(const _Json& j)
   {
-    std::optional<ClientID> optId = ClientID::fromString(j.at("id").get<std::string>());
+    std::optional<ClientID> optId = ClientID::from_string(j.at("id").get<std::string>());
     if(optId.has_value())
     {
         id = optId.value();

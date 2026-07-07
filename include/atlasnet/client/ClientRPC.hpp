@@ -20,8 +20,8 @@ struct ClientConnectionCompleteData
   void Serialize(ByteWriter& writer) const
   {
     writer.u8(static_cast<uint8_t>(result));
-    writer.uuid(clientID);
-    writer.uuid(entityID);
+    writer(clientID);
+    writer(entityID);
   }
 
   void Deserialize(ByteReader& reader)
@@ -29,8 +29,8 @@ struct ClientConnectionCompleteData
     uint8_t result_v;
     reader.u8(result_v);
     result = static_cast<ClientConnectionResult>(result_v);
-    reader.uuid(clientID);
-    reader.uuid(entityID);
+    reader(clientID);
+    reader(entityID);
   }
 };
 ATLASNET_RPC(

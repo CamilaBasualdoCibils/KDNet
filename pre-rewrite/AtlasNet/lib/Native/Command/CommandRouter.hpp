@@ -26,7 +26,7 @@ class CommandRouter : public Singleton<CommandRouter>
 	PacketManager::Subscription ServerStatePacketSub, ClientIntentPacketSub, ClientSwitchPacketSub;
 	Log logger = Log("CommandRouter");
 
-	std::unordered_map<ClientID, ShardID> RoutingMap;
+	std::unordered_map<ClientID, AtlasNetShardID> RoutingMap;
 	std::unordered_set<ClientID> RoutesPaused;
 	std::unordered_map<TransferID,std::unordered_set<ClientID>> transferMap;
 	mutable std::shared_mutex mutex;

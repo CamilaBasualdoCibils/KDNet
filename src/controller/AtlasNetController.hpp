@@ -2,7 +2,7 @@
 #pragma once
 #include "adapter/IServiceAdapter.hpp"
 
-#include "atlasnet/core/container/Container.hpp"
+#include "atlasnet/core/node/AtlasNetNode.hpp"
 
 #include "atlasnet/core/universe/UniverseEvents.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
@@ -13,7 +13,7 @@
 namespace AtlasNet
 {
 
-class AtlasNetController : public IService
+class AtlasNetController : public IAtlasNetNode
 {
 
 public:

@@ -1,7 +1,7 @@
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 
-#include "atlasnet/core/container/ContainerEnums.hpp"
+
 #include "atlasnet/core/messages/MessageStructs.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
@@ -473,7 +473,7 @@ TEST(MessageSystem, Handshake_Valid_Fork)
       .data = HandshakeServerRequestData{
           .serviceID = {},
           .serviceType =
-              ServiceType::Controller}}; // Just some dummy handshake identity
+              AtlasNetNodeType::Controller}}; // Just some dummy handshake identity
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.taskSystem = &parentTaskSystem,
                             .handshakeIdentity = parentIdentity,
@@ -554,7 +554,7 @@ TEST(MessageSystem, Handshake_Invalid_Client_Fork)
       .data = HandshakeServerRequestData{
           .serviceID = {},
           .serviceType =
-              ServiceType::Controller}}; // Just some dummy handshake identity
+              AtlasNetNodeType::Controller}}; // Just some dummy handshake identity
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.taskSystem = &parentTaskSystem,
                             .handshakeIdentity = parentIdentity,
@@ -635,7 +635,7 @@ TEST(MessageSystem, Handshake_Invalid_Server_Fork)
       .data = HandshakeServerRequestData{
           .serviceID = {},
           .serviceType =
-              ServiceType::Controller}}; // Just some dummy handshake identity
+              AtlasNetNodeType::Controller}}; // Just some dummy handshake identity
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.taskSystem = &parentTaskSystem,
                             .handshakeIdentity = parentIdentity,

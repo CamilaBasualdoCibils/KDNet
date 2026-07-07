@@ -62,7 +62,7 @@ void AtlasNet::AtlasNetController::OnShutdown()
   }
 }
 AtlasNet::AtlasNetController::AtlasNetController()
-    : IService(ServiceType::Controller)
+    : IAtlasNetNode(AtlasNetNodeType::Controller)
 {
 }
 void AtlasNet::AtlasNetController::OnWorldCreated(

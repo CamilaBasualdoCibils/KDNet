@@ -13,7 +13,7 @@
 namespace AtlasNet
 {
 class AtlasNetController;
-class IService;
+class IAtlasNetNode;
 class Universe
 {
   friend AtlasNetController;

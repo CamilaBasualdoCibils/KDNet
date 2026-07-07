@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
@@ -8,12 +9,9 @@ namespace AtlasNet
 template <typename Key, typename Value> class Cache
 {
 public:
-  void Insert(Key key, Value value)
-  {
-    std::unique_lock lock(mutex_);
-    data_[key] = value;
-  }
-  std::optional<Value> Find(const Key& key)
+  using DefaultValueProvider = std::function<std::optional<Value>(const Key&)>;
+  Cache(DefaultValueProvider defaultValueProvider) : defaultValueProvider_(std::move(defaultValueProvider)) {}
+  std::optional<Value> Get(const Key& key)
   {
     std::shared_lock lock(mutex_);
     auto it = data_.find(key);
@@ -21,31 +19,21 @@ public:
     {
       return it->second;
     }
+    if (defaultValueProvider_)
+    {
+      std::optional<Value> v = defaultValueProvider_(key);
+      if (!v)
+      {
+        return std::nullopt;
+      }
+      lock.unlock();
+      std::unique_lock lock(mutex_);
+      data_[key] = *v;
+      return v;
+    }
     return std::nullopt;
   }
-  Value FindOrValue(const Key& key, const Value& defaultValue)
-  {
-    std::optional<Value> result = Find(key);
-    if (result)
-    {
-      return *result;
-    }
-    return defaultValue;
-  }
-  template <typename DefaultValueProvider>
-  requires std::is_invocable_r_v<std::optional<Value>, DefaultValueProvider, const Key&>
-  std::optional<Value> FindEnsured(const Key& key, DefaultValueProvider defaultValueProvider)
-  {
-    std::optional<Value> result = Find(key);
-    if (result)
-    {
-      return result;
-    }
-    std::optional<Value> defaultValue = defaultValueProvider(key);
-    Insert(key, *defaultValue);
-    return defaultValue;
-  }
-  void Erase(const Key& key)
+  void Invalidate(const Key& key)
   {
     std::unique_lock lock(mutex_);
     data_.erase(key);
@@ -68,5 +56,7 @@ public:
 private:
   std::unordered_map<Key, Value> data_;
   std::shared_mutex mutex_;
+
+  DefaultValueProvider defaultValueProvider_;
 };
 } // namespace AtlasNet

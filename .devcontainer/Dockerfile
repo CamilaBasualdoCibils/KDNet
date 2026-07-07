@@ -8,6 +8,16 @@ RUN apt install -y  python3-venv
 # Install Drogon dependencies
 RUN apt install -y zlib1g-dev
 
+# Install OpenGL
+RUN apt install -y libgl1-mesa-dev \
+    mesa-utils \
+    mesa-utils-extra \
+    libglu1-mesa-dev \
+    libegl1-mesa-dev \
+    libglx-mesa0 \
+    mesa-vulkan-drivers 
+ENV LIBGL_ALWAYS_SOFTWARE=1
+
 ARG USERNAME=dev
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID

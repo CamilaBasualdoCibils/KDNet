@@ -29,11 +29,13 @@ public:
   {
     ActorTransferMode transferMode = ActorTransferMode::eRPC;
     RPCSystem* rpcSystem = nullptr;
+    EntityID::Generator* entityIDGenerator = nullptr;
   };
   EntityLedger(const Config& config)
-      : _config(config), rpcSystem(config.rpcSystem)
+      : _config(config)
   {
-    assert(rpcSystem != nullptr && "RPCSystem pointer cannot be null in EntityLedger config");
+    assert(_config.rpcSystem != nullptr && "RPCSystem pointer cannot be null in EntityLedger config");
+    assert(_config.entityIDGenerator != nullptr && "EntityID generator pointer cannot be null in EntityLedger config");
     SetRPCBinds();
   }
 
@@ -91,12 +93,12 @@ public:
 
     EntityID CreateEntity(const Components::BaseEntityInfo& info)
     {
-      EntityID id = EntityID(UUID::Generate());
+      EntityID id = _ledger._config.entityIDGenerator->Next();
       Entity::Components::EntityInfo entityInfo;
       entityInfo.baseInfo = info;
       entityInfo.id = id;
       _ledger._createEntity(id, entityInfo);
-      _ledger.logger->info("Entity created with ID: {}", id.toString());
+      _ledger.logger->info("Entity created with ID: {}", id.to_string());
       return id;
     }
     void RemoveEntity(const EntityID& id)
@@ -133,7 +135,7 @@ protected:
     EnTTEntityID enttId = entityTable.create();
     IDMapping.insert({id, enttId});
     entityTable.emplace<Entity::Components::EntityInfo>(enttId, info);
-    logger->info("Entity created with ID: {} with internal entt ID: {}", id.toString(), static_cast<int>(enttId));
+    logger->info("Entity created with ID: {} with internal entt ID: {}", id.to_string(), static_cast<int>(enttId));
     return enttId;
   }
   bool _entityExists(const EntityID& id) const
@@ -242,7 +244,6 @@ void SetRPCBinds();
   EntityTable entityTable;
   mutable std::shared_mutex _mutex;
 
-  RPCSystem* rpcSystem = nullptr;
 };
 } // namespace Entity
 } // namespace AtlasNet

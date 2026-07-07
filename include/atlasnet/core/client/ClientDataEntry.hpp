@@ -2,7 +2,7 @@
 
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 
 namespace AtlasNet
@@ -10,14 +10,14 @@ namespace AtlasNet
 struct LoginData
 {
   SocketAddress address;
-  ServiceID managingGateway;
+  AtlasNetGatewayID managingGateway;
   ClientID clientID;
   std::optional<EntityID> entityID;
 
   void Serialize(ByteWriter& writer) const
   {
     address.Serialize(writer);
-    writer.uuid(managingGateway);
+    writer(managingGateway); 
     clientID.Serialize(writer);
     if (entityID.has_value())
     {
@@ -32,7 +32,7 @@ struct LoginData
   void Deserialize(ByteReader& reader)
   {
     address.Deserialize(reader);
-    reader.uuid(managingGateway);
+    reader(managingGateway); 
     clientID.Deserialize(reader);
     uint8_t hasEntityID_v;
     reader.u8(hasEntityID_v);
@@ -54,9 +54,9 @@ struct LoginData
     j = _Json{
         {"address", address.to_string()},
         {"managingGateway", managingGateway.to_string()},
-        {"clientID", clientID.toString()},
+        {"clientID", clientID.to_string()},
         {"entityID",
-         entityID.has_value() ? entityID.value().toString() :""},
+         entityID.has_value() ? entityID.value().to_string() :""},
     };
   }
 };

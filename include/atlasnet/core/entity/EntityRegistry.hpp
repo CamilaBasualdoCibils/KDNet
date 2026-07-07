@@ -2,26 +2,26 @@
 
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
-#include "atlasnet/core/shard/shard.hpp"
+
 #include "enviroment/Enviroment.hpp"
 namespace AtlasNet
 {
 class EntityRegistry
 {
 public:
-  void SetEntityToShard(const EntityID& id, const ShardID& shardId)
+  void SetEntityToShard(const EntityID& id, const AtlasNetShardID& shardId)
   {
     _redisConn->HashMap().GetSet().HSet(EntityID2ShardIDMapKey, id.to_string(),
                                         shardId.to_string());
   }
 
-  std::optional<ShardID> GetShardForEntity(const EntityID& id)
+  std::optional<AtlasNetShardID> GetShardForEntity(const EntityID& id)
   {
     auto result = _redisConn->HashMap().GetSet().HGet(EntityID2ShardIDMapKey,
                                                       id.to_string());
     if (result)
     {
-      return ShardID::from_string(*result);
+      return AtlasNetShardID::from_string(*result);
     }
     return std::nullopt;
   }

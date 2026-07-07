@@ -37,7 +37,7 @@ class RTSServer : public Singleton<RTSServer>, public IAtlasNetServer
 			return *this;
 		}
 	};
-	boost::container::flat_map<ShardID, RemoteShardData> remoteShards;
+	boost::container::flat_map<AtlasNetShardID, RemoteShardData> remoteShards;
 	std::vector<WorkerData> localWorkers;
 	std::mutex localWorkersMutex;
 

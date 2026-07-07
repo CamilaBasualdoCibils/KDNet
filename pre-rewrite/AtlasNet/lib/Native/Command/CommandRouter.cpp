@@ -9,7 +9,7 @@
 void CommandRouter::OnClientIntentPacket(const ClientIntentCommandPacket& packet,
 										 const PacketManager::PacketInfo& info)
 {
-	auto SendPacketFunc = [&](const ShardID& shardID, const ClientIntentCommandPacket& packet)
+	auto SendPacketFunc = [&](const AtlasNetShardID& shardID, const ClientIntentCommandPacket& packet)
 	{
 		logger.DebugFormatted(
 			"Dispatching ClientIntent\n - ID: {}\n - From Client: {}\n - To Shard: {}",

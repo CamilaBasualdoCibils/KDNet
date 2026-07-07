@@ -78,7 +78,7 @@ glm::glm
 Taskflow::Taskflow
 EnTT
 nlohmann_json::nlohmann_json
-yaml-cpp::yaml-cpp
+#yaml-cpp::yaml-cpp
 spdlog::spdlog
 )
 

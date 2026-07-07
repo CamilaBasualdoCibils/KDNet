@@ -98,7 +98,6 @@ public:
       entityInfo.baseInfo = info;
       entityInfo.id = id;
       _ledger._createEntity(id, entityInfo);
-      _ledger.logger->info("Entity created with ID: {}", id.to_string());
       return id;
     }
     void RemoveEntity(const EntityID& id)

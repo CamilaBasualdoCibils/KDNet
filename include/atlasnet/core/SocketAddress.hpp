@@ -32,7 +32,7 @@ public:
   }
 
   virtual std::string to_string() const = 0;
-  virtual void parse_string(const std::string& str) = 0;
+  virtual void parse_string(const std::string_view& str) = 0;
   virtual std::size_t hash() const noexcept = 0;
 
   virtual void Serialize(ByteWriter& archive) const = 0;
@@ -93,7 +93,7 @@ class SocketAddress : public ISocketAddress
 public:
   SocketAddress() = default;
 
-  explicit SocketAddress(const std::string& str)
+  explicit SocketAddress(const std::string_view& str)
   {
     parse_string(str);
   }
@@ -284,8 +284,8 @@ public:
 
     return addrStr + ":" + std::to_string(get_port());
   }
-
-  void parse_string(const std::string& str) override
+  
+  void parse_string(const std::string_view& str) override
   {
     if (str.empty())
       throw std::invalid_argument("Invalid SocketAddress: empty string");
@@ -355,7 +355,7 @@ public:
     {
     }
 
-    throw std::invalid_argument("Invalid SocketAddress: " + str);
+    throw std::invalid_argument("Invalid SocketAddress: " + std::string(str));
   }
 
   template <typename T>

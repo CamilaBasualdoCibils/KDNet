@@ -2,12 +2,17 @@
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 
-AtlasNet::IAtlasNetShard::IAtlasNetShard() : IAtlasNetNode(AtlasNetNodeType::Shard) {}
+AtlasNet::IAtlasNetShard::IAtlasNetShard()
+    : IAtlasNetNode(AtlasNetNodeType::Shard)
+{
+}
 void AtlasNet::IAtlasNetShard::OnInit()
 {
   GetLogger()->info("Shard OnInit called.");
-  _entityLedger.emplace(
-      Entity::EntityLedger::Config{.rpcSystem = &GetRPCSystem()});
+  _entityIDGenerator.emplace(GetNodeID());
+  _entityLedger.emplace(Entity::EntityLedger::Config{
+      .rpcSystem = &GetRPCSystem(),
+      .entityIDGenerator = &_entityIDGenerator.value()});
 
   GetRPCSystem().Bind<ShardRPC::SpawnClient>(
       [this](ShardSpawnClientRequest request)

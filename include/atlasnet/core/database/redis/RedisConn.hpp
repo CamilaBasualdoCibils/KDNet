@@ -115,6 +115,12 @@ public:
     return RedisFunc([&](auto& handle) -> Result
                      { return handle.template command<Result>(first, last); });
   }
+  template <typename Input, typename Output>
+  void Command(Input first, Input last, Output output)
+  {
+    return RedisFunc([&](auto& handle) -> void
+                     { return handle.command(first, last, output); });
+  }
   sw::redis::Subscriber Subscribe()
   {
     return RedisFunc([&](auto& handle) { return handle.subscriber(); });

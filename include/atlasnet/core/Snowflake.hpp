@@ -44,9 +44,13 @@ public:
     {
       assert(workerId < MaxWorkers &&
              "Worker ID exceeds the maximum allowed value");
-      logger->error("Worker ID {} exceeds the maximum allowed value {} from {} "
-                    "worker bits",
-                    workerId, MaxWorkers, WorkerBits);
+      if (workerId >= MaxWorkers)
+      {
+        logger->error(
+            "Worker ID {} exceeds the maximum allowed value {} from {} "
+            "worker bits",
+            workerId, MaxWorkers, WorkerBits);
+      }
     }
     TSnowflake Next()
     {

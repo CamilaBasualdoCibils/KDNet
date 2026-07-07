@@ -2,6 +2,7 @@
 
 #include "atlasnet/core/Address.hpp"
 #include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <boost/describe.hpp>
@@ -49,6 +50,7 @@ template <typename underlying_type, typename tag> struct StrongTypedef
 using AtlasNetNodeID = StrongTypedef<uint32_t, struct NodeIDTag>;
 using AtlasNetShardID = StrongTypedef<uint32_t, struct ShardIDTag>;
 using AtlasNetGatewayID = StrongTypedef<uint32_t, struct GatewayIDTag>;
+using AtlasNetControllerID = StrongTypedef<uint32_t, struct ControllerIDTag>;
 struct GatewayNodeInfo
 {
   AtlasNetGatewayID id;
@@ -84,24 +86,43 @@ struct ShardNodeInfo
 };
 struct ControllerNodeInfo
 {
-
+  AtlasNetControllerID id;
   void Serialize(ByteWriter& bw) const
   {
-    // bw(id);
+    bw(id);
   }
   void Deserialize(ByteReader& br)
   {
-    // br(id);
+    br(id);
   }
-  void to_json(_Json& j) const {}
+  void to_json(_Json& j) const
+  {
+    j = _Json{{"id", id.to_string()}};
+  }
+};
+struct CartographBackendInfo
+{
+
+  void Serialize(ByteWriter& bw) const
+  {
+    
+  }
+  void Deserialize(ByteReader& br)
+  {
+    // Deserialize any relevant information for the CartographBackendInfo
+  }
+  void to_json(_Json& j) const
+  {
+    j = _Json{};
+  }
 };
 struct NodeInfo
 {
   AtlasNetNodeID id;
-  HostAddress address;
+  SocketAddress address;
   AtlasNetNodeType containerType;
   std::optional<
-      std::variant<GatewayNodeInfo, ShardNodeInfo, ControllerNodeInfo>>
+      std::variant<GatewayNodeInfo, ShardNodeInfo, ControllerNodeInfo, CartographBackendInfo>>
       specificInfo;
   void Serialize(ByteWriter& bw) const
   {
@@ -131,8 +152,11 @@ struct NodeInfo
     case AtlasNetNodeType::Controller:
       specificInfo = ControllerNodeInfo{};
       break;
+    case AtlasNetNodeType::WebBackend:
+      specificInfo = CartographBackendInfo{};
+      break;
     default:
-      throw std::runtime_error("Unknown container type");
+      throw std::runtime_error("Unknown node type");
     }
 
     std::visit([&br](auto&& arg) { arg.Deserialize(br); }, *specificInfo);

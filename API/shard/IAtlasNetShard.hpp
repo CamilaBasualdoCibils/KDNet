@@ -26,6 +26,7 @@ class IAtlasNetShard : public IAtlasNetNode
 {
   std::optional<Entity::EntityLedger> _entityLedger;
   std::shared_ptr<spdlog::logger> _logger = spdlog::stdout_color_mt("AtlasNetShard");
+  std::optional<EntityID::Generator> _entityIDGenerator;
 public:
   IAtlasNetShard();
   virtual ~IAtlasNetShard() = default;

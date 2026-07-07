@@ -71,7 +71,7 @@ protected:
     } */
   }
   // HostAddress GetOverlayAddressOfSelf() const;
-  HostAddress GetHostName() const;
+  SocketAddress GetNetworkAddress() const;
   RPCSystem& GetRPCSystem()
   {
     assert(_rpcSystem.has_value() && "RPCSystem not initialized");

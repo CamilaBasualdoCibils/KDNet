@@ -99,7 +99,7 @@ void AtlasNet::IAtlasNetNode::Init()
 
   logger->info("Registering node with the service registry...");
   if (const std::optional<NodeInfo> info =
-          GetServiceRegistry().RegisterNode(GetNodeType(), GetHostName());
+          GetServiceRegistry().RegisterNode(GetNodeType(), GetNetworkAddress());
       info.has_value())
   {
     this->id = info->id; // Set the container ID to the registered ID
@@ -139,7 +139,6 @@ void AtlasNet::IAtlasNetNode::Init()
   _internalMessageSocket.emplace(
       &GetMessageSystem().OpenListenSocket(Env::InternalMessagePort));
 
-
   OnInit();
 
   // conditional variable to wait until shutdown is requested, allowing for
@@ -149,13 +148,14 @@ void AtlasNet::IAtlasNetNode::Init()
   cv.wait(lock, [this]
           { return shutdown_requested.load(std::memory_order_acquire); });
 }
-AtlasNet::HostAddress AtlasNet::IAtlasNetNode::GetHostName() const
+AtlasNet::SocketAddress AtlasNet::IAtlasNetNode::GetNetworkAddress() const
 {
   if (const char* envHost = std::getenv("NODE_IP"))
   {
     logger->info("Using NODE_IP environment variable for hostname: {}",
                  envHost);
-    return HostAddress(envHost);
+    return SocketAddress(std::string(envHost) + ":" +
+                         std::to_string(Env::InternalMessagePort));
   }
   else
   {
@@ -164,7 +164,8 @@ AtlasNet::HostAddress AtlasNet::IAtlasNetNode::GetHostName() const
     char actualHost[256];
     if (gethostname(actualHost, sizeof(actualHost)) == 0)
     {
-      return HostAddress(std::string(actualHost));
+      return SocketAddress(std::string(actualHost) + ":" +
+                           std::to_string(Env::InternalMessagePort));
     }
     else
     {
@@ -172,5 +173,5 @@ AtlasNet::HostAddress AtlasNet::IAtlasNetNode::GetHostName() const
           "Failed to retrieve hostname using gethostname().");
     }
   }
-  return HostAddress();
+  return SocketAddress();
 }

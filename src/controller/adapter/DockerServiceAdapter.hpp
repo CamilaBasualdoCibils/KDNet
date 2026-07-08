@@ -1,8 +1,8 @@
 #pragma once
 
 #include "adapter/IServiceAdapter.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/local/stream_protocol.hpp>

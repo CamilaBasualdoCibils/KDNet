@@ -81,7 +81,7 @@ public:
   }
 
   void OnDetachEntity(AtlasNet::EntityDetachState state,
-                      const AtlasNet::EntityID& id,
+                      const AtlasNet::AtlasNetEntityID& id,
                       const AtlasNet::EntityHandle& remote_handle) override
   {
     // Implementation for detaching an entity from the shard
@@ -91,7 +91,7 @@ public:
     // handled.
   }
 
-  void OnExportEntity(const AtlasNet::EntityID& id,
+  void OnExportEntity(const AtlasNet::AtlasNetEntityID& id,
                       AtlasNet::ByteWriter& writer) override
   {
     // Implementation for serializing an entity's state
@@ -100,7 +100,7 @@ public:
     // This might include writing components, position, health, etc.
   }
 
-  void OnAcquireEntity(const AtlasNet::EntityID& id,
+  void OnAcquireEntity(const AtlasNet::AtlasNetEntityID& id,
                        AtlasNet::ByteReader& reader) override
   {
     // Implementation for deserializing an entity's state

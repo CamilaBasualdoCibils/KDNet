@@ -26,7 +26,9 @@ void AtlasNet::DockerServiceAdapter::Create()
        {
            {"ContainerSpec",
             {
-                {"Image", _imageName}, {"CapabilityAdd", {"SYS_PTRACE"}}
+                {"Image", _imageName},
+                {"CapabilityAdd", {"SYS_PTRACE"}},
+                {"TTY", true}, //ensures color terminal
                 /*  {"Env",
                   {
                       "NODE_IP={{.Node.Hostname}}",
@@ -45,6 +47,7 @@ void AtlasNet::DockerServiceAdapter::Create()
             }},
        }},
       {"Networks", _Json::array({{{"Target", Env::Docker_NetworkName}}})},
+
       {"EndpointSpec",
        {
            {"Ports", ports},

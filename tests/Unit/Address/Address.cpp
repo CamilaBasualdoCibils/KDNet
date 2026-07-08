@@ -1,6 +1,6 @@
 
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include <gtest/gtest.h>
 #include <unordered_set>
 

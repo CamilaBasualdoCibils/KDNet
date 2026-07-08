@@ -9,9 +9,9 @@ ATLASNET_RPC(
     ATLASNET_RPC_METHOD(
         GetEntityInfo,
         ATLASNET_RPC_SIG(
-            AtlasNet::Entity::Components::EntityInfo(AtlasNet::EntityID)));
+            AtlasNet::Entity::Components::EntityInfo(AtlasNet::AtlasNetEntityID)));
     ATLASNET_RPC_METHOD(
         GetAllEntitiesInfo,
         ATLASNET_RPC_SIG(
-            std::unordered_map<AtlasNet::EntityID,
+            std::unordered_map<AtlasNet::AtlasNetEntityID,
                                AtlasNet::Entity::Components::EntityInfo>())));

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "boost/describe/enum.hpp"
 #include "sw/redis++/async_redis.h"
 #include "sw/redis++/async_redis_cluster.h"

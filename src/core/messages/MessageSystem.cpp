@@ -1,7 +1,7 @@
 #include "atlasnet/core/messages/MessageSystem.hpp"
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/utils/assert.hpp"
 #include "atlasnet/core/events/MessagingEvents.hpp"
 
 #include "atlasnet/core/messages/HandshakePacket.hpp"
@@ -28,6 +28,7 @@
 #include <optional>
 #include <shared_mutex>
 #include <span>
+#include <stdexcept>
 #include <vector>
 
 AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
@@ -196,11 +197,10 @@ AtlasNet::ConnectionState
 AtlasNet::MessageSystem::GetConnectionState(const SocketAddress& address) const
 {
   std::shared_lock lock(_mutex);
-
-  auto connectionIt = _connections.find(address);
-  if (connectionIt != _connections.end())
+  auto connection = __FindByAddress(address);
+  if (connection)
   {
-    const HSteamNetConnection handle = connectionIt->second.GetHandle();
+    const HSteamNetConnection handle = connection->GetHandle();
     SteamNetConnectionInfo_t info;
     if (handle != k_HSteamNetConnection_Invalid &&
         GNS().GetConnectionInfo(handle, &info))
@@ -211,6 +211,7 @@ AtlasNet::MessageSystem::GetConnectionState(const SocketAddress& address) const
 
   return ConnectionState::eNone;
 }
+
 
 bool AtlasNet::MessageSystem::IsConnectingTo(const SocketAddress& address) const
 {
@@ -239,9 +240,9 @@ AtlasNet::MessageSystem::Connect(const SocketAddress& address)
 
     // If already connected, return a completed no-op job so callers can
     // still safely chain on_complete() if they want.
-    auto connIt = _connections.find(address);
-    if (connIt != _connections.end() &&
-        connIt->second.GetState() == ConnectionState::eConnected)
+    
+    auto connection = __FindByAddress(address);
+    if (connection && connection->GetState() == ConnectionState::eConnected)
     {
       return config_.taskSystem->HighPriority().dependent_async(
           []() -> MessageConnectionResult
@@ -264,9 +265,10 @@ AtlasNet::MessageSystem::Connect(const SocketAddress& address)
     return existingJobIt->second;
   }
 
-  auto connIt = _connections.find(address);
-  if (connIt != _connections.end() &&
-      connIt->second.GetState() == ConnectionState::eConnected)
+  
+  
+  auto connection = __FindByAddress(address);
+  if (connection && connection->GetState() == ConnectionState::eConnected)
   {
 
     return config_.taskSystem->HighPriority().dependent_async(
@@ -312,16 +314,20 @@ AtlasNet::MessageSystem::Connect(const SocketAddress& address)
         {
           std::unique_lock lock(_mutex);
           Connection conn(*this, con);
+          conn.RequestedAddress = address;
+          conn.ResolvedAddress = address.EnsureResolved();
           conn.connState = ConnectionState::eConnecting;
 
           auto it = _connections.find(address);
           if (it == _connections.end())
           {
-            _connections.emplace(address, std::move(conn));
+            __InsertConnection(conn);
           }
           else
           {
-            it->second.connState = ConnectionState::eConnecting;
+            __ModifyByAddress(address, [&](Connection& existingConn) {
+              existingConn.connState = ConnectionState::eConnecting;
+            });
           }
           logger->info("Tracked new outgoing connection to {}",
                        address.to_string());
@@ -391,9 +397,9 @@ void AtlasNet::MessageSystem::Shutdown()
     std::unique_lock lock(_mutex);
 
     connectionHandles.reserve(_connections.size());
-    for (const auto& [address, connection] : _connections)
+    for (const auto& connection : _connections)
     {
-      (void)address;
+
       connectionHandles.push_back(connection.GetHandle());
     }
     _connections.clear();
@@ -611,16 +617,17 @@ AtlasNet::MessageSystem::GetConnectionHandle(const SocketAddress& address) const
 {
   std::shared_lock lock(_mutex);
 
-  if (_connections.contains(address))
+  auto connection = __FindByAddress(address);
+  if (connection)
   {
-    return _connections.at(address).GetHandle();
+    return connection->GetHandle();
   }
   logger->error("Connection handle requested for non-existent connection to {}",
                 address.to_string());
   logger->error("Known connections:");
-  for (const auto& [addr, conn] : _connections)
+  for (const auto& connection : _connections)
   {
-    logger->error(" - {}", addr.to_string());
+    logger->error(" - {}", connection.RequestedAddress.to_string());
   }
   throw std::runtime_error("Connection not found");
 }
@@ -628,17 +635,22 @@ std::optional<AtlasNet::MessageSystem::Connection>
 AtlasNet::MessageSystem::GetConnection(const SocketAddress& address) const
 {
   std::shared_lock lock(_mutex);
-  if (_connections.contains(address))
+  auto connection = __FindByAddress(address);
+  if (connection)
   {
-    return _connections.at(address);
+    return connection;
   }
   return std::nullopt;
 }
 void AtlasNet::MessageSystem::GetConnections(
-    std::unordered_map<SocketAddress, Connection>& connections) const
+    std::vector<Connection>& connections) const
 {
+  connections.clear();
   std::shared_lock lock(_mutex);
-  connections = _connections;
+  for( const auto& connection : _connections)
+  {
+    connections.push_back(connection);
+  }
 }
 size_t AtlasNet::MessageSystem::GetNumConnections() const
 {
@@ -817,15 +829,18 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
       conn.authState = AuthState::eUnknown;
       conn.connState = ConnectionState::eConnecting;
       conn.handshakeIdentity = remoteHandshakeIdentity;
-
-      auto it = _connections.find(address);
-      if (it == _connections.end())
+      conn.RequestedAddress = address;
+      conn.ResolvedAddress = address.EnsureResolved();
+      auto existing = __FindByAddress(address);
+      if (!existing)
       {
-        _connections.emplace(address, std::move(conn));
+        __InsertConnection(conn);
       }
       else
       {
-        it->second.connState = ConnectionState::eConnecting;
+        __ModifyByAddress(address, [](Connection& conn) {
+          conn.connState = ConnectionState::eConnecting;
+        });
       }
     }
     if (config_.localEventSystem)
@@ -863,38 +878,43 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
       GNS().CloseConnection(pInfo->m_hConn, (int)HandshakeResponseCode::eReject,
                             "Handshake failed", false);
       std::unique_lock lock(_mutex);
-      auto it = _connections.find(address);
-      if (it != _connections.end())
+      const auto existing = __FindByAddress(address);
+      if (existing)
       {
-        it->second.connState = ConnectionState::eClosedByLocalHost;
-        // it->second.authState = AuthState::eHandshakePending;
+        __ModifyByAddress(address, [](Connection& conn) {
+          conn.connState = ConnectionState::eClosedByLocalHost;
+          // conn.authState = AuthState::eHandshakePending;
+        });
       }
       else
       {
         // Defensive: callback may win race against insertion path.
         Connection conn(*this, pInfo->m_hConn);
         conn.connState = ConnectionState::eClosedByLocalHost;
+        conn.RequestedAddress = address;
+        conn.ResolvedAddress = address.EnsureResolved();
         // conn.authState = AuthState::eHandshakePending;
-        _connections.emplace(address, std::move(conn));
+        __InsertConnection(conn);
       }
       return;
     }
     std::unique_lock lock(_mutex);
-    auto it = _connections.find(address);
-    if (it != _connections.end())
-    {
-      it->second.connState = ConnectionState::eConnected;
-      it->second.handshakeIdentity = handshakeIdentity;
-      // it->second.authState = AuthState::eHandshakePending;
-    }
-    else
-    {
-      // Defensive: callback may win race against insertion path.
-      Connection conn(*this, pInfo->m_hConn);
+    
+    bool modified = __ModifyByAddress(address, [&](Connection& conn){
       conn.connState = ConnectionState::eConnected;
       conn.handshakeIdentity = handshakeIdentity;
-      // conn.authState = AuthState::eHandshakePending;
-      _connections.emplace(address, std::move(conn));
+    });
+   
+    
+    if (!modified)
+    {
+      logger->error("Internal failure: connection not found after handshake for address {}", address.to_string());
+      for (const auto&  conn : _connections)
+      {
+        logger->error("Existing connection: {}", conn.RequestedAddress.to_string());
+      }
+      assert(false);
+      throw std::runtime_error("Internal failure: connection not found after handshake");
     }
   }
   if (config_.localEventSystem)
@@ -902,10 +922,10 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
     std::optional<HandshakeIdentity> handshakeIdentity;
     {
       std::shared_lock lock(_mutex);
-      auto it = _connections.find(address);
-      if (it != _connections.end())
+      auto existing = __FindByAddress(address);
+      if (existing)
       {
-        handshakeIdentity = it->second.handshakeIdentity;
+        handshakeIdentity = existing->handshakeIdentity;
       }
     }
     ConnectionEstablishedEvent event;
@@ -931,11 +951,10 @@ void AtlasNet::MessageSystem::OnConnectionStatus_ClosedByPeer(
 {
   SocketAddress address(pInfo->m_info.m_addrRemote);
   std::unique_lock lock(_mutex);
-  auto it = _connections.find(address);
-  if (it != _connections.end())
-  {
-    it->second.connState = ConnectionState::eClosedByPeer;
-  }
+  __ModifyByAddress(address, [](Connection& conn){
+    conn.connState = ConnectionState::eClosedByPeer;
+  });
+
   logger->info("Connection closed by peer: {}",
                pInfo->m_info.m_szConnectionDescription);
 }
@@ -945,11 +964,9 @@ void AtlasNet::MessageSystem::OnConnectionStatus_ProblemDetectedLocally(
 {
   SocketAddress address(pInfo->m_info.m_addrRemote);
   std::unique_lock lock(_mutex);
-  auto it = _connections.find(address);
-  if (it != _connections.end())
-  {
-    it->second.connState = ConnectionState::eProblemDetectedLocally;
-  }
+  __ModifyByAddress(address, [](Connection& conn){
+    conn.connState = ConnectionState::eProblemDetectedLocally;
+  });
   logger->warn("Problem detected locally: {}",
                pInfo->m_info.m_szConnectionDescription);
 }

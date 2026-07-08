@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/Address.hpp"
+#include "atlasnet/core/address/Address.hpp"
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/RPC/RPCMacros.hpp"
 

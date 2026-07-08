@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/geometry/AABB.hpp"
 #include "atlasnet/core/geometry/Vec.hpp"
 #include "boost/describe/enum.hpp"

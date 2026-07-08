@@ -9,7 +9,7 @@ void AtlasNet::Entity::EntityLedger::SetRPCBinds()
       [this]()
       {
         logger->info("RPC call received: GetAllEntitiesInfo");
-        std::unordered_map<EntityID, Components::EntityInfo> allInfo;
+        std::unordered_map<AtlasNetEntityID, Components::EntityInfo> allInfo;
         {
           auto access = GetReadAccess();
 

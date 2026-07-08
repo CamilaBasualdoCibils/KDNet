@@ -14,8 +14,8 @@ struct ClientConnectionCompleteData
 {
 
   ClientConnectionResult result;
-  ClientID clientID;
-  EntityID entityID;
+  AtlasNetClientID clientID;
+  AtlasNetEntityID entityID;
 
   void Serialize(ByteWriter& writer) const
   {

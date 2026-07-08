@@ -1,6 +1,6 @@
 #include "atlasnet/gateway/GatewayRelayService.hpp"
 #include "AtlasNetGateway.hpp"
-void AtlasNet::GatewayRelayService::DeclareGatewayRelay(const AtlasNet::ClientID& clientID)
+void AtlasNet::GatewayRelayService::DeclareGatewayRelay(const AtlasNet::AtlasNetClientID& clientID)
 {
   ByteWriter clientIdWriter;
   clientIdWriter(clientID);

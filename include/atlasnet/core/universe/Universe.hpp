@@ -1,6 +1,6 @@
 #pragma once
 #include "WorldConcepts.hpp"
-#include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"

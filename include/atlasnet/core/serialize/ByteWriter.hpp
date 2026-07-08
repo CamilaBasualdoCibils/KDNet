@@ -10,8 +10,8 @@
 #include <type_traits>
 
 #include "ByteStream.hpp"
-#include "atlasnet/core/UUID.hpp"
-#include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/utils/UUID.hpp"
+#include "atlasnet/core/utils/assert.hpp"
 #include "glm/fwd.hpp"
 // #include "Global/Misc/UUID.hpp"
 // #include "Global/pch.hpp"

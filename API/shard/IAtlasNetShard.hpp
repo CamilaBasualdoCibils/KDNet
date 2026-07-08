@@ -26,7 +26,7 @@ class IAtlasNetShard : public IAtlasNetNode
 {
   std::optional<Entity::EntityLedger> _entityLedger;
   std::shared_ptr<spdlog::logger> _logger = spdlog::stdout_color_mt("AtlasNetShard");
-  std::optional<EntityID::Generator> _entityIDGenerator;
+  std::optional<AtlasNetEntityID::Generator> _entityIDGenerator;
 public:
   IAtlasNetShard();
   virtual ~IAtlasNetShard() = default;
@@ -59,7 +59,7 @@ public:
    * in all subsequent interactions with the AtlasNet system regarding this
    * entity.
    */
-  EntityID AtlasNet_RegisterEntity(Entity::Position transform);
+  AtlasNetEntityID AtlasNet_RegisterEntity(Entity::Position transform);
   /**
    * @brief Deregister an existing local entity from the AtlasNet system. This
    * should be called when the entity in question should no longer be
@@ -67,8 +67,8 @@ public:
    * or when an entity is being destroyed.
    * @param id
    */
-  void AtlasNet_UnregisterEntity(const EntityID& id);
-  void AtlasNet_UpdateEntityTransform(const EntityID& id,
+  void AtlasNet_UnregisterEntity(const AtlasNetEntityID& id);
+  void AtlasNet_UpdateEntityTransform(const AtlasNetEntityID& id,
                                       const Entity::Position& transform);
   virtual void OnAtlasNetRequest_Shutdown() = 0; // Pure virtual function to be
                                                  // implemented by
@@ -92,7 +92,7 @@ public:
    * @param id
    * @param remote_handle
    */
-  virtual void OnDetachEntity(EntityDetachState state, const EntityID& id,
+  virtual void OnDetachEntity(EntityDetachState state, const AtlasNetEntityID& id,
                               const EntityHandle& remote_handle) = 0;
   /**
    * @brief When this function is called, the shard should serialize the entity
@@ -106,7 +106,7 @@ public:
    * @param id
    * @param writer
    */
-  virtual void OnExportEntity(const EntityID& id, ByteWriter& writer) = 0;
+  virtual void OnExportEntity(const AtlasNetEntityID& id, ByteWriter& writer) = 0;
 
   /**
    * @brief When this function is called, the shard should deserialize the
@@ -117,7 +117,7 @@ public:
    * @param id
    * @param reader
    */
-  virtual void OnAcquireEntity(const EntityID& id, ByteReader& reader) = 0;
+  virtual void OnAcquireEntity(const AtlasNetEntityID& id, ByteReader& reader) = 0;
 
   virtual void OnSpawnClient(const ClientSpawnInfo& info) = 0;
 };

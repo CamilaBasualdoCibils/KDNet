@@ -2,7 +2,7 @@
 #include "atlasnet/core/RPC/RPCMacros.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"

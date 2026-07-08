@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "ByteStream.hpp"
-#include "atlasnet/core/UUID.hpp"
+#include "atlasnet/core/utils/UUID.hpp"
 namespace AtlasNet
 {
 

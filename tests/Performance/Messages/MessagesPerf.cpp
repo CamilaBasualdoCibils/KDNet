@@ -1,4 +1,4 @@
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"

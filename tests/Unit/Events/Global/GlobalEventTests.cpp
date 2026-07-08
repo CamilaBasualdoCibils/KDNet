@@ -1,5 +1,5 @@
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"

@@ -162,8 +162,8 @@
 #pragma once
 
 #include "atlasnet/controller/ServiceAdapterEnums.hpp"
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "boost/describe/enum_from_string.hpp"
 #include <cstdint>
 #include <cstdlib>

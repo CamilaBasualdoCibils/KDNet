@@ -28,7 +28,7 @@ AtlasNet::IAtlasNetShard::impl_RPCSpawnClient(
   GetLogger()->info("Received SpawnClient request for ClientID: {}",
                     request.clientID.to_string());
 
-  EntityID newEntityID;
+  AtlasNetEntityID newEntityID;
   {
     Entity::Components::BaseEntityInfo info;
     info.location.worldId = AtlasNet_GetWorldID();
@@ -51,7 +51,7 @@ AtlasNet::WorldID AtlasNet::IAtlasNetShard::AtlasNet_GetWorldID()
   // Implementation for retrieving the WorldID associated with this shard
   return WorldID();
 };
-AtlasNet::EntityID
+AtlasNet::AtlasNetEntityID
 AtlasNet::IAtlasNetShard::AtlasNet_RegisterEntity(Entity::Position transform)
 {
   // Implementation for registering a new entity and returning its ID
@@ -63,14 +63,14 @@ AtlasNet::IAtlasNetShard::AtlasNet_RegisterEntity(Entity::Position transform)
 
   return writeAccess.CreateEntity(info);
 };
-void AtlasNet::IAtlasNetShard::AtlasNet_UnregisterEntity(const EntityID& id)
+void AtlasNet::IAtlasNetShard::AtlasNet_UnregisterEntity(const AtlasNetEntityID& id)
 {
   // Implementation for deregistering an existing entity
   assert(_entityLedger.has_value() && "EntityLedger not initialized");
   _entityLedger->GetWriteAccess().RemoveEntity(id);
 };
 void AtlasNet::IAtlasNetShard::AtlasNet_UpdateEntityTransform(
-    const EntityID& id, const Entity::Position& transform)
+    const AtlasNetEntityID& id, const Entity::Position& transform)
 {
   assert(_entityLedger.has_value() && "EntityLedger not initialized");
   auto writeAccess = _entityLedger->GetWriteAccess();

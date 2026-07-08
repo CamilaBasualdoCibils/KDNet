@@ -1,7 +1,7 @@
 
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"

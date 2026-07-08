@@ -1,6 +1,6 @@
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 
-#include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/utils/assert.hpp"
 #include "atlasnet/core/database/redis/HashMapWrapper.hpp"
 #include "atlasnet/core/database/redis/KeyValWrapper.hpp"
 #include "atlasnet/core/database/redis/SetWrapper.hpp"

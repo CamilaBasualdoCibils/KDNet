@@ -3,7 +3,7 @@
 #include <functional>
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
-#include "atlasnet/core/MacroConcepts.hpp"
+#include "atlasnet/core/utils/MacroConcepts.hpp"
 
 namespace AtlasNet
 {

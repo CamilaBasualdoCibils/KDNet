@@ -41,7 +41,7 @@ struct InternalCommandEnvelope
   const static size_t MaxCommandNameLength = 64;
   boost::static_string<MaxCommandNameLength> commandName;
 
-  EntityID targetEntity;
+  AtlasNetEntityID targetEntity;
   uint64_t logical_entity_sequence;
 
   enum SenderType : uint8_t

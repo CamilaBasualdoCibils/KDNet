@@ -9,7 +9,7 @@ namespace AtlasNet
 struct ShardSpawnClientRequest
 {
   Entity::Position spawnTransform;
-  ClientID clientID;
+  AtlasNetClientID clientID;
   AtlasNetGatewayID gatewayRelayID;
   std::vector<uint8_t>
       clientSpawnPayload; // This contains developer-defined data that was given
@@ -39,8 +39,8 @@ struct ShardSpawnClientRequest
 // Received by the frontend of the shard
 struct ClientSpawnInfo
 {
-  ClientID clientID;
-  EntityID entityID;
+  AtlasNetClientID clientID;
+  AtlasNetEntityID entityID;
   Entity::Position position;
   std::vector<uint8_t>
       clientSpawnPayload; // This contains developer-defined data that will be
@@ -48,7 +48,7 @@ struct ClientSpawnInfo
 };
 struct ShardSpawnClientResponse
 {
-  EntityID entityID;
+  AtlasNetEntityID entityID;
   void Serialize(ByteWriter& writer) const
   {
 

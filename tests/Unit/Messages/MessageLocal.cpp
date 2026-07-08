@@ -1,14 +1,13 @@
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 
-
-#include "atlasnet/core/messages/MessageStructs.hpp"
-#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/Message.hpp"
+#include "atlasnet/core/messages/MessageStructs.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "atlasnet/core/system/isystem.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include <atomic>
 #include <chrono>
 #include <gtest/gtest.h>
@@ -103,29 +102,53 @@ TEST(MessageSystem, Connect)
   const HostName dnsAddr("localhost");
   SocketAddress serverAddr(dnsAddr, port);
   msgsys.OpenListenSocket(port);
-  msgsys.Connect(serverAddr);
+  auto connectJob = msgsys.Connect(serverAddr);
 
-  float timeout = 5.0f; // seconds
-  auto startTime = std::chrono::steady_clock::now();
+  /* std::future_status status = connectJob->wait_for(std::chrono::seconds(5));
 
-  while (msgsys.GetNumConnections() == 0)
+  if (status == std::future_status::timeout)
   {
-    std::optional<MessageSystem::Connection> conn =
-        msgsys.GetConnection(serverAddr);
-    if (conn.has_value() &&
-        conn->GetState() == AtlasNet::ConnectionState::eConnected)
-    {
-      SUCCEED() << "Successfully connected to localhost:" << port;
-      break;
-    }
-    auto elapsed = std::chrono::steady_clock::now() - startTime;
-    if (elapsed > std::chrono::duration<float>(timeout))
-    {
-      FAIL() << "Connection timed out after " << timeout << " seconds";
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    FAIL() << "Connection timed out";
+  } */
+  connectJob->wait();
+  MessageConnectionResult res = connectJob->get();
+
+  EXPECT_EQ(res.code, MessageConnectionResultCode::eSuccess);
+  EXPECT_EQ(msgsys.GetNumConnections(), 2); // 2 since its local host
+}
+TEST(MessageSystem, MultipleConnectSameAddress)
+{
+  using namespace AtlasNet;
+  TaskSystem jobsys(TaskSystem::Config{});
+  MessageSystem msgsys(MessageSystem::Config{.taskSystem = &jobsys});
+
+  const PortType port = pick_available_port();
+  const HostName dnsAddr("localhost");
+  SocketAddress serverAddr(dnsAddr, port);
+  msgsys.OpenListenSocket(port);
+  auto connectJob = msgsys.Connect(serverAddr);
+
+  /* std::future_status status = connectJob->wait_for(std::chrono::seconds(5));
+
+  if (status == std::future_status::timeout)
+  {
+    FAIL() << "Connection timed out";
+  } */
+  connectJob->wait();
+  MessageConnectionResult res = connectJob->get();
+
+  EXPECT_EQ(res.code, MessageConnectionResultCode::eSuccess);
+  EXPECT_EQ(msgsys.GetNumConnections(), 2);
+
+  auto connectJob2 = msgsys.Connect(serverAddr);
+  std::future_status status2 = connectJob2->wait_for(std::chrono::seconds(5));
+  if (status2 == std::future_status::timeout)
+  {
+    FAIL() << "Connection timed out";
   }
+  MessageConnectionResult res2 = connectJob2->get();
+  EXPECT_EQ(res2.code, MessageConnectionResultCode::eAlreadyConnected);
+  EXPECT_EQ(msgsys.GetNumConnections(), 2);
 }
 ATLASNET_MESSAGE(TestMessage, ATLASNET_MESSAGE_DATA(int, u8_val),
                  ATLASNET_MESSAGE_DATA(std::string, str))
@@ -155,7 +178,8 @@ TEST(MessageSystem, TrySendMessage)
   TestMessage msg;
   msg.u8_val = 42;
   msg.str = "Hello, AtlasNet!";
-  auto result = msgsys.TrySendMessage(msg, serverAddr, AtlasNet::MessageSendMode::eReliable);
+  auto result = msgsys.TrySendMessage(msg, serverAddr,
+                                      AtlasNet::MessageSendMode::eReliable);
 
   EXPECT_EQ(result.code, MessageSendResultCode::eSuccess)
       << "Failed to send message: " << static_cast<int>(result.code);
@@ -189,7 +213,8 @@ TEST(MessageSystem, ChainMessage)
         messagechain2 msg2;
         msg2.u8_val = msg.u8_val + 1;
         msg2.str = msg.str + " Again!";
-        TaskHandle<MessageSendResult> SendJob2 = msgsys.QueueMessage(msg2, address, AtlasNet::MessageSendMode::eReliable);
+        TaskHandle<MessageSendResult> SendJob2 = msgsys.QueueMessage(
+            msg2, address, AtlasNet::MessageSendMode::eReliable);
         SendJob2->wait_for(std::chrono::seconds(5));
       });
   msgsys.On<messagechain2>(
@@ -205,13 +230,13 @@ TEST(MessageSystem, ChainMessage)
   PortType port = pick_available_port();
   SocketAddress serverAddr(HostName("localhost"), port);
   msgsys.OpenListenSocket(port);
-  TaskHandle<MessageSendResult> SendJob =
-      msgsys.QueueMessage(messagechain1{.u8_val = 42, .str = "Hello, AtlasNet!"},
-                         serverAddr, AtlasNet::MessageSendMode::eReliable);
+  TaskHandle<MessageSendResult> SendJob = msgsys.QueueMessage(
+      messagechain1{.u8_val = 42, .str = "Hello, AtlasNet!"}, serverAddr,
+      AtlasNet::MessageSendMode::eReliable);
 
   std::unique_lock lock(mtx);
-  EXPECT_TRUE(
-      cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success.load(); }))
+  EXPECT_TRUE(cv.wait_for(lock, std::chrono::seconds(5),
+                          [&success] { return success.load(); }))
       << "Did not receive chained message within timeout";
 
   EXPECT_TRUE(SendJob.GetTask().is_done())
@@ -245,7 +270,8 @@ TEST(MessageSystem, SendMessageWithoutConnecting)
   TestMessage msg;
   msg.u8_val = 42;
   msg.str = "Hello, AtlasNet!";
-  TaskHandle<MessageSendResult> SendJob = msgsys.QueueMessage(msg, serverAddr, AtlasNet::MessageSendMode::eReliable);
+  TaskHandle<MessageSendResult> SendJob = msgsys.QueueMessage(
+      msg, serverAddr, AtlasNet::MessageSendMode::eReliable);
 
   std::unique_lock lock(mtx);
   EXPECT_TRUE(
@@ -344,7 +370,7 @@ TEST(MessageSystem, BigMessage)
       });
 
   auto conn = msgsys.Connect(addr);
-  //ASSERT_TRUE(conn.valid());
+  // ASSERT_TRUE(conn.valid());
 
   for (std::size_t currentSize : sizes)
   {
@@ -448,7 +474,8 @@ TEST(MessageSystem, Handshake_Valid_Fork)
     (void)write(readyPipe[1], &ready, 1);
     close(readyPipe[1]);
 
-    TaskHandle<MessageConnectionResult> connectJob = childMsgSystem.Connect(address);
+    TaskHandle<MessageConnectionResult> connectJob =
+        childMsgSystem.Connect(address);
     connectJob->wait_for(std::chrono::seconds(2));
     if (!connectJob.GetTask().is_done() ||
         childMsgSystem.GetConnectionState(address) !=
@@ -472,8 +499,8 @@ TEST(MessageSystem, Handshake_Valid_Fork)
       .role = HandshakeRole::eServer,
       .data = HandshakeServerRequestData{
           .serviceID = {},
-          .serviceType =
-              AtlasNetNodeType::Controller}}; // Just some dummy handshake identity
+          .serviceType = AtlasNetNodeType::Controller}}; // Just some dummy
+                                                         // handshake identity
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.taskSystem = &parentTaskSystem,
                             .handshakeIdentity = parentIdentity,
@@ -529,7 +556,8 @@ TEST(MessageSystem, Handshake_Invalid_Client_Fork)
     (void)write(readyPipe[1], &ready, 1);
     close(readyPipe[1]);
 
-    TaskHandle<MessageConnectionResult> connectJob = childMsgSystem.Connect(address);
+    TaskHandle<MessageConnectionResult> connectJob =
+        childMsgSystem.Connect(address);
     connectJob->wait_for(std::chrono::seconds(2));
     if (!connectJob.GetTask().is_done() ||
         childMsgSystem.GetConnectionState(address) !=
@@ -553,8 +581,8 @@ TEST(MessageSystem, Handshake_Invalid_Client_Fork)
       .role = HandshakeRole::eServer,
       .data = HandshakeServerRequestData{
           .serviceID = {},
-          .serviceType =
-              AtlasNetNodeType::Controller}}; // Just some dummy handshake identity
+          .serviceType = AtlasNetNodeType::Controller}}; // Just some dummy
+                                                         // handshake identity
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.taskSystem = &parentTaskSystem,
                             .handshakeIdentity = parentIdentity,
@@ -610,7 +638,8 @@ TEST(MessageSystem, Handshake_Invalid_Server_Fork)
     (void)write(readyPipe[1], &ready, 1);
     close(readyPipe[1]);
 
-    TaskHandle<MessageConnectionResult> connectJob = childMsgSystem.Connect(address);
+    TaskHandle<MessageConnectionResult> connectJob =
+        childMsgSystem.Connect(address);
     connectJob->wait_for(std::chrono::seconds(2));
     if (!connectJob.GetTask().is_done() ||
         childMsgSystem.GetConnectionState(address) !=
@@ -634,8 +663,8 @@ TEST(MessageSystem, Handshake_Invalid_Server_Fork)
       .role = HandshakeRole::eServer,
       .data = HandshakeServerRequestData{
           .serviceID = {},
-          .serviceType =
-              AtlasNetNodeType::Controller}}; // Just some dummy handshake identity
+          .serviceType = AtlasNetNodeType::Controller}}; // Just some dummy
+                                                         // handshake identity
   MessageSystem parentMsgSystem(
       MessageSystem::Config{.taskSystem = &parentTaskSystem,
                             .handshakeIdentity = parentIdentity,

@@ -1,7 +1,7 @@
 #pragma once
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/database/redis/utils/RedisUtils.hpp"
@@ -202,31 +202,16 @@ public:
 
   std::optional<NodeInfo> RegisterNode(const AtlasNetNodeType type,
                                        const SocketAddress& address);
-  template <typename OutputIt> uint64_t GetAllNodeIDs(OutputIt out) const
-  {
-    auto start = out;
-    for_each_key_hashtable(_redisConn, NodeIDLeaseTable,
-                           [&](const auto& rawID)
-                           {
-                             AtlasNetNodeID nodeID =
-                                 AtlasNetNodeID::from_string(rawID);
-                             *out++ = nodeID;
-                           });
-    return std::distance(start, out); // Return the number of node IDs written
-  }
+
+  template <typename OutputIt> uint64_t GetAllNodeIDs(OutputIt out) const;
+
   template <std::output_iterator<AtlasNetShardID> OutputIt>
-  uint64_t GetAllShardIDs(OutputIt out) const
-  {
-    auto start = out;
-    for_each_key_hashtable(_redisConn, ShardIDLeaseTable,
-                           [&](const auto& rawID)
-                           {
-                             AtlasNetShardID shardID =
-                                 AtlasNetShardID::from_string(rawID);
-                             *out++ = shardID;
-                           });
-    return std::distance(start, out); // Return the number of shard IDs written
-  }
+  uint64_t GetAllShardIDs(OutputIt out) const;
+
+  template <typename IdType>
+  std::optional<SocketAddress> ResolveAddress(const IdType& id);
+  template <typename IdType>
+  std::optional<AtlasNetNodeID> GetNodeID(const IdType& id);
 
 private:
   std::optional<AtlasNetNodeID> ClaimNodeID(const SocketAddress& address);
@@ -261,7 +246,7 @@ private:
   {
     boost::container::small_vector<std::string, 64> RawKeys;
 
-    r->HashMap().GetSet().HGetAll(TableName, std::back_inserter(RawKeys));
+    r->HashMap().GetSet().HKeys(TableName, std::back_inserter(RawKeys));
 
     for (uint64_t i = 0; i < RawKeys.size(); ++i)
     {
@@ -271,7 +256,7 @@ private:
   }
 
   const static inline std::string NodeRegistryNamespace =
-      Env::DatabaseNamespace + "NodeRegistry:";
+      Env::DatabaseNamespace + "NodeRegistry{node_registry}:";
   const static inline std::string NodeIDLeaseTable = NodeRegistryNamespace +
                                                      "NodeIDLeaseTable",
                                   ShardIDLeaseTable = NodeRegistryNamespace +
@@ -301,5 +286,104 @@ private:
   std::shared_ptr<spdlog::logger> logger =
       spdlog::stdout_color_mt("NodeRegistry");
 };
+template <typename IdType>
+inline std::optional<SocketAddress>
+NodeRegistry::ResolveAddress(const IdType& id)
+{
+  // TODO: This can be optimized by a lua script to reduce the number of
+  // round-trip queries to Redis
+  AtlasNetNodeID nodeID;
+  if constexpr (!std::is_same_v<IdType, AtlasNetNodeID>)
+  {
+    if (const std::optional<AtlasNetNodeID> _idRet = GetNodeID(id))
+    {
+      nodeID = *_idRet;
+    }
+    else
+    {
+      return std::nullopt;
+    }
+  }
+  else
+  {
+    nodeID = id;
+  }
+
+  const std::optional<std::string> res =
+      _redisConn->HashMap().GetSet().HGet(NodeIDLeaseTable, nodeID.to_string());
+  if (res.has_value())
+  {
+    SocketAddress address;
+    address.parse_string(*res);
+    return address;
+  }
+  return std::nullopt;
+}
+
+template <typename IdType>
+inline std::optional<AtlasNetNodeID> NodeRegistry::GetNodeID(const IdType& id)
+{
+  std::optional<std::string> fetchResponse;
+  if constexpr (std::is_same_v<IdType, AtlasNetNodeID>)
+  {
+    return id;
+  }
+  else if constexpr (std::is_same_v<IdType, AtlasNetShardID>)
+  {
+    fetchResponse =
+        _redisConn->HashMap().GetSet().HGet(ShardIDLeaseTable, id.to_string());
+  }
+  else if constexpr (std::is_same_v<IdType, AtlasNetGatewayID>)
+  {
+    fetchResponse = _redisConn->HashMap().GetSet().HGet(GatewayIDLeaseTable,
+                                                        id.to_string());
+  }
+  else if constexpr (std::is_same_v<IdType, AtlasNetControllerID>)
+  {
+    static_assert(sizeof(IdType) == 0, "NOT IMPLEMENTED");
+    return std::nullopt;
+  }
+  else
+  {
+    static_assert(sizeof(IdType) == 0, "Unsupported IdType");
+  }
+  if (fetchResponse.has_value())
+  {
+    return AtlasNetNodeID::from_string(*fetchResponse);
+  }
+  return std::nullopt;
+}
+
+template <std::output_iterator<AtlasNetShardID> OutputIt>
+inline uint64_t NodeRegistry::GetAllShardIDs(OutputIt out) const
+{
+  uint64_t count = 0;
+  logger->info("Fetching all shard IDs from the registry");
+  for_each_key_hashtable(_redisConn, ShardIDLeaseTable,
+                         [&](const auto& rawID)
+                         {
+                           logger->info("fetched {}", rawID);
+                           AtlasNetShardID shardID =
+                               AtlasNetShardID::from_string(rawID);
+                           *out++ = shardID;
+                           count++;
+                         });
+  return count; // Return the number of shard IDs written
+}
+
+template <typename OutputIt>
+inline uint64_t NodeRegistry::GetAllNodeIDs(OutputIt out) const
+{
+  uint64_t count = 0;
+  for_each_key_hashtable(_redisConn, NodeIDLeaseTable,
+                         [&](const auto& rawID)
+                         {
+                           AtlasNetNodeID nodeID =
+                               AtlasNetNodeID::from_string(rawID);
+                           *out++ = nodeID;
+                           count++;
+                         });
+  return count; // Return the number of node IDs written
+}
 
 } // namespace AtlasNet

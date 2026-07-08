@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 
 #include "atlasnet/core/database/redis/Redis.hpp"
@@ -12,6 +12,7 @@
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 
 #include "enviroment/Enviroment.hpp"
+#include "spdlog/sinks/stdout_color_sinks-inl.h"
 #include <cassert>
 #include <shared_mutex>
 
@@ -41,14 +42,14 @@ public:
         [&](const ExternalCommandMessage& message,
             const SocketAddress& sourceAddress)
         {
-          ClientID sourceClientID;
+          AtlasNetClientID sourceClientID;
           {
             std::shared_lock lock(cacheMutex_);
             const auto it = addressToClientCache_.find(sourceAddress);
             // if it does not exist add to cache.
             if (it == addressToClientCache_.end())
             {
-              std::optional<ClientID> clientID =
+              std::optional<AtlasNetClientID> clientID =
                   config_.clientRegistry->GetAddressClientID(sourceAddress);
               assert(clientID &&
                      "we received an external command from a client without a "
@@ -68,7 +69,7 @@ public:
           HandleExternalCommand(message, sourceClientID);
         });
   }
-  std::optional<AtlasNetGatewayID> GetManagingGateway(const ClientID& clientID)
+  std::optional<AtlasNetGatewayID> GetManagingGateway(const AtlasNetClientID& clientID)
   {
   }
   std::optional<AtlasNetGatewayID>
@@ -79,10 +80,10 @@ public:
   /*Sets up that a given client's commands are forwarded to a set shard*/
 
   /*Sets up that this gateway manages a set client*/
-  void DeclareGatewayRelay(const ClientID& clientID);
+  void DeclareGatewayRelay(const AtlasNetClientID& clientID);
 
 private:
-  std::shared_ptr<spdlog::logger> logger = spdlog::get("GatewayRelay");
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("GatewayRelay");
   const Config config_;
 
   const std::string GatewayRelayKeyPrefix =
@@ -93,9 +94,9 @@ private:
       GatewayRelayKeyPrefix + "GatewayID->ClientIDs";
 
   std::shared_mutex cacheMutex_;
-  std::unordered_map<ClientID, AtlasNetShardID> clientToShardCache_;
+  std::unordered_map<AtlasNetClientID, AtlasNetShardID> clientToShardCache_;
   // std::unordered_map<ClientID, SocketAddress> clientToAddressCache_;
-  std::unordered_map<SocketAddress, ClientID> addressToClientCache_;
+  std::unordered_map<SocketAddress, AtlasNetClientID> addressToClientCache_;
 
   std::string
   GatewayID2ClientIDs_SetKey(const AtlasNetGatewayID& gatewayID) const
@@ -104,7 +105,7 @@ private:
     return GatewayID2ClientIDs_Set + ":" + gatewayID.to_string();
   }
   void HandleExternalCommand(const ExternalCommandMessage& message,
-                             const ClientID& sourceClientID)
+                             const AtlasNetClientID& sourceClientID)
   {
     logger->info("Received external command: {} from ClientID: {}",
                  message.envelope.commandName, sourceClientID.to_string());

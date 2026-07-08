@@ -1,6 +1,6 @@
 #pragma once
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
@@ -19,7 +19,7 @@ public:
   {
     GlobalEventSystem* _globalEventSystem;
     Database::RedisConn* __redisConn;
-    ClientID::Generator* _clientIDGenerator;
+    AtlasNetClientID::Generator* _clientIDGenerator;
   };
 
   ClientRegistry(const Config& config) : config_(config)
@@ -31,7 +31,7 @@ public:
            "ClientID generator pointer cannot be null");
   };
 
-  std::optional<ClientID> GetAddressClientID(const SocketAddress& address)
+  std::optional<AtlasNetClientID> GetAddressClientID(const SocketAddress& address)
   {
 
     ByteWriter addressWriter;
@@ -45,12 +45,12 @@ public:
     }
     ByteReader reader(std::span<const uint8_t>(
         reinterpret_cast<const uint8_t*>(value->data()), value->size()));
-    ClientID clientID;
+    AtlasNetClientID clientID;
     reader(clientID);
     return clientID;
   }
 
-  std::optional<SocketAddress> GetClientIDAddress(const ClientID& clientID)
+  std::optional<SocketAddress> GetClientIDAddress(const AtlasNetClientID& clientID)
   {
     ByteWriter clientIDWriter;
     clientIDWriter(clientID);
@@ -67,8 +67,8 @@ public:
     address.Deserialize(reader);
     return address;
   }
-  void AssociateClientWithEntity(const ClientID& clientID,
-                                 const EntityID& entityID)
+  void AssociateClientWithEntity(const AtlasNetClientID& clientID,
+                                 const AtlasNetEntityID& entityID)
   {
     ByteWriter clientIDWriter;
         clientIDWriter(clientID);
@@ -105,7 +105,7 @@ public:
   struct LoginResult
   {
 
-    ClientID clientID;
+    AtlasNetClientID clientID;
     Entity::Location SpawnLocation;
     std::vector<uint8_t>
         SpawnShardPayload; // This contains developer-defined data that will be
@@ -115,7 +115,7 @@ public:
   LoginClient(const SocketAddress& address,AtlasNetGatewayID managingGatewayID)
   {
 
-    std::optional<ClientID> existingClientID = GetAddressClientID(address);
+    std::optional<AtlasNetClientID> existingClientID = GetAddressClientID(address);
     if (existingClientID)
     {
         logger->error("Client with address {} is already logged in with ClientID: {}",
@@ -124,7 +124,7 @@ public:
       return std::nullopt; // Address is already logged in
     }
 
-    ClientID newClientID = config_._clientIDGenerator->Next();
+    AtlasNetClientID newClientID = config_._clientIDGenerator->Next();
     ByteWriter addressWriter;
     LoginData entry;
     entry.address = address;

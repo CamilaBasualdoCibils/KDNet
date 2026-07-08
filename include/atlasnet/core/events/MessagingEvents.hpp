@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/events//IEvent.hpp"
 
 namespace AtlasNet

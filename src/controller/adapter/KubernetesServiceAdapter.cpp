@@ -1,4 +1,5 @@
 #include "KubernetesServiceAdapter.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 
 void AtlasNet::KubernetesServiceAdapter::Create()
 {
@@ -7,19 +8,22 @@ void AtlasNet::KubernetesServiceAdapter::Create()
   auto res = Request("POST",
                      "/apis/apps/v1/namespaces/" + _namespace + "/statefulsets",
                      body.dump());
-    logger->info("Create service adapter response: {} - {}", res.status, res.body);
+  logger->info("Create service adapter response: {} - {}", res.status,
+               res.body);
 
   if (res.status != 201)
   {
-    logger->error("Failed to create service adapter for {} in namespace {}. Response: {} - {}",
+    logger->error("Failed to create service adapter for {} in namespace {}. "
+                  "Response: {} - {}",
                   _serviceName, _namespace, res.status, res.body);
   }
 }
 AtlasNet::KubernetesServiceAdapter::KubernetesServiceAdapter(
-    const std::string_view& serviceName, const std::string_view& imageName,std::vector<std::pair<PortType, PortType>> portMappings,
+    const std::string_view& serviceName, const std::string_view& imageName,
+    std::vector<std::pair<PortType, PortType>> portMappings,
     ImagePullPolicy imagePullPolicy, const std::string& namespaceName)
     : IServiceAdapter(serviceName, imageName),
-    portMappings(std::move(portMappings)),
+      portMappings(std::move(portMappings)),
       _namespace(namespaceName.empty() ? DetectNamespace() : namespaceName),
       _ctx(boost::asio::ssl::context::tlsv12_client), _resolver(_ioc),
       _stream(_ioc, _ctx), _imagePullPolicy(imagePullPolicy)
@@ -33,14 +37,18 @@ bool AtlasNet::KubernetesServiceAdapter::Exists() const
                      "/apis/apps/v1/namespaces/" + _namespace +
                          "/statefulsets/" + _serviceName,
                      "");
-    logger->info("Check service adapter existence response: {} - {}", res.status, res.body);
+  logger->info("Check service adapter existence response: {} - {}", res.status,
+               res.body);
   if (res.status == 404)
   {
-    logger->info("Service adapter {} does not exist in namespace {}", _serviceName, _namespace);
+    logger->info("Service adapter {} does not exist in namespace {}",
+                 _serviceName, _namespace);
   }
   else if (res.status != 200)
   {
-    logger->error("Failed to check existence of service adapter for {} in namespace {}. Assuming it does not exist.", _serviceName, _namespace);
+    logger->error("Failed to check existence of service adapter for {} in "
+                  "namespace {}. Assuming it does not exist.",
+                  _serviceName, _namespace);
   }
   return res.status == 200;
 }
@@ -51,10 +59,12 @@ void AtlasNet::KubernetesServiceAdapter::Destroy()
                          "/statefulsets/" + _serviceName,
                      "");
 
-  logger->info("Destroy service adapter response: {} - {}", res.status, res.body);
+  logger->info("Destroy service adapter response: {} - {}", res.status,
+               res.body);
   if (res.status != 200 && res.status != 204)
   {
-    logger->error("Failed to destroy service adapter for {} in namespace {}", _serviceName, _namespace);
+    logger->error("Failed to destroy service adapter for {} in namespace {}",
+                  _serviceName, _namespace);
   }
   (void)res;
 }
@@ -69,7 +79,9 @@ void AtlasNet::KubernetesServiceAdapter::SetReplicaCount(uint32_t count)
   logger->info("SetReplicaCount response: {} - {}", res.status, res.body);
   if (res.status != 200)
   {
-    logger->error("Failed to set replica count for service adapter {} in namespace {}", _serviceName, _namespace);
+    logger->error(
+        "Failed to set replica count for service adapter {} in namespace {}",
+        _serviceName, _namespace);
   }
   (void)res;
 }
@@ -79,7 +91,7 @@ uint32_t AtlasNet::KubernetesServiceAdapter::GetReplicaCount() const
                      "/apis/apps/v1/namespaces/" + _namespace +
                          "/statefulsets/" + _serviceName,
                      "");
-    logger->info("GetReplicaCount response: {} - {}", res.status, res.body);
+  logger->info("GetReplicaCount response: {} - {}", res.status, res.body);
   if (res.status != 200)
     return 0;
 
@@ -109,7 +121,8 @@ void AtlasNet::KubernetesServiceAdapter::LoadToken()
     std::getline(f, _token);
   if (_token.empty())
   {
-    logger->error("Failed to load Kubernetes token from file, service adapter will not be able to authenticate with the Kubernetes API");
+    logger->error("Failed to load Kubernetes token from file, service adapter "
+                  "will not be able to authenticate with the Kubernetes API");
   }
   else
   {
@@ -171,7 +184,7 @@ AtlasNet::KubernetesServiceAdapter::Request(
     return {0, ""};
   }
 }
-_Json AtlasNet::KubernetesServiceAdapter::BuildStatefulSetJSON() const
+AtlasNet::_Json AtlasNet::KubernetesServiceAdapter::BuildStatefulSetJSON() const
 {
   return {
       {"apiVersion", "apps/v1"},

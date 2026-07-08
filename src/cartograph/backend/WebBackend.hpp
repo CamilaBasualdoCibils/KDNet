@@ -5,7 +5,7 @@
 #include "atlasnet/core/node/AtlasNetNode.hpp"
 #include <drogon/drogon.h>
 
-#include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/collider/Collider.hpp"
 #include <chrono>

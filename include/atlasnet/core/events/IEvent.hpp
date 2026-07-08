@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/MacroConcepts.hpp"
+#include "atlasnet/core/utils/MacroConcepts.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <cstdint>

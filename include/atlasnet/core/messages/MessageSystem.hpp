@@ -1,8 +1,8 @@
 #pragma once
 #include "Message.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
+#include "atlasnet/core/utils/assert.hpp"
 
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/MessageStructs.hpp"
@@ -15,6 +15,7 @@
 #include "boost/multi_index/indexed_by.hpp"
 #include "boost/multi_index/member.hpp"
 #include "boost/multi_index_container.hpp"
+#include "boost/multi_index_container_fwd.hpp"
 #include "steam/isteamnetworkingsockets.h"
 #include "steam/steamclientpublic.h"
 #include "steam/steamnetworkingtypes.h"
@@ -77,6 +78,7 @@ public:
     ConnectionState connState;
     AuthState authState;
     std::optional<HandshakeIdentity> handshakeIdentity;
+    SocketAddress RequestedAddress, ResolvedAddress;
     friend class MessageSystem;
 
   protected:
@@ -193,8 +195,7 @@ public:
   bool IsConnectedTo(const SocketAddress& address) const;
 
   size_t GetNumConnections() const;
-  void GetConnections(
-      std::unordered_map<SocketAddress, Connection>& connections) const;
+  void GetConnections(std::vector<Connection>& connections) const;
   std::optional<Connection> GetConnection(const SocketAddress& address) const;
 
 private:
@@ -247,7 +248,65 @@ private:
 
   std::unordered_map<PortType, std::unique_ptr<ListenSocketHandle>>
       _listenSockets;
-  std::unordered_map<SocketAddress, Connection> _connections;
+
+  struct ConnectionByRequestedAddress
+  {
+  };
+  struct ConnectionByResolvedAddress
+  {
+  };
+  boost::multi_index_container<
+      Connection,
+      boost::multi_index::indexed_by<
+          boost::multi_index::hashed_unique<
+              boost::multi_index::tag<ConnectionByRequestedAddress>,
+              boost::multi_index::member<Connection, SocketAddress,
+                                         &Connection::RequestedAddress>>,
+          boost::multi_index::hashed_unique<
+              boost::multi_index::tag<ConnectionByResolvedAddress>,
+              boost::multi_index::member<Connection, SocketAddress,
+                                         &Connection::ResolvedAddress>>>>
+      _connections;
+
+  std::optional<Connection> __FindByAddress(const SocketAddress& address) const
+  {
+    auto it1 = _connections.get<ConnectionByRequestedAddress>().find(address);
+    if (it1 != _connections.get<ConnectionByRequestedAddress>().end())
+    {
+      return *it1;
+    }
+    auto it2 = _connections.get<ConnectionByResolvedAddress>().find(address);
+    if (it2 != _connections.get<ConnectionByResolvedAddress>().end())
+    {
+      return *it2;
+    }
+    return std::nullopt;
+  }
+  bool __ModifyByAddress(const SocketAddress& address,
+                         std::function<void(Connection&)> func)
+  {
+    auto it1 = _connections.get<ConnectionByRequestedAddress>().find(address);
+    if (it1 != _connections.get<ConnectionByRequestedAddress>().end())
+    {
+      _connections.get<ConnectionByRequestedAddress>().modify(it1, func);
+      return true;
+    }
+    auto it2 = _connections.get<ConnectionByResolvedAddress>().find(address);
+    if (it2 != _connections.get<ConnectionByResolvedAddress>().end())
+    {
+      _connections.get<ConnectionByResolvedAddress>().modify(it2, func);
+      return true;
+    }
+    return false;
+  }
+  void __InsertConnection(const Connection& connection)
+  {
+    assert(connection.RequestedAddress.IsValid() &&
+           connection.ResolvedAddress.IsValid() &&
+           "Invalid connection addresses");
+    _connections.insert(connection);
+  }
+  // std::unordered_map<SocketAddress, Connection> _connections;
   std::unordered_map<SocketAddress, TaskHandle<MessageConnectionResult>>
       _connectJobs;
   std::vector<TaskHandle<>> _waitingOnConnectionJobs;

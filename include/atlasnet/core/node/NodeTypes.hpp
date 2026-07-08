@@ -1,8 +1,8 @@
 #pragma once
 
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <boost/describe.hpp>
@@ -25,53 +25,7 @@ enum class AtlasNetNodeType : uint8_t
 BOOST_DESCRIBE_ENUM(AtlasNetNodeType, Controller, Shard, Gateway, Cartograph,
                     Invalid);
 
-template <typename underlying_type, typename tag> struct StrongTypedef
-{
-  using underlying_type_t = underlying_type;
-  explicit StrongTypedef(underlying_type value) : value(value) {}
-  StrongTypedef(const StrongTypedef&) = default;
-  StrongTypedef& operator=(const StrongTypedef&) = default;
-  StrongTypedef() : value() {}
-  underlying_type value;
 
-  operator underlying_type() const
-  {
-    return value;
-  }
-  void Serialize(ByteWriter& writer) const
-  {
-    writer(value);
-  }
-  void Deserialize(ByteReader& reader)
-  {
-    reader(value);
-  }
-  std::string to_string() const
-  {
-    return std::to_string(value);
-  }
-  static StrongTypedef from_string(const std::string_view& str)
-  {
-    StrongTypedef obj(underlying_type{});
-    auto [ptr, ec] =
-        std::from_chars(str.data(), str.data() + str.size(), obj.value);
-    if (ec != std::errc{})
-    {
-      throw std::runtime_error("Failed to convert string to StrongTypedef");
-    }
-    return obj;
-  }
-
-  std::ofstream& operator<<(std::ofstream& os) const
-  {
-    os << value;
-    return os;
-  }
-};
-using AtlasNetNodeID = StrongTypedef<uint32_t, struct NodeIDTag>;
-using AtlasNetShardID = StrongTypedef<uint32_t, struct ShardIDTag>;
-using AtlasNetGatewayID = StrongTypedef<uint32_t, struct GatewayIDTag>;
-using AtlasNetControllerID = StrongTypedef<uint32_t, struct ControllerIDTag>;
 struct GatewayNodeInfo
 {
   AtlasNetGatewayID id;

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 
@@ -11,8 +11,8 @@ struct LoginData
 {
   SocketAddress address;
   AtlasNetGatewayID managingGateway;
-  ClientID clientID;
-  std::optional<EntityID> entityID;
+  AtlasNetClientID clientID;
+  std::optional<AtlasNetEntityID> entityID;
 
   void Serialize(ByteWriter& writer) const
   {
@@ -39,7 +39,7 @@ struct LoginData
     bool hasEntityID = hasEntityID_v != 0;
     if (hasEntityID)
     {
-      EntityID id;
+      AtlasNetEntityID id;
       id.Deserialize(reader);
       entityID = id;
     }

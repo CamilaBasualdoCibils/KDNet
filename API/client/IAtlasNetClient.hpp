@@ -1,7 +1,7 @@
 #pragma once
 #include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/entity/command/Command.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"

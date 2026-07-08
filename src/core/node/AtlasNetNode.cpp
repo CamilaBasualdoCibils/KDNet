@@ -1,7 +1,7 @@
 #include "atlasnet/core/node/AtlasNetNode.hpp"
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
@@ -94,7 +94,7 @@ void AtlasNet::IAtlasNetNode::Init()
   assert(_redisDatabase &&
          "Failed to connect to Redis database. Container cannot start.");
   logger->info("Successfully connected to Redis database.");
-  _serviceRegistry.emplace(
+  _nodeRegistry.emplace(
       NodeRegistry::Config{.redisConn = _redisDatabase.get()});
 
   logger->info("Registering node with the service registry...");
@@ -130,6 +130,7 @@ void AtlasNet::IAtlasNetNode::Init()
                                                  .serviceType = GetNodeType()},
           },
   });
+  _addressResolver.emplace(AddressResolver::Config{.nodeRegistry = &_nodeRegistry.value()});
   _rpcSystem.emplace(
       RPCSystem::Config{.messageSystem = &_messageSystem.value()});
 

@@ -3,7 +3,7 @@
 #include <random>
 #include <unordered_map>
 
-#include "atlasnet/core/Snowflake.hpp"
+#include "atlasnet/core/utils/Snowflake.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "spdlog/logger.h"
 #include "spdlog/sinks/stdout_color_sinks.h"

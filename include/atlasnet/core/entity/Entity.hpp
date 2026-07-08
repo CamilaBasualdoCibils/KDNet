@@ -1,7 +1,7 @@
 #pragma once
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/Snowflake.hpp"
-#include "atlasnet/core/UUID.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/utils/Snowflake.hpp"
+#include "atlasnet/core/utils/UUID.hpp"
 #include "atlasnet/core/entity/collider/Collider.hpp"
 #include "atlasnet/core/geometry/Vec.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
@@ -16,20 +16,8 @@
 
 namespace AtlasNet
 {
-/* struct EntityIDTag
-{
-}; */
 
-/**
- * @brief Represents a unique identifier for an entity within the AtlasNet system.
- * 4-bit sequence, 7-bit worker, and 53-bit timestamp.
- * 
- */
-using EntityID = Snowflake;
-/* struct ClientIDTag
-{
-}; */
-using ClientID = Snowflake;
+
 namespace Entity
 {
 
@@ -253,7 +241,7 @@ struct BaseEntityInfo
 };
 struct EntityInfo : public EntityComponent
 {
-  EntityID id;
+  AtlasNetEntityID id;
   BaseEntityInfo baseInfo;
   void to_json(_Json& j) const
   {
@@ -263,7 +251,7 @@ struct EntityInfo : public EntityComponent
   }
   void from_json(const _Json& j)
   {
-    std::optional<EntityID> optId = EntityID::from_string(j.at("id").get<std::string>());
+    std::optional<AtlasNetEntityID> optId = AtlasNetEntityID::from_string(j.at("id").get<std::string>());
     if(optId.has_value())
     {
         id = optId.value();
@@ -298,14 +286,14 @@ struct ActorInfo : public EntityComponent
 };
 struct ClientInfo : public EntityComponent
 {
-  ClientID id;
+  AtlasNetClientID id;
   void to_json(_Json& j) const
   {
     j = _Json{{"id", id.to_string()}};
   }
   void from_json(const _Json& j)
   {
-    std::optional<ClientID> optId = ClientID::from_string(j.at("id").get<std::string>());
+    std::optional<AtlasNetClientID> optId = AtlasNetClientID::from_string(j.at("id").get<std::string>());
     if(optId.has_value())
     {
         id = optId.value();

@@ -1,6 +1,6 @@
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
-#include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/utils/assert.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include <iostream>

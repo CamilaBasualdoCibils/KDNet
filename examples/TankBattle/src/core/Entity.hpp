@@ -28,7 +28,7 @@ public:
 class Entity
 {
   World* const world;
-  std::optional<AtlasNet::EntityID> AtlasEntityID;
+  std::optional<AtlasNet::AtlasNetEntityID> AtlasEntityID;
 public:
   Transform transform;
   Entity(World* world) : world(world) {}
@@ -40,11 +40,11 @@ public:
     return world;
   }
 
-  void SetAtlasEntityID(const AtlasNet::EntityID& id)
+  void SetAtlasEntityID(const AtlasNet::AtlasNetEntityID& id)
   {
     AtlasEntityID = id;
   }
-  std::optional<AtlasNet::EntityID> GetAtlasEntityID() const
+  std::optional<AtlasNet::AtlasNetEntityID> GetAtlasEntityID() const
   {
     return AtlasEntityID;
   }

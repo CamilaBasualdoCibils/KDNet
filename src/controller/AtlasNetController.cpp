@@ -3,7 +3,7 @@
 #include "adapter/DockerServiceAdapter.hpp"
 #include "adapter/IServiceAdapter.hpp"
 #include "adapter/KubernetesServiceAdapter.hpp"
-#include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
 #include "atlasnet/core/universe/WorldEnums.hpp"
 #include "boost/describe/enum_to_string.hpp"

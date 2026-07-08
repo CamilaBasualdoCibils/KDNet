@@ -190,7 +190,7 @@ public:
   {
     return !std::holds_alternative<std::monostate>(address);
   }
-
+  
   const IPv4& get_ipv4() const
   {
     if (!IsIPv4())
@@ -265,7 +265,25 @@ public:
 
     throw std::runtime_error("Invalid SocketAddress variant");
   }
+  SocketAddress EnsureResolved() const
+  {
+    SocketAddress resolvedAddress = *this;
+    if (IsHostName())
+    {
+      const HostName& hostName = std::get<HostName>(address);
+      auto resolved = hostName.resolve();
+      if (!resolved)
+        throw std::runtime_error("Failed to resolve host name: " +
+                                 hostName.get_hostname());
 
+      if (std::holds_alternative<IPv4>(*resolved))
+        resolvedAddress = SocketAddress(std::get<IPv4>(*resolved), get_port());
+
+      if (std::holds_alternative<IPv6>(*resolved))
+        resolvedAddress = SocketAddress(std::get<IPv6>(*resolved), get_port());
+    }
+    return resolvedAddress;
+  }
   std::string to_string() const override
   {
     const std::string addrStr = std::visit(
@@ -490,3 +508,10 @@ template <> struct hash<AtlasNet::SocketAddress>
   }
 };
 } // namespace std
+namespace AtlasNet
+{
+inline std::size_t hash_value(const SocketAddress& addr) noexcept
+{
+  return addr.hash();
+}
+}

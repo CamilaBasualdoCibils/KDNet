@@ -1,8 +1,9 @@
 #pragma once
-#include "atlasnet/core/Address.hpp"
+#include "atlasnet/core/address/Address.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/Snowflake.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/AddressResolver.hpp"
+#include "atlasnet/core/utils/Snowflake.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
@@ -104,8 +105,8 @@ protected:
   }
   NodeRegistry& GetNodeRegistry()
   {
-    assert(_serviceRegistry.has_value() && "ServiceRegistry not initialized");
-    return _serviceRegistry.value();
+    assert(_nodeRegistry.has_value() && "ServiceRegistry not initialized");
+    return _nodeRegistry.value();
   }
   Universe& GetUniverse()
   {
@@ -116,6 +117,11 @@ protected:
   {
     assert(_redisDatabase && "RedisConn not initialized");
     return *_redisDatabase;
+  }
+  AddressResolver& GetAddressResolver()
+  {
+    assert(_addressResolver.has_value() && "AddressResolver not initialized");
+    return _addressResolver.value();
   }
 
 public:
@@ -148,8 +154,9 @@ std::shared_ptr<spdlog::logger> logger;
   std::optional<MessageSystem::ListenSocketHandle*> _internalMessageSocket;
   std::optional<RPCSystem> _rpcSystem;
   std::optional<Universe> _universe;
-  std::optional<NodeRegistry> _serviceRegistry;
+  std::optional<NodeRegistry> _nodeRegistry;
   std::unique_ptr<Database::RedisConn> _redisDatabase;
+  std::optional<AddressResolver> _addressResolver;
 
   // Database::InternalDB _internalDB;
   static inline IAtlasNetNode& Get()

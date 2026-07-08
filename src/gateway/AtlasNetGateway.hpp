@@ -2,7 +2,7 @@
 
 #include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/controller/ControllerRPC.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 
 #include "atlasnet/core/entity/Entity.hpp"
@@ -83,95 +83,9 @@ private:
       return IAtlasNetNode::HandleHandshake(identity, remoteAddr);
     }
   }
-  void OnClientConnected(const ConnectionEstablishedEvent& event)
-  {
-    GetLogger()->info("Gateway detected new client connection established: {}",
-                      event.address.to_string());
-
-    GetLogger()->info("Logging in new client at {}", event.address.to_string());
-    const std::optional<ClientRegistry::LoginResult> entry =
-        clientRegistry->LoginClient(event.address, GetGatewayID());
-    if (!entry)
-      return;
-
-    GetLogger()->info("Declaring gateway relay for ClientID: {}",
-                      entry->clientID.to_string());
-    gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
-
-    // Eventually this will be implemented
-    /* auto shardID_future =
-        GetRPCSystem().Call<ControllerRPC::GetClosestShardToLocation>(
-            GetControllerAddress(), entry->SpawnLocation);
-
-    shardID_future.wait_for(std::chrono::seconds(5));
-    if (shardID_future.valid())
-    {
-      const AtlasNetShardID shardID = shardID_future.get();
-      logger->info("Received closest shard ID {} for client {}",
-                   shardID.to_string(), entry->clientID.to_string());
-
-    }
-    else
-    {
-    logger->error("Failed to receive closest shard ID for client {} within
-    timeout.", entry->clientID.to_string());
-
-    } */
-    boost::container::small_vector<AtlasNetShardID, 64> shardIDs;
-    GetNodeRegistry().GetAllShardIDs(shardIDs.begin());
-
-    /*
-    std::vector<PresenceService::ServiceInfo> services;
-    GetServiceRegistry().GetServicesOfType(ServiceType::Shard, services);
-
-    if (services.empty())
-      throw std::runtime_error("No shard services found in registry");
-
-    GetLogger()->info("Shard at {} with ID {}", services[0].address.to_string(),
-                      services[0].id.to_string());
-
-    ShardSpawnClientRequest request{
-        .spawnTransform = entry->SpawnLocation.position,
-        .clientID = entry->clientID,
-        .gatewayRelayID = GetID(),
-    };
-
-    auto spawnResult = GetRPCSystem().Call<ShardRPC::SpawnClient>(
-        SocketAddress(services[0].address, Env::InternalMessagePort), request);
-
-    std::future_status status = spawnResult.wait_for(std::chrono::seconds(5));
-    std::optional<ShardSpawnClientResponse> spawnResponse;
-    if (status == std::future_status::ready)
-      spawnResponse = spawnResult.get();
-
-    if (spawnResponse)
-    {
-
-      GetLogger()->info(
-          "Successfully spawned client entity with ID {} on shard {}",
-          spawnResponse->entityID.to_string(), services[0].id.to_string());
-
-      gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
-      clientRegistry->AssociateClientWithEntity(entry->clientID,
-                                                spawnResponse->entityID);
-
-      ClientConnectionCompleteData result;
-      result.clientID = entry->clientID;
-      result.entityID = spawnResponse->entityID;
-      result.result = ClientConnectionResult::Success;
-
-      GetRPCSystem().Call<ClientRPC::ClientConnectionCompleteNotification>(
-          event.address, result);
-    }
-    else
-    {
-      GetLogger()->error(
-          "Failed to receive spawn result for client {} within timeout.",
-          entry->clientID.to_string());
-    } */
-  }
+  void OnClientConnected(const ConnectionEstablishedEvent& event);
   std::optional<ClientRegistry> clientRegistry;
   std::optional<GatewayRelayService> gatewayRelayService_;
-  std::optional<ClientID::Generator> clientIDGenerator;
+  std::optional<AtlasNetClientID::Generator> clientIDGenerator;
 };
 } // namespace AtlasNet

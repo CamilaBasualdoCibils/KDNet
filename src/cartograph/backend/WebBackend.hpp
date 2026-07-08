@@ -15,20 +15,20 @@
 namespace AtlasNet
 {
 
-class WebBackendService : public IAtlasNetNode
+class CartographBackendService : public IAtlasNetNode
 {
 
-  WebBackendService() : IAtlasNetNode(AtlasNetNodeType::WebBackend) {}
+  CartographBackendService() : IAtlasNetNode(AtlasNetNodeType::Cartograph) {}
   public:
-  static WebBackendService& GetInstance()
+  static CartographBackendService& GetInstance()
   {
-    static WebBackendService instance;
+    static CartographBackendService instance;
     return instance;
   }
   using IAtlasNetNode::GetTaskSystem;
   using IAtlasNetNode::GetMessageSystem;
   using IAtlasNetNode::GetRPCSystem;
-  using IAtlasNetNode::GetServiceRegistry;
+  using IAtlasNetNode::GetNodeRegistry;
 private:
   void OnInit() override;
 

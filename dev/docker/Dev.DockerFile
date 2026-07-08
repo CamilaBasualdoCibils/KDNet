@@ -65,7 +65,7 @@ ENTRYPOINT ["/atlasnet/AtlasNetCartographBackend"]
 
 FROM nginx:alpine AS atlasnet-cartograph-frontend-dev
 
-COPY --from=atlasnet-src /atlasnet/src/web/frontend /atlasnet/AtlasNetCartographFrontend
+COPY --from=atlasnet-src /atlasnet/src/cartograph/frontend /atlasnet/AtlasNetCartographFrontend
 
 WORKDIR /atlasnet/AtlasNetCartographFrontend
 
@@ -73,8 +73,8 @@ RUN apk add --no-cache nodejs npm gettext
 
 RUN npm install && npm run build
 
-COPY --from=atlasnet-src /atlasnet/src/web/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
-COPY --from=atlasnet-src /atlasnet/src/web/nginx/entrypoint.sh /entrypoint.sh
+COPY --from=atlasnet-src /atlasnet/src/cartograph/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=atlasnet-src /atlasnet/src/cartograph/nginx/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 

@@ -99,7 +99,7 @@ void AtlasNet::IAtlasNetNode::Init()
 
   logger->info("Registering node with the service registry...");
   if (const std::optional<NodeInfo> info =
-          GetServiceRegistry().RegisterNode(GetNodeType(), GetNetworkAddress());
+          GetNodeRegistry().RegisterNode(GetNodeType(), GetNetworkAddress());
       info.has_value())
   {
     this->id = info->id; // Set the container ID to the registered ID

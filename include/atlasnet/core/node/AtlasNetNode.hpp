@@ -102,7 +102,7 @@ protected:
     assert(_taskSystem.has_value() && "TaskSystem not initialized");
     return _taskSystem.value();
   }
-  NodeRegistry& GetServiceRegistry()
+  NodeRegistry& GetNodeRegistry()
   {
     assert(_serviceRegistry.has_value() && "ServiceRegistry not initialized");
     return _serviceRegistry.value();

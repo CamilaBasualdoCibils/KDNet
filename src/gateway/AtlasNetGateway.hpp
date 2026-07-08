@@ -116,7 +116,11 @@ private:
     logger->error("Failed to receive closest shard ID for client {} within
     timeout.", entry->clientID.to_string());
 
-    } *//* 
+    } */
+    boost::container::small_vector<AtlasNetShardID, 64> shardIDs;
+    GetNodeRegistry().GetAllShardIDs(shardIDs.begin());
+
+    /*
     std::vector<PresenceService::ServiceInfo> services;
     GetServiceRegistry().GetServicesOfType(ServiceType::Shard, services);
 

@@ -22,8 +22,10 @@ public:
                      { return EntityAddressProvider(id); }),
         shardCache_([this](const AtlasNetShardID& id)
                     { return ShardAddressProvider(id); }),
-        serviceCache_([this](const AtlasNetNodeID& id)
-                      { return ServiceAddressProvider(id); })
+        nodeCache([this](const AtlasNetNodeID& id)
+                  { return NodeAddressProvider(id); }),
+        gatewayCache_([this](const AtlasNetGatewayID& id)
+                      { return GatewayAddressProvider(id); })
   {
   }
   std::optional<SocketAddress> ResolveClient(const ClientID& clientID)
@@ -38,18 +40,58 @@ public:
   {
     return shardCache_.Get(shardID);
   }
-  std::optional<SocketAddress> ResolveService(const AtlasNetNodeID& serviceID)
+  std::optional<SocketAddress> ResolveNode(const AtlasNetNodeID& nodeID)
   {
-    return serviceCache_.Get(serviceID);
+    return nodeCache.Get(nodeID);
+  }
+  std::optional<SocketAddress>
+  ResolveGateway(const AtlasNetGatewayID& gatewayID)
+  {
+    return gatewayCache_.Get(gatewayID);
+  }
+  template <typename IDType>
+  std::optional<SocketAddress> Resolve(const IDType& id)
+  {
+    if constexpr (std::is_same_v<IDType, ClientID>)
+    {
+      return ResolveClient(id);
+    }
+    else if constexpr (std::is_same_v<IDType, EntityID>)
+    {
+      return ResolveEntity(id);
+    }
+    else if constexpr (std::is_same_v<IDType, AtlasNetShardID>)
+    {
+      return ResolveShard(id);
+    }
+    else if constexpr (std::is_same_v<IDType, AtlasNetNodeID>)
+    {
+      return ResolveNode(id);
+    }
+    else if constexpr (std::is_same_v<IDType, AtlasNetGatewayID>)
+    {
+      return ResolveGateway(id);
+    }
+    else
+    {
+      static_assert(false, "Unsupported ID type");
+    }
   }
 
 private:
   Config config_;
   Cache<ClientID, SocketAddress> clientCache_;
   Cache<EntityID, SocketAddress> entityCache_;
-    Cache<AtlasNetShardID, SocketAddress> shardCache_;
-      Cache<AtlasNetNodeID, SocketAddress> serviceCache_;
-      
+  Cache<AtlasNetShardID, SocketAddress> shardCache_;
+  Cache<AtlasNetNodeID, SocketAddress> nodeCache;
+  Cache<AtlasNetGatewayID, SocketAddress> gatewayCache_;
+
+  std::optional<SocketAddress>
+  GatewayAddressProvider(const AtlasNetGatewayID& gatewayID)
+  {
+    return std::nullopt;
+  }
+
   std::optional<SocketAddress> ClientAddressProvider(const ClientID& clientID)
   {
     return std::nullopt;
@@ -63,11 +105,9 @@ private:
   {
     return std::nullopt;
   }
-  std::optional<SocketAddress>
-  ServiceAddressProvider(const AtlasNetNodeID& serviceID)
+  std::optional<SocketAddress> NodeAddressProvider(const AtlasNetNodeID& nodeID)
   {
     return std::nullopt;
   }
-
 };
 } // namespace AtlasNet

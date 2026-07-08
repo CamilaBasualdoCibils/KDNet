@@ -14,7 +14,7 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-auto logger = spdlog::stdout_color_mt("SnowflakeTests");
+auto logger = spdlog::stdout_color_mt("AtlasNet_tests_Snowflake");
 TEST(Snowflake, DefaultConstructedIsZero)
 {
     SnowflakeId id;

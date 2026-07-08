@@ -126,18 +126,18 @@ target_compile_definitions(AtlasNetController PRIVATE ATLASNET_CONTROLLER_BUILD)
 #target_compile_definitions(AtlasNetAgent PRIVATE ATLASNET_AGENT_BUILD)
 # ========= ATLASNET CARTOGRAPH ========
 if (ATLASNET_CARTOGRAPH)
-include(cmake/WebDeps.cmake)
+include(cmake/CartographDeps.cmake)
     #directory(web)
 
-file(GLOB_RECURSE _web_backend_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend/*.cpp"
+file(GLOB_RECURSE _cartograph_backend_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/backend/*.cpp"
 )
 
-add_executable(AtlasNetCartographBackend ${_web_backend_sources})
+add_executable(AtlasNetCartographBackend ${_cartograph_backend_sources})
 # Optional, but common: local includes
 target_include_directories(AtlasNetCartographBackend
       PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/backend"
 )
 target_link_libraries(AtlasNetCartographBackend
 AtlasNetCore
@@ -148,13 +148,13 @@ target_compile_definitions(AtlasNetCartographBackend PRIVATE ATLASNET_CARTOGRAPH
 add_custom_target(AtlasNetCartographFrontend_DevRun
     COMMAND npm install
     COMMAND npm run dev
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/web/frontend
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/frontend
     COMMENT "Developing AtlasNet Cartograph frontend"
     VERBATIM
 )
 add_custom_target(AtlasNetCartographFrontend_Clean
     COMMAND npm run clean
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/web/frontend
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/frontend
     COMMENT "Cleaning AtlasNet Cartograph frontend"
     VERBATIM
 )

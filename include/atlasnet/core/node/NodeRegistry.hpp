@@ -3,6 +3,7 @@
 #include "atlasnet/core/Json.hpp"
 #include "atlasnet/core/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
+#include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/database/redis/utils/RedisUtils.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
@@ -17,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <variant>
 namespace AtlasNet
@@ -199,106 +201,47 @@ public:
     } */
 
   std::optional<NodeInfo> RegisterNode(const AtlasNetNodeType type,
-                                       const SocketAddress& address)
+                                       const SocketAddress& address);
+  template <typename OutputIt> uint64_t GetAllNodeIDs(OutputIt out) const
   {
-    NodeInfo info;
-    info.containerType = type;
-    info.address = address;
-    std::optional<AtlasNetNodeID> nodeID = ClaimNodeID(address);
-    if (!nodeID.has_value())
-    {
-      logger->error("Failed to claim Node ID for address {}",
-                    address.to_string());
-      return std::nullopt;
-    }
-    info.id = *nodeID;
-
-    if (type == AtlasNetNodeType::Controller)
-    {
-      ControllerNodeInfo controllerInfo;
-      const std::optional<AtlasNetControllerID> controllerID =
-          ClaimControllerID(info.id);
-      if (!controllerID.has_value())
-      {
-        logger->error("Failed to claim Controller ID for node ID {}",
-                      info.id.value);
-        return std::nullopt;
-      }
-      controllerInfo.id = *controllerID;
-      info.specificInfo = controllerInfo;
-      // Handle Controller node registration
-    }
-    else if (type == AtlasNetNodeType::Shard)
-    {
-      ShardNodeInfo shardInfo;
-      const std::optional<AtlasNetShardID> shardID = ClaimShardID(info.id);
-      if (!shardID.has_value())
-      {
-        logger->error("Failed to claim Shard ID for node ID {}", info.id.value);
-        return std::nullopt;
-      }
-      shardInfo.id = *shardID;
-      info.specificInfo = shardInfo;
-      // Handle Shard node registration
-    }
-    else if (type == AtlasNetNodeType::Gateway)
-    {
-      GatewayNodeInfo gatewayInfo;
-      const std::optional<AtlasNetGatewayID> gatewayID =
-          ClaimGatewayID(info.id);
-      if (!gatewayID.has_value())
-      {
-        logger->error("Failed to claim Gateway ID for node ID {}",
-                      info.id.value);
-        return std::nullopt;
-      }
-      gatewayInfo.id = *gatewayID;
-      info.specificInfo = gatewayInfo;
-      // Handle Gateway node registration
-    }
-    else if (type == AtlasNetNodeType::WebBackend)
-    {
-      info.specificInfo = CartographBackendInfo{};
-      // Handle CartographBackend node registration
-    }
-    else
-    {
-      throw std::runtime_error("Unknown node type");
-    }
-    return info;
+    auto start = out;
+    for_each_key_hashtable(_redisConn, NodeIDLeaseTable,
+                           [&](const auto& rawID)
+                           {
+                             AtlasNetNodeID nodeID =
+                                 AtlasNetNodeID::from_string(rawID);
+                             *out++ = nodeID;
+                           });
+    return std::distance(start, out); // Return the number of node IDs written
   }
-  /* template <typename OutputIt> uint64_t GetAllNodeIDs(OutputIt out) const
+  template <std::output_iterator<AtlasNetShardID> OutputIt>
+  uint64_t GetAllShardIDs(OutputIt out) const
   {
-    boost::container::small_vector<boost::container::small_vector<char, 32>, 64>
-        RawnodeIDs;
-
-    _redisConn->HashMap().GetSet().HGetAll(NodeIDReserveTable,
-                                           std::back_inserter(RawnodeIDs));
-
-    //HGETALL returns key,value,key,value,...
-    for (uint64_t i = 0; i < RawnodeIDs.size() / 2; ++i)
-    {
-      const auto& rawID =
-          RawnodeIDs[i * 2]; // Get the key part, skipping the value
-      const auto& rawAddress =
-          RawnodeIDs[i * 2 + 1]; // Get the value part, corresponding to the key
-      AtlasNetNodeID nodeID;
-      std::from_chars(rawID.data(), rawID.data() + rawID.size(), nodeID.value);
-      SocketAddress address(
-          std::string_view(rawAddress.data(), rawAddress.size()));
-
-      *out++ = std::make_pair(nodeID, address);
-    }
-
-    return RawnodeIDs.size();
+    auto start = out;
+    for_each_key_hashtable(_redisConn, ShardIDLeaseTable,
+                           [&](const auto& rawID)
+                           {
+                             AtlasNetShardID shardID =
+                                 AtlasNetShardID::from_string(rawID);
+                             *out++ = shardID;
+                           });
+    return std::distance(start, out); // Return the number of shard IDs written
   }
-  template <typename OutputIt> uint64_t GetAllShards(OutputIt out) const
-  {
-    boost::container::small_vector<boost::container::small_vector<char, 32>, 64>
-        RawshardIDs;
 
-    _redisConn->HashMap().GetSet().HGetAll(ShardIDLeaseTable,
-                                           std::back_inserter(RawshardIDs));
+private:
+  std::optional<AtlasNetNodeID> ClaimNodeID(const SocketAddress& address);
+  std::optional<AtlasNetShardID> ClaimShardID(AtlasNetNodeID nodeID);
+  std::optional<AtlasNetGatewayID> ClaimGatewayID(AtlasNetNodeID nodeID);
+  std::optional<AtlasNetControllerID> ClaimControllerID(AtlasNetNodeID nodeID);
+
+  template <typename Func>
+  static void for_each_keyval_hashtable(Database::RedisConn* r,
+                                        std::string_view TableName, Func f)
+    requires std::is_invocable_v<Func, std::string_view, std::string_view>
+  {
+    boost::container::small_vector<std::string, 64> RawshardIDs;
+
+    r->HashMap().GetSet().HGetAll(TableName, std::back_inserter(RawshardIDs));
 
     for (uint64_t i = 0; i < RawshardIDs.size() / 2; ++i)
     {
@@ -307,114 +250,30 @@ public:
       const auto& rawNodeID =
           RawshardIDs[i * 2 +
                       1]; // Get the value part, corresponding to the key
-      AtlasNetShardID shardID;
-      std::from_chars(rawShardID.data(), rawShardID.data() + rawShardID.size(),
-                      shardID.value);
-      AtlasNetNodeID nodeID;
-      std::from_chars(rawNodeID.data(), rawNodeID.data() + rawNodeID.size(),
-                      nodeID.value);
-
-      *out++ = std::make_pair(shardID, nodeID);
+      f(rawShardID, rawNodeID);
     }
-    return RawshardIDs.size();
-  } */
-
-  std::optional<AtlasNetNodeID> ClaimNodeID(const SocketAddress& address)
-  {
-    if (NodeIdLease.has_value())
-    {
-      throw std::runtime_error("Node ID lease already exists");
-    }
-
-    logger->info("Claiming Node ID for address {} at table {} for max ID {}",
-                 address.to_string(), NodeIDReserveTable,
-                 std::numeric_limits<AtlasNetNodeID::underlying_type_t>::max());
-    std::optional<uint64_t> result = ClaimIDHashTable(
-        _redisConn, NodeIDReserveTable, address.to_string(),
-        std::numeric_limits<AtlasNetNodeID::underlying_type_t>::max());
-    if (!result.has_value())
-    {
-      return std::nullopt;
-    }
-    NodeIdLease.emplace(*this, NodeIDReserveTable,
-                        std::to_string(result.value()));
-    NodeIdLease->Init();
-    return static_cast<AtlasNetNodeID>(*result);
-  };
-  std::optional<AtlasNetShardID> ClaimShardID(AtlasNetNodeID nodeID)
-  {
-    if (ShardIdLease.has_value())
-    {
-      throw std::runtime_error("Shard ID lease already exists");
-    }
-
-    logger->info(
-        "Claiming Shard ID for node ID {} at table {} for max ID {}",
-        nodeID.value, ShardIDLeaseTable,
-        std::numeric_limits<AtlasNetShardID::underlying_type_t>::max());
-    std::optional<uint64_t> result = ClaimIDHashTable(
-        _redisConn, ShardIDLeaseTable, std::to_string(nodeID.value),
-        std::numeric_limits<AtlasNetShardID::underlying_type_t>::max());
-    if (!result.has_value())
-    {
-      return std::nullopt;
-    }
-    ShardIdLease.emplace(*this, ShardIDLeaseTable,
-                         std::to_string(result.value()));
-    ShardIdLease->Init();
-    return static_cast<AtlasNetShardID>(*result);
   }
 
-  std::optional<AtlasNetGatewayID> ClaimGatewayID(AtlasNetNodeID nodeID)
+  template <typename Func>
+  static void for_each_key_hashtable(Database::RedisConn* r,
+                                     std::string_view TableName, Func f)
+    requires std::is_invocable_v<Func, std::string_view>
   {
-    if (GatewayIdLease.has_value())
-    {
-      throw std::runtime_error("Gateway ID lease already exists");
-    }
+    boost::container::small_vector<std::string, 64> RawKeys;
 
-    logger->info(
-        "Claiming Gateway ID for node ID {} at table {} for max ID {}",
-        nodeID.value, GatewayIDLeaseTable,
-        std::numeric_limits<AtlasNetGatewayID::underlying_type_t>::max());
-    std::optional<uint64_t> result = ClaimIDHashTable(
-        _redisConn, GatewayIDLeaseTable, std::to_string(nodeID.value),
-        std::numeric_limits<AtlasNetGatewayID::underlying_type_t>::max());
-    if (!result.has_value())
-    {
-      return std::nullopt;
-    }
-    GatewayIdLease.emplace(*this, GatewayIDLeaseTable,
-                           std::to_string(result.value()));
-    GatewayIdLease->Init();
-    return static_cast<AtlasNetGatewayID>(*result);
-  }
-  std::optional<AtlasNetControllerID> ClaimControllerID(AtlasNetNodeID nodeID)
-  {
-    if (ControllerIdLease.has_value())
-    {
-      throw std::runtime_error("Controller ID lease already exists");
-    }
+    r->HashMap().GetSet().HGetAll(TableName, std::back_inserter(RawKeys));
 
-    logger->info(
-        "Claiming Controller ID for node ID {} at table {} for max ID {}",
-        nodeID.value, ControllerIDLeaseTable,
-        std::numeric_limits<AtlasNetControllerID::underlying_type_t>::max());
-    std::optional<uint64_t> result = ClaimIDHashTable(
-        _redisConn, ControllerIDLeaseTable, std::to_string(nodeID.value),
-        std::numeric_limits<AtlasNetControllerID::underlying_type_t>::max());
-    if (!result.has_value())
+    for (uint64_t i = 0; i < RawKeys.size(); ++i)
     {
-      return std::nullopt;
+      const auto& rawKey = RawKeys[i]; // Get the key part, skipping the value
+      f(rawKey);
     }
-    ControllerIdLease.emplace(*this, ControllerIDLeaseTable,
-                              std::to_string(result.value()));
-    ControllerIdLease->Init();
-    return static_cast<AtlasNetControllerID>(*result);
   }
+
   const static inline std::string NodeRegistryNamespace =
       Env::DatabaseNamespace + "NodeRegistry:";
-  const static inline std::string NodeIDReserveTable = NodeRegistryNamespace +
-                                                       "NodeIDLeaseTable",
+  const static inline std::string NodeIDLeaseTable = NodeRegistryNamespace +
+                                                     "NodeIDLeaseTable",
                                   ShardIDLeaseTable = NodeRegistryNamespace +
                                                       "ShardIDLeaseTable",
                                   GatewayIDLeaseTable = NodeRegistryNamespace +
@@ -422,6 +281,7 @@ public:
                                   ControllerIDLeaseTable =
                                       NodeRegistryNamespace +
                                       "ControllerIDLeaseTable";
+
   /* std::string GetContainerType2ContainerIDsSetKey(AtlasNetNodeType type)
   {
     return ServiceInfoKeyPrefix +

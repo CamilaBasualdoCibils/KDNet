@@ -9,10 +9,10 @@
 int main(int argc, char** argv)
 {
 
-  AtlasNet::WebBackendService::GetInstance().Init();
+  AtlasNet::CartographBackendService::GetInstance().Init();
   return 0;
 }
-void AtlasNet::WebBackendService::OnInit()
+void AtlasNet::CartographBackendService::OnInit()
 {
   GetLogger()->info("Initializing AtlasNet Web Backend...");
 
@@ -21,13 +21,13 @@ void AtlasNet::WebBackendService::OnInit()
   Setup();
   drogon::app().run();
 }
-void AtlasNet::WebBackendService::OnShutdown()
+void AtlasNet::CartographBackendService::OnShutdown()
 {
   GetLogger()->info("Shutting down AtlasNet Web Backend...");
   // Perform any necessary cleanup before shutdown
   drogon::app().quit();
 }
-void AtlasNet::WebBackendService::Setup()
+void AtlasNet::CartographBackendService::Setup()
 {
   entityStreamWebSock.emplace();
   // drogon::app().registerHandler(

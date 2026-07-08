@@ -6,7 +6,11 @@
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <boost/describe.hpp>
+#include <charconv>
 #include <cstdint>
+#include <format>
+#include <fstream>
+#include <system_error>
 namespace AtlasNet
 {
 
@@ -15,10 +19,10 @@ enum class AtlasNetNodeType : uint8_t
   Controller = 0,
   Shard = 1,
   Gateway = 2,
-  WebBackend = 3,
+  Cartograph = 3,
   Invalid = 4
 };
-BOOST_DESCRIBE_ENUM(AtlasNetNodeType, Controller, Shard, Gateway, WebBackend,
+BOOST_DESCRIBE_ENUM(AtlasNetNodeType, Controller, Shard, Gateway, Cartograph,
                     Invalid);
 
 template <typename underlying_type, typename tag> struct StrongTypedef
@@ -45,6 +49,23 @@ template <typename underlying_type, typename tag> struct StrongTypedef
   std::string to_string() const
   {
     return std::to_string(value);
+  }
+  static StrongTypedef from_string(const std::string_view& str)
+  {
+    StrongTypedef obj(underlying_type{});
+    auto [ptr, ec] =
+        std::from_chars(str.data(), str.data() + str.size(), obj.value);
+    if (ec != std::errc{})
+    {
+      throw std::runtime_error("Failed to convert string to StrongTypedef");
+    }
+    return obj;
+  }
+
+  std::ofstream& operator<<(std::ofstream& os) const
+  {
+    os << value;
+    return os;
   }
 };
 using AtlasNetNodeID = StrongTypedef<uint32_t, struct NodeIDTag>;
@@ -103,10 +124,7 @@ struct ControllerNodeInfo
 struct CartographBackendInfo
 {
 
-  void Serialize(ByteWriter& bw) const
-  {
-    
-  }
+  void Serialize(ByteWriter& bw) const {}
   void Deserialize(ByteReader& br)
   {
     // Deserialize any relevant information for the CartographBackendInfo
@@ -121,8 +139,8 @@ struct NodeInfo
   AtlasNetNodeID id;
   SocketAddress address;
   AtlasNetNodeType containerType;
-  std::optional<
-      std::variant<GatewayNodeInfo, ShardNodeInfo, ControllerNodeInfo, CartographBackendInfo>>
+  std::optional<std::variant<GatewayNodeInfo, ShardNodeInfo, ControllerNodeInfo,
+                             CartographBackendInfo>>
       specificInfo;
   void Serialize(ByteWriter& bw) const
   {
@@ -152,7 +170,7 @@ struct NodeInfo
     case AtlasNetNodeType::Controller:
       specificInfo = ControllerNodeInfo{};
       break;
-    case AtlasNetNodeType::WebBackend:
+    case AtlasNetNodeType::Cartograph:
       specificInfo = CartographBackendInfo{};
       break;
     default:
@@ -192,4 +210,16 @@ struct hash<AtlasNet::StrongTypedef<underlying_type, tag>>
     return std::hash<underlying_type>{}(value.value);
   }
 };
+
+ template <typename Underlying, typename Tag>
+    struct formatter<AtlasNet::StrongTypedef<Underlying, Tag>>
+        : formatter<Underlying>
+    {
+        template <typename FormatContext>
+        auto format(const AtlasNet::StrongTypedef<Underlying, Tag>& value,
+                    FormatContext& ctx) const
+        {
+            return formatter<Underlying>::format(value.value, ctx);
+        }
+    };
 } // namespace std

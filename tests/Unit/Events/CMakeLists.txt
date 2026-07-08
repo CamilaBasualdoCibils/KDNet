@@ -3,18 +3,18 @@
 
 
 
-add_executable(LocalEventTests ${CMAKE_CURRENT_SOURCE_DIR}/Local/LocalEventTests.cpp)
+add_executable(AtlasNet_tests_LocalEvents ${CMAKE_CURRENT_SOURCE_DIR}/Local/LocalEventTests.cpp)
 # Optional, but common: local includes
 
-target_link_libraries(LocalEventTests
+target_link_libraries(AtlasNet_tests_LocalEvents
 AtlasNetCore
 gtest
 )
 
-gtest_discover_tests(LocalEventTests)
+gtest_discover_tests(AtlasNet_tests_LocalEvents)
 
 # Optional labels for filtering in ctest
-set_tests_properties(${LocalEventTests_TESTS} PROPERTIES LABELS "Event")
+set_tests_properties(${AtlasNet_tests_LocalEvents_TESTS} PROPERTIES LABELS "Event")
 
 
 
@@ -22,15 +22,15 @@ set_tests_properties(${LocalEventTests_TESTS} PROPERTIES LABELS "Event")
 
 
 
-add_executable(GlobalEventTests ${CMAKE_CURRENT_SOURCE_DIR}/Global/GlobalEventTests.cpp)
+add_executable(AtlasNet_tests_GlobalEvents ${CMAKE_CURRENT_SOURCE_DIR}/Global/GlobalEventTests.cpp)
 # Optional, but common: local includes
 
-target_link_libraries(GlobalEventTests
+target_link_libraries(AtlasNet_tests_GlobalEvents
 AtlasNetCore
 gtest
 )
 
-gtest_discover_tests(GlobalEventTests)
+gtest_discover_tests(AtlasNet_tests_GlobalEvents)
 
 # Optional labels for filtering in ctest
-set_tests_properties(${GlobalEventTests_TESTS} PROPERTIES LABELS "Event")
+set_tests_properties(${AtlasNet_tests_GlobalEvents_TESTS} PROPERTIES LABELS "Event")

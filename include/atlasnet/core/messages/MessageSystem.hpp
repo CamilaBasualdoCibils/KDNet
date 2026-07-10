@@ -97,6 +97,14 @@ public:
     {
       return connState;
     }
+    SocketAddress GetRequestedAddress() const
+    {
+      return RequestedAddress;
+    }
+    SocketAddress GetResolvedAddress() const
+    {
+      return ResolvedAddress;
+    }
     void SendMessage(const void* data, uint32_t size,
                      MessageSendMode mode) const;
   };

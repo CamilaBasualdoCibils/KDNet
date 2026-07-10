@@ -66,21 +66,33 @@ public:
     requires RPC_Internal::BindableRpcHandler<MethodType, Func>
   void Bind(Func&& func);
 
-  template <typename MethodType, typename... Args>
-    requires(!std::is_void_v<typename MethodType::ReturnType>)
-  [[nodiscard]] std::future<typename MethodType::ReturnType>
-  Call(const RPCTarget& target, Args&&... args);
+  /*   template <typename MethodType, typename... Args>
+      requires(!std::is_void_v<typename MethodType::ReturnType>)
+    [[nodiscard]] std::future<typename MethodType::ReturnType>
+    Call(const RPCTarget& target, Args&&... args);
+
+    template <typename MethodType, typename... Args>
+      requires(std::is_void_v<typename MethodType::ReturnType>)
+    void Call(const RPCTarget& target, Args&&... args); */
 
   template <typename MethodType, typename... Args>
-    requires(std::is_void_v<typename MethodType::ReturnType>)
-  void Call(const RPCTarget& target, Args&&... args);
+  [[nodiscard]] std::conditional_t<
+      std::is_void_v<typename MethodType::ReturnType>, void,
+      std::future<typename MethodType::ReturnType>>
+  Call(const RPCTarget& target, Args&&... args);
+  template <typename MethodType, typename... Args>
+  [[nodiscard]] std::conditional_t<
+      std::is_void_v<typename MethodType::ReturnType>, void,
+      std::future<typename MethodType::ReturnType>>
+  CallEx(const RPCTarget& target, MessageSendMode sendMode, Args&&... args);
 
 private:
   void Shutdown();
 
   template <typename MethodType, typename... Args>
   std::pair<RPC_Internal::MethodID, RPC_Internal::CallID>
-  SendRequest(const RPCTarget& target, Args&&... args);
+  SendRequest(const RPCTarget& target, MessageSendMode sendMode,
+              Args&&... args);
 
   template <typename MethodType>
   void SendResponse(const RPCTarget& target, RPC_Internal::CallID callID,
@@ -152,13 +164,107 @@ private:
   const Config config_;
   std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("RPC");
 };
+template <typename MethodType, typename... Args>
+[[nodiscard]] inline std::conditional_t<
+    std::is_void_v<typename MethodType::ReturnType>, void,
+    std::future<typename MethodType::ReturnType>>
+RPCSystem::CallEx(const RPCTarget& target, MessageSendMode sendMode,
+                  Args&&... args)
+{
+
+  using ReturnType = typename MethodType::ReturnType;
+  if constexpr (std::is_void_v<ReturnType>)
+  {
+    SendRequest<MethodType>(target, sendMode, std::forward<Args>(args)...);
+    return;
+  }
+  else
+  {
+    auto promise = std::make_shared<std::promise<ReturnType>>();
+    auto future = promise->get_future();
+
+    std::pair<RPC_Internal::MethodID, RPC_Internal::CallID> requestIDs =
+        SendRequest<MethodType>(target, sendMode, std::forward<Args>(args)...);
+    RPC_Internal::MethodID methodId = requestIDs.first;
+    RPC_Internal::CallID callID = requestIDs.second;
+
+    {
+      // first check if lock is taken in this scope, if it is then warn
+      if (_mutex.try_lock())
+      {
+        _mutex.unlock();
+      }
+      else
+      {
+        logger->warn("RPCSystem::Call is waiting for lock. This may indicate a "
+                     "deadlock or long-running RPC handler.");
+      }
+      PendingRequest pending;
+      pending.onResponse = [promise](std::span<const uint8_t> payload) mutable
+      {
+        auto serializeFunction =
+            [](std::span<const uint8_t> payload) -> ReturnType
+        {
+          ByteReader reader(payload);
+          ReturnType value{};
+          reader(value);
+          return value;
+        };
+        if (Env::DebugMode)
+        {
+          try
+          {
+            ByteReader reader(payload);
+            ReturnType value{};
+            reader(value);
+            promise->set_value(std::move(value));
+          }
+          catch (...)
+          {
+            promise->set_exception(std::current_exception());
+          }
+        }
+        else
+        {
+          serializeFunction(payload);
+        }
+      };
+
+      pending.onError = [promise](const std::string& errorMsg) mutable
+      {
+        promise->set_exception(
+            std::make_exception_ptr(std::runtime_error(errorMsg)));
+      };
+      std::unique_lock lock(_mutex);
+
+      _pendingPromises.emplace(PendingPromiseKey{methodId, callID},
+                               std::move(pending));
+    }
+
+    logger->info("Sending RPC request for methodId {} callId {} to {}",
+                 methodId, callID, target.to_string());
+
+    return future;
+  }
+}
+
+template <typename MethodType, typename... Args>
+[[nodiscard]] inline std::conditional_t<
+    std::is_void_v<typename MethodType::ReturnType>, void,
+    std::future<typename MethodType::ReturnType>>
+RPCSystem::Call(const RPCTarget& target, Args&&... args)
+{
+  return CallEx<MethodType>(target, MessageSendMode::eReliableBatched,
+                            std::forward<Args>(args)...);
+}
 
 } // namespace AtlasNet
 
 template <typename MethodType, typename... Args>
 inline std::pair<AtlasNet::RPC_Internal::MethodID,
                  AtlasNet::RPC_Internal::CallID>
-AtlasNet::RPCSystem::SendRequest(const RPCTarget& target, Args&&... args)
+AtlasNet::RPCSystem::SendRequest(const RPCTarget& target,
+                                 MessageSendMode sendMode, Args&&... args)
 {
   ByteWriter writeArgs;
   writeArgs(std::forward<Args>(args)...);
@@ -169,8 +275,8 @@ AtlasNet::RPCSystem::SendRequest(const RPCTarget& target, Args&&... args)
                                 std::vector<uint8_t>(writeArgs.bytes().begin(),
                                                      writeArgs.bytes().end())};
 
-  auto sendRequestHandle = config_.messageSystem->QueueMessage(
-      request, target, MessageSendMode::eReliableBatched);
+  auto sendRequestHandle =
+      config_.messageSystem->QueueMessage(request, target, sendMode);
   // NewActiveJob(sendRequestHandle);
   return std::make_pair(request.methodId, request.callID);
 }
@@ -193,7 +299,7 @@ AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
   auto sendResponseHandle = config_.messageSystem->QueueMessage(
       response, target, MessageSendMode::eReliableBatched);
   sendResponseHandle->wait();
-  assert(sendResponseHandle.GetTask().is_done() && 
+  assert(sendResponseHandle.GetTask().is_done() &&
          "Failed to send RPC request message and no fault scenarios have been "
          "implemented");
   logger->info("Sent RPC response for methodId {} callId {} to {}",
@@ -201,7 +307,7 @@ AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
   // NewActiveJob(sendResponseHandle);
 }
 
-template <typename MethodType, typename... Args>
+/* template <typename MethodType, typename... Args>
   requires(std::is_void_v<typename MethodType::ReturnType>)
 inline void AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
 {
@@ -288,14 +394,11 @@ AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
                callID, target.to_string());
   auto sendMessageJobHandle = config_.messageSystem->QueueMessage(
       request, target, MessageSendMode::eReliableBatched);
-  /* sendMessageJobHandle.wait();
-  assert(sendMessageJobHandle.is_completed() &&
-         "Failed to send RPC request message and no fault scenarios have been "
-         "implemented"); */
+
 
   return future;
 }
-
+ */
 template <typename MethodType, typename Func>
   requires AtlasNet::RPC_Internal::BindableRpcHandler<MethodType, Func>
 inline void AtlasNet::RPCSystem::Bind(Func&& func)

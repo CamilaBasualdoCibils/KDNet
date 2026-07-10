@@ -1,5 +1,5 @@
 #pragma once
-#include "atlasnet/core/entity/command/Command.hpp"
+#include "atlasnet/core/CmdSig/command/Command.hpp"
 
 namespace TankBattle
 {

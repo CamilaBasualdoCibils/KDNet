@@ -8,8 +8,10 @@
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "atlasnet/core/system/isystem.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
+#include <X11/extensions/randr.h>
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <gtest/gtest.h>
 #include <mutex>
 #include <netinet/in.h>
@@ -280,6 +282,111 @@ TEST(MessageSystem, SendMessageWithoutConnecting)
 
   EXPECT_TRUE(success) << "Did not receive message within timeout";
 };
+TEST(MessageSystem, QueueMessageResponseToMessage)
+{
+
+  bool success = false;
+  std::mutex mtx;
+  std::condition_variable cv;
+  using namespace AtlasNet;
+  TaskSystem jobsys(TaskSystem::Config{});
+  MessageSystem msgsys(MessageSystem::Config{.taskSystem = &jobsys});
+  const PortType port = pick_available_port();
+  const HostName dnsAddr("localhost");
+  SocketAddress serverAddr(dnsAddr, port);
+  msgsys.OpenListenSocket(port);
+  msgsys.On<TestMessage>(
+      [&](const TestMessage& msg, const SocketAddress& address)
+      {
+        EXPECT_EQ(msg.u8_val, 42);
+        EXPECT_EQ(msg.str, "Hello, AtlasNet!");
+        SUCCEED() << "Received message from " << address.to_string();
+        std::lock_guard lock(mtx);
+        cv.notify_one();
+        success = true;
+      });
+  TestMessage msg;
+  msg.u8_val = 42;
+  msg.str = "Hello, AtlasNet!";
+  TaskHandle<MessageSendResult> SendJob = msgsys.QueueMessage(
+      msg, serverAddr, AtlasNet::MessageSendMode::eReliable);
+
+  std::unique_lock lock(mtx);
+  EXPECT_TRUE(
+      cv.wait_for(lock, std::chrono::seconds(5), [&] { return success; }))
+      << "Did not receive message within timeout";
+
+  EXPECT_TRUE(success) << "Did not receive message within timeout";
+  std::vector<MessageSystem::Connection> connections;
+  msgsys.GetConnections(connections);
+  EXPECT_EQ(connections.size(), 2);
+  SocketAddress localInitiator =
+      connections[0].GetRequestedAddress() != serverAddr
+          ? connections[0].GetRequestedAddress()
+          : connections[1].GetRequestedAddress();
+
+  auto sendTask = msgsys.QueueMessage(msg, localInitiator,
+                                      AtlasNet::MessageSendMode::eReliable);
+
+  std::future_status status = sendTask->wait_for(std::chrono::seconds(5));
+  if (status != std::future_status::ready)
+  {
+    FAIL() << "Did not send message within timeout";
+  }
+  EXPECT_EQ(msgsys.GetNumConnections(), 2);
+}
+TEST(MessageSystem, DoubleListenSocket)
+{
+
+  bool success = false;
+  std::mutex mtx;
+  std::condition_variable cv;
+  using namespace AtlasNet;
+  TaskSystem jobsys(TaskSystem::Config{});
+  MessageSystem msgsys(MessageSystem::Config{.taskSystem = &jobsys});
+  const PortType port = pick_available_port();
+  const HostName dnsAddr("localhost");
+  SocketAddress serverAddr(dnsAddr, port);
+  msgsys.OpenListenSocket(port);
+  const PortType port2 = pick_available_port();
+  SocketAddress serverAddr2(dnsAddr, port2);
+  msgsys.OpenListenSocket(port2);
+  msgsys.On<TestMessage>(
+      [&](const TestMessage& msg, const SocketAddress& address)
+      {
+        EXPECT_EQ(msg.u8_val, 42);
+        EXPECT_EQ(msg.str, "Hello, AtlasNet!");
+        SUCCEED() << "Received message from " << address.to_string();
+        std::lock_guard lock(mtx);
+        cv.notify_one();
+        success = true;
+      });
+  TestMessage msg;
+  msg.u8_val = 42;
+  msg.str = "Hello, AtlasNet!";
+  TaskHandle<MessageSendResult> SendJob = msgsys.QueueMessage(
+      msg, serverAddr, AtlasNet::MessageSendMode::eReliable);
+
+  std::unique_lock lock(mtx);
+  EXPECT_TRUE(
+      cv.wait_for(lock, std::chrono::seconds(5), [&] { return success; }))
+      << "Did not receive message within timeout";
+
+  EXPECT_TRUE(success) << "Did not receive message within timeout";
+  std::vector<MessageSystem::Connection> connections;
+  msgsys.GetConnections(connections);
+  EXPECT_EQ(connections.size(), 2);
+
+  auto sendTask = msgsys.QueueMessage(msg, serverAddr2,
+                                      AtlasNet::MessageSendMode::eReliable);
+
+  std::future_status status = sendTask->wait_for(std::chrono::seconds(5));
+  if (status != std::future_status::ready)
+  {
+    FAIL() << "Did not send message within timeout";
+  }
+  EXPECT_EQ(msgsys.GetNumConnections(), 4);
+}
 TEST(MessageSystem, ListenMessagePort)
 {
   using namespace AtlasNet;

@@ -93,11 +93,11 @@ private:
   std::shared_ptr<spdlog::logger> logger =
       spdlog::stdout_color_mt("AddressResolver");
   Config config_;
-  Cache<AtlasNetClientID, SocketAddress> clientAddressCache_;
-  Cache<AtlasNetClientID, AtlasNetGatewayID> clientGatewayCache_;
-  Cache<AtlasNetShardID, SocketAddress> shardCache_;
-  Cache<AtlasNetNodeID, SocketAddress> nodeCache_;
-  Cache<AtlasNetGatewayID, SocketAddress> gatewayCache_;
+  CacheMap<AtlasNetClientID, SocketAddress> clientAddressCache_;
+  CacheMap<AtlasNetClientID, AtlasNetGatewayID> clientGatewayCache_;
+  CacheMap<AtlasNetShardID, SocketAddress> shardCache_;
+  CacheMap<AtlasNetNodeID, SocketAddress> nodeCache_;
+  CacheMap<AtlasNetGatewayID, SocketAddress> gatewayCache_;
 
   std::optional<SocketAddress>
   GatewayAddressProvider(const AtlasNetGatewayID& gatewayID)

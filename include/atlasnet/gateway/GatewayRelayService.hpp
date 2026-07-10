@@ -1,11 +1,13 @@
 #pragma once
 
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/cache/Cache.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
-#include "atlasnet/core/entity/command/Command.hpp"
+#include "atlasnet/core/CmdSig/command/Command.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
@@ -31,7 +33,14 @@ public:
     ClientRegistry* clientRegistry;
     // Add any necessary configuration parameters here
   };
-  GatewayRelayService(const Config& config) : config_(config)
+  GatewayRelayService(const Config& config)
+      : config_(config),
+        clientToAddressCache_([this](const SocketAddress& address)
+                              { return __GetClientIDByAddress(address); },
+                              [this](const AtlasNetClientID& id)
+                              { return __GetClientAddressByID(id); }),
+        clientToShardCache_([this](const AtlasNetClientID& id)
+                            { return __GetShardByClientID(id); })
   {
     assert(config_.redisConn && "RedisConn pointer cannot be null");
     assert(config_.gateway && "Gateway pointer cannot be null");
@@ -42,34 +51,23 @@ public:
         [&](const ExternalCommandMessage& message,
             const SocketAddress& sourceAddress)
         {
-          AtlasNetClientID sourceClientID;
+          std::optional<AtlasNetClientID> cachedClientID =
+              clientToAddressCache_.GetBySecond(sourceAddress);
+          if (!cachedClientID)
           {
-            std::shared_lock lock(cacheMutex_);
-            const auto it = addressToClientCache_.find(sourceAddress);
-            // if it does not exist add to cache.
-            if (it == addressToClientCache_.end())
-            {
-              std::optional<AtlasNetClientID> clientID =
-                  config_.clientRegistry->GetAddressClientID(sourceAddress);
-              assert(clientID &&
-                     "we received an external command from a client without a "
-                     "registered ClientID. This should not happen.");
-
-              lock.unlock();
-              std::unique_lock uniqueLock(cacheMutex_);
-              addressToClientCache_[sourceAddress] = *clientID;
-              sourceClientID = *clientID;
-            }
-            else
-            {
-              sourceClientID = it->second;
-            }
+            logger->error("Received message from unknown address: {}, cannot "
+                          "find associated ClientID",
+                          sourceAddress.to_string());
+            assert(false && "Received message from unknown address, cannot "
+                            "find associated ClientID");
+            return;
           }
 
-          HandleExternalCommand(message, sourceClientID);
+          HandleExternalCommand(message, *cachedClientID);
         });
   }
-  std::optional<AtlasNetGatewayID> GetManagingGateway(const AtlasNetClientID& clientID)
+  std::optional<AtlasNetGatewayID>
+  GetManagingGateway(const AtlasNetClientID& clientID)
   {
   }
   std::optional<AtlasNetGatewayID>
@@ -83,7 +81,8 @@ public:
   void DeclareGatewayRelay(const AtlasNetClientID& clientID);
 
 private:
-  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("GatewayRelay");
+  std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("GatewayRelay");
   const Config config_;
 
   const std::string GatewayRelayKeyPrefix =
@@ -93,15 +92,13 @@ private:
   const std::string GatewayID2ClientIDs_Set =
       GatewayRelayKeyPrefix + "GatewayID->ClientIDs";
 
-  std::shared_mutex cacheMutex_;
-  std::unordered_map<AtlasNetClientID, AtlasNetShardID> clientToShardCache_;
-  // std::unordered_map<ClientID, SocketAddress> clientToAddressCache_;
-  std::unordered_map<SocketAddress, AtlasNetClientID> addressToClientCache_;
+  CacheMap<AtlasNetClientID, AtlasNetShardID> clientToShardCache_;
+
+  CacheBiMap<AtlasNetClientID, SocketAddress> clientToAddressCache_;
 
   std::string
   GatewayID2ClientIDs_SetKey(const AtlasNetGatewayID& gatewayID) const
   {
-
     return GatewayID2ClientIDs_Set + ":" + gatewayID.to_string();
   }
   void HandleExternalCommand(const ExternalCommandMessage& message,
@@ -113,14 +110,25 @@ private:
     // Deserialize the command name and payload
     const std::string_view commandName = message.envelope.commandName;
 
-    std::shared_lock lock(cacheMutex_);
-    if (const auto it = clientToShardCache_.find(sourceClientID);
-        it == clientToShardCache_.end())
-    {
-    }
-
     // Here you can implement logic to forward the command to the appropriate
     // shard or handle it as needed.
+  }
+
+  std::optional<SocketAddress>
+  __GetClientAddressByID(const AtlasNetClientID& clientID)
+  {
+    return config_.clientRegistry->GetClientIDAddress(clientID);
+  }
+  std::optional<AtlasNetClientID>
+  __GetClientIDByAddress(const SocketAddress& address)
+  {
+    return config_.clientRegistry->GetAddressClientID(address);
+  }
+
+  std::optional<AtlasNetShardID>
+  __GetShardByClientID(const AtlasNetClientID& clientID)
+  {
+    return std::nullopt;
   }
 };
 } // namespace AtlasNet

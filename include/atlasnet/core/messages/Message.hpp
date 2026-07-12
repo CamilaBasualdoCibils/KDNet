@@ -38,6 +38,9 @@ public:
 #define ATLASNET_SERIALIZE_FIELD(Field) ATLASNET_SERIALIZE_FIELD_I Field
 #define ATLASNET_SERIALIZE_FIELD_I(Type, Name) archive(Name);
 
+#define ATLASNET_MESSAGE_SERIALIZE_FIELD(Field) ATLASNET_MESSAGE_SERIALIZE_FIELD_I Field
+#define ATLASNET_MESSAGE_SERIALIZE_FIELD_I(Type, Name) Name
+
 
 // =====================================================
 // hash name (unchanged logic, but FIXED consistency issue)
@@ -74,4 +77,10 @@ const static inline std::string GetName() { return #Name; } \
                                                                                \
       ATLASNET_FOR_EACH(ATLASNET_SERIALIZE_FIELD, ATLASNET_SEP_NONE, __VA_ARGS__) \
     }                                                                          \
+    template <class Archive>\
+    void serialize(Archive& archive)\
+    {\
+      archive(TypeIdHash,\
+              ATLASNET_FOR_EACH(ATLASNET_MESSAGE_SERIALIZE_FIELD, ATLASNET_SEP_COMMA, __VA_ARGS__));\
+    }\
   };

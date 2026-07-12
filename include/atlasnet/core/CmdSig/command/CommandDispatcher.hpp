@@ -8,10 +8,7 @@
 namespace AtlasNet
 {
 
-struct CommandAck
-{
-  CommandAckStatus status;
-};
+
 class CommandDispatcher
 {
   struct Config

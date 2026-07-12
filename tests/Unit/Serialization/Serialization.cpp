@@ -1,10 +1,12 @@
 
-#include "atlasnet/core/address/Address.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/address/Address.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
+#include "atlasnet/core/serialize/BinarySerializer.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "atlasnet/core/serialize/XMLSerializer.hpp"
 #include "glm/ext/quaternion_relational.hpp"
 #include "glm/fwd.hpp"
 #include "glm/gtc/epsilon.hpp"
@@ -231,3 +233,44 @@ TEST(Serialization, LoginDataSerialization)
   std::cerr << j.dump(4) << std::endl;
   SUCCEED();
 }
+
+TEST(Serialization, BinarySerializerManual)
+{
+  {
+    AtlasNet::BinarySerializer serializer;
+    std::vector<uint8_t> data = {1, 2, 3, 4, 5};
+    serializer->container1b(data, data.size());
+
+    AtlasNet::BinaryDeserializer deserializer(serializer.GetBytes());
+    std::vector<uint8_t> output(5);
+    deserializer->container1b(output, data.size());
+
+    EXPECT_EQ(data, output);
+  }
+  {
+    std::string str = "Hello, AtlasNet!";
+    AtlasNet::BinarySerializer serializer;
+    serializer->text1b(str,str.size());
+
+    AtlasNet::BinaryDeserializer deserializer(serializer.GetBytes());
+    std::string output;
+    deserializer->text1b(output, str.size());
+    EXPECT_EQ(str, output);
+  }
+}
+TEST(Serialization, BinarySerializer)
+{
+  AtlasNet::BinarySerializer serializer;
+std::array<uint8_t,5> data = {1, 2, 3, 4, 5};
+  serializer(data[0], data[1], data[2], data[3], data[4]);
+
+  AtlasNet::BinaryDeserializer deserializer(serializer.GetBytes());
+  std::array<uint8_t,5> output;
+  deserializer(output[0], output[1], output[2], output[3], output[4]);
+  EXPECT_EQ(data, output);
+}
+ TEST(Serialization, XMLSerializer)
+{
+AtlasNet::XMLSerializer serializer;
+serializer("Hello, AtlasNet!", 42, 3.14f);
+} 

@@ -79,7 +79,7 @@ public:
     }
   }
 
-  void AtlasNetClient_DispatchCommand(
+/*   void AtlasNetClient_DispatchCommand(
       const std::string_view& commandName, const std::string_view& commanddata,
       MessageSendMode sendMode = MessageSendMode::eReliableBatched)
   {
@@ -100,7 +100,7 @@ public:
     command.Serialize(writer);
     AtlasNetClient_DispatchCommand(command.GetName(), writer.as_string_view(),
                                    sendMode);
-  }
+  } */
 
 private:
   void OnClientConnectionCompleteNotification(

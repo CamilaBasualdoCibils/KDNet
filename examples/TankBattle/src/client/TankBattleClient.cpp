@@ -32,12 +32,12 @@ void TankBattle::TankBattleClient::Run()
   {
     logger->info("Successfully connected to AtlasNet server.");
   }
-  logger->info("Dispatching PlayerMoveCommand to server.");
+/*   logger->info("Dispatching PlayerMoveCommand to server.");
   PlayerMoveCommand moveCommand;
   moveCommand.delta = {0.01f, 0.0f}; // Example movement delta
   AtlasNetClient_DispatchCommand(moveCommand,
                                  AtlasNet::MessageSendMode::eReliableBatched);
-  logger->info("Dispatched PlayerMoveCommand to server.");
+  logger->info("Dispatched PlayerMoveCommand to server."); */
   while (!WindowShouldClose())
   {
     BeginDrawing();

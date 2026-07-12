@@ -1,18 +1,22 @@
 #pragma once
 
+#include "atlasnet/core/CmdSig/command/CommandEnums.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/address/AddressResolver.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/cache/Cache.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 
+#include "atlasnet/core/CmdSig/command/Command.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
-#include "atlasnet/core/CmdSig/command/Command.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 
+#include "atlasnet/gateway/GatewayRPC.hpp"
 #include "enviroment/Enviroment.hpp"
 #include "spdlog/sinks/stdout_color_sinks-inl.h"
 #include <cassert>
@@ -30,7 +34,9 @@ public:
     Database::RedisConn* redisConn;
     AtlasNetGateway* gateway;
     MessageSystem* messageSystem;
+    RPCSystem* rpcSystem;
     ClientRegistry* clientRegistry;
+    AddressResolver* addressResolver;
     // Add any necessary configuration parameters here
   };
   GatewayRelayService(const Config& config)
@@ -46,8 +52,17 @@ public:
     assert(config_.gateway && "Gateway pointer cannot be null");
     assert(config_.messageSystem && "MessageSystem pointer cannot be null");
     assert(config_.clientRegistry && "ClientRegistry pointer cannot be null");
+    assert(config_.addressResolver && "AddressResolver pointer cannot be null");
+    assert(config_.rpcSystem && "RPCSystem pointer cannot be null");
 
-    config_.messageSystem->On<ExternalCommandMessage>(
+
+    /* config_.rpcSystem->Bind<GatewayRPC::IngressCommand>(
+        [this](IngressCommandEnvelope commandEnvelope,
+               const SocketAddress& sourceAddress) -> CommandAck
+        { return HandleIngressCommand(commandEnvelope, sourceAddress); }); */
+
+
+    /* config_.messageSystem->On<ExternalCommandMessage>(
         [&](const ExternalCommandMessage& message,
             const SocketAddress& sourceAddress)
         {
@@ -64,16 +79,16 @@ public:
           }
 
           HandleExternalCommand(message, *cachedClientID);
-        });
+        }); */
   }
-  std::optional<AtlasNetGatewayID>
+  /* std::optional<AtlasNetGatewayID>
   GetManagingGateway(const AtlasNetClientID& clientID)
   {
   }
   std::optional<AtlasNetGatewayID>
   GetManagingGateway(const SocketAddress& address)
   {
-  }
+  } */
 
   /*Sets up that a given client's commands are forwarded to a set shard*/
 
@@ -101,18 +116,38 @@ private:
   {
     return GatewayID2ClientIDs_Set + ":" + gatewayID.to_string();
   }
-  void HandleExternalCommand(const ExternalCommandMessage& message,
-                             const AtlasNetClientID& sourceClientID)
+  CommandAck HandleIngressCommand(const IngressCommandEnvelope& commandEnvelope,
+                            const SocketAddress& sourceAddress)
   {
-    logger->info("Received external command: {} from ClientID: {}",
-                 message.envelope.commandName, sourceClientID.to_string());
+    logger->info("Received ingress command: {} from address: {}",
+                 commandEnvelope.commandPayload.commandName,
+                 sourceAddress.to_string());
 
-    // Deserialize the command name and payload
-    const std::string_view commandName = message.envelope.commandName;
+    return CommandAck{CommandAckStatus::GatewayAck};
+  } /*
+   void HandleExternalCommand(const ExternalCommandMessage& message,
+                              const AtlasNetClientID& sourceClientID)
+   {
+     logger->info("Received external command: {} from ClientID: {}",
+                  message.envelope.commandName, sourceClientID.to_string());
 
-    // Here you can implement logic to forward the command to the appropriate
-    // shard or handle it as needed.
-  }
+     // Deserialize the command name and payload
+     const std::string_view commandName = message.envelope.commandName;
+
+     InternalCommandEnvelope internalEnvelope;
+     internalEnvelope.commandName = commandName;
+     internalEnvelope.senderType = InternalCommandEnvelope::SenderType::Client;
+     internalEnvelope.sender = sourceClientID;
+     internalEnvelope.payload = std::move(message.envelope.payload);
+
+     const std::optional<AtlasNetShardID> shardID =
+   __GetShardByClientID(sourceClientID);
+
+
+     config_.m
+     // Here you can implement logic to forward the command to the appropriate
+     // shard or handle it as needed.
+   } */
 
   std::optional<SocketAddress>
   __GetClientAddressByID(const AtlasNetClientID& clientID)

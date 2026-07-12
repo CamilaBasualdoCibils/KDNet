@@ -2,6 +2,7 @@
 #include "atlasnet/core/RPC/RPCMacros.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/RPC/new/RPCConcepts_N.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 
 #include "atlasnet/core/messages/MessageSystem.hpp"
@@ -96,9 +97,9 @@ TEST(RPC, BaseMessage)
                 .callID = msg.callID,
                 .payload = std::vector<uint8_t>{1, 2, 3, 4, 5},
             };
-            auto messageHandle = msgSystem.QueueMessage(response,
-                                   SocketAddress(IPv4(127, 0, 0, 1), port),
-                                   MessageSendMode::eReliableBatched);
+            auto messageHandle = msgSystem.QueueMessage(
+                response, SocketAddress(IPv4(127, 0, 0, 1), port),
+                MessageSendMode::eReliableBatched);
             EXPECT_EQ(messageHandle->get().code,
                       MessageSendResultCode::eSuccess);
           })
@@ -326,3 +327,8 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   ASSERT_TRUE(WIFEXITED(childStatus));
   EXPECT_EQ(WEXITSTATUS(childStatus), 0);
 }
+
+ATLASNET_RPC_NEW(NewStyleRPC, NewTestMethod, void, int, float);
+ATLASNET_RPC_NEW(NewStyleRPC, NewTestMethod_Ret, int);
+ATLASNET_RPC_NEW(NewStyleRPC, NewTestMethod_Ret_String, std::string,
+                 std::string_view);

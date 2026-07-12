@@ -8,6 +8,9 @@
 
 #define ATLASNET_CAT(a, b) ATLASNET_CAT_I(a, b)
 #define ATLASNET_CAT_I(a, b) a##b
+#define ATLASNET_CAT2(a, b) ATLASNET_CAT(a, b)
+#define ATLASNET_CAT3(a, b, c) ATLASNET_CAT(ATLASNET_CAT(a, b), c)
+#define ATLASNET_CAT4(a, b, c, d) ATLASNET_CAT(ATLASNET_CAT3(a, b, c), d)
 
 // -----------------------------------------------------
 // Variadic argument count (up to 8 args)

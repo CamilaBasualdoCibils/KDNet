@@ -1,4 +1,6 @@
 #pragma once
+#include "atlasnet/core/CmdSig/command/CommandEnums.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
@@ -10,7 +12,67 @@
 #include <string>
 namespace AtlasNet
 {
+const static size_t COMMAND_MAX_NAME_LENGTH = 64;
+struct CommandAck
+{
+  CommandAckStatus status;
+};
+struct CommandPayload
+{
+ boost::static_string<COMMAND_MAX_NAME_LENGTH> commandName;
+  boost::container::small_vector<uint8_t, 64> payload;
+   void Serialize(ByteWriter& serializer) const
+  {
+    serializer.blob(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(commandName.data()),
+        commandName.size()));
+    serializer.blob(std::span<const uint8_t>(payload.data(), payload.size()));
+  }
+  void Deserialize(ByteReader& deserializer)
+  {
+    std::span<const uint8_t> commandNameSpan;
+    deserializer.blob(commandNameSpan);
+    commandName.assign(reinterpret_cast<const char*>(commandNameSpan.data()),
+                       commandNameSpan.size());
+    std::span<const uint8_t> payloadSpan;
+    deserializer.blob(payloadSpan);
+    payload.assign(payloadSpan.begin(), payloadSpan.end());
+  }
+};
+struct IngressCommandEnvelope
+{
+ CommandPayload commandPayload;
 
+  void Serialize(ByteWriter& serializer) const
+  {
+    commandPayload.Serialize(serializer);
+  }
+   void Deserialize(ByteReader& deserializer)
+  {
+    commandPayload.Deserialize(deserializer);
+  }
+  
+};
+struct TransitCommandEnvelope
+{
+  AtlasNetEntityID targetEntity;
+  AtlasNetClientID targetClient;
+  CommandPayload commandPayload;
+
+  void Serialize(ByteWriter& serializer) const
+  {
+    targetEntity.Serialize(serializer);
+    targetClient.Serialize(serializer);
+    commandPayload.Serialize(serializer);
+  }
+  void Deserialize(ByteReader& deserializer)
+  {
+    targetEntity.Deserialize(deserializer);
+    targetClient.Deserialize(deserializer);
+    commandPayload.Deserialize(deserializer);
+  }
+};
+/*
 struct ExternalCommandEnvelope
 {
   const static size_t MaxCommandNameLength = 64;
@@ -42,14 +104,14 @@ struct InternalCommandEnvelope
   boost::static_string<MaxCommandNameLength> commandName;
 
   AtlasNetEntityID targetEntity;
-  uint64_t logical_entity_sequence;
+  //uint64_t logical_entity_sequence;
 
   enum SenderType : uint8_t
   {
-    Shard = 0,
+    AtlasNetNode = 0,
     Client = 1
   } senderType;
-  UUID sender;
+  std::variant<AtlasNetNodeID, AtlasNetClientID> sender;
   boost::container::small_vector<uint8_t, 64> payload;
   void Serialize(ByteWriter& serializer) const
   {
@@ -57,9 +119,22 @@ struct InternalCommandEnvelope
         reinterpret_cast<const uint8_t*>(commandName.data()),
         commandName.size()));
     targetEntity.Serialize(serializer);
-    serializer.u64(logical_entity_sequence);
+    //serializer.u64(logical_entity_sequence);
     serializer.u8(static_cast<uint8_t>(senderType));
-    serializer.uuid(sender);
+    if (senderType == SenderType::AtlasNetNode)
+    {
+
+      serializer(std::get<AtlasNetNodeID>(sender));
+    }
+    else if (senderType == SenderType::Client)
+    {
+      serializer(std::get<AtlasNetClientID>(sender));
+    }
+    else
+    {
+      throw std::runtime_error(
+          "Invalid sender type in InternalCommandEnvelope");
+    }
     serializer.blob(std::span<const uint8_t>(payload.data(), payload.size()));
   }
 
@@ -70,9 +145,25 @@ struct InternalCommandEnvelope
     commandName.assign(reinterpret_cast<const char*>(commandNameSpan.data()),
                        commandNameSpan.size());
     targetEntity.Deserialize(deserializer);
-    deserializer.u64(logical_entity_sequence);
+    //deserializer.u64(logical_entity_sequence);
     deserializer.u8(reinterpret_cast<uint8_t&>(senderType));
-    deserializer.uuid(sender);
+    if (senderType == SenderType::AtlasNetNode)
+    {
+      AtlasNetNodeID nodeID;
+      deserializer(nodeID);
+      sender = nodeID;
+    }
+    else if (senderType == SenderType::Client)
+    {
+      AtlasNetClientID clientID;
+      deserializer(clientID);
+      sender = clientID;
+    }
+    else
+    {
+      throw std::runtime_error(
+          "Invalid sender type in InternalCommandEnvelope");
+    }
     std::span<const uint8_t> payloadSpan;
     deserializer.blob(payloadSpan);
     payload.assign(payloadSpan.begin(), payloadSpan.end());
@@ -117,7 +208,7 @@ struct ISignalSerializable
     }                                                                          \
   };
 #define ATLASNET_SIGNAL_DATA(Type, Name) (Type, Name)
-#define ATLASNET_SIGNAL(Namespace, Name, ...)                                             \
+#define ATLASNET_SIGNAL(Namespace, Name, ...)                                  \
   struct Name : AtlasNet::ISignalSerializable                                  \
   {                                                                            \
     ATLASNET_FOR_EACH(ATLASNET_DECLARE_FIELD, ATLASNET_SEP_NONE, __VA_ARGS__)  \
@@ -141,10 +232,12 @@ struct ISignalSerializable
   };
 
 // Example Command
-ATLASNET_COMMAND(ExampleNamespace, ExampleCommand, ATLASNET_COMMAND_DATA(int, exampleInt),
+ATLASNET_COMMAND(ExampleNamespace, ExampleCommand,
+                 ATLASNET_COMMAND_DATA(int, exampleInt),
                  ATLASNET_COMMAND_DATA(std::string, exampleString));
 // Example Signal
-ATLASNET_SIGNAL(ExampleNamespace, ExampleSignal, ATLASNET_SIGNAL_DATA(int, exampleInt),
-                ATLASNET_SIGNAL_DATA(std::string, exampleString));
+ATLASNET_SIGNAL(ExampleNamespace, ExampleSignal,
+                ATLASNET_SIGNAL_DATA(int, exampleInt),
+                ATLASNET_SIGNAL_DATA(std::string, exampleString)); */
 
 } // namespace AtlasNet

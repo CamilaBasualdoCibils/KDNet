@@ -44,6 +44,8 @@ private:
         .gateway = this,
         .messageSystem = &GetMessageSystem(),
         .clientRegistry = &*clientRegistry,
+        .addressResolver = &GetAddressResolver(),
+        .rpcSystem = &GetRPCSystem(),
     });
     GetMessageSystem().OpenListenSocket(Env::GatewayListenPort);
     GetLocalEventSystem().On<ConnectionEstablishedEvent>(
@@ -87,5 +89,6 @@ private:
   std::optional<ClientRegistry> clientRegistry;
   std::optional<GatewayRelayService> gatewayRelayService_;
   std::optional<AtlasNetClientID::Generator> clientIDGenerator;
+  
 };
 } // namespace AtlasNet

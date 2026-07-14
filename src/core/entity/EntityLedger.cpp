@@ -5,7 +5,7 @@
 
 void AtlasNet::Entity::EntityLedger::SetRPCBinds()
 {
-  _config.rpcSystem->Bind<EntityLedgerRPC::GetAllEntitiesInfo>(
+  _config.rpcSystem->Bind<EntityLedger_GetAllEntitiesInfoRPC>(
       [this]()
       {
         logger->info("RPC call received: GetAllEntitiesInfo");

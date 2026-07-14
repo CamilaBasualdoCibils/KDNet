@@ -25,7 +25,7 @@ public:
                                   .payload = {'H', 'e', 'l', 'l', 'o'}}}});
     rpcSystem.emplace(RPCSystem::Config{.messageSystem = &*messageSystem});
 
-    rpcSystem->Bind<ClientRPC::ClientConnectionCompleteNotification>(
+    rpcSystem->Bind<ClientRPC_ClientConnectionCompleteNotification>(
         [this](const ClientConnectionCompleteData& data)
         { OnClientConnectionCompleteNotification(data); });
   }

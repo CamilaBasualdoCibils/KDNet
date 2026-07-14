@@ -118,7 +118,16 @@ public:
    * @param reader
    */
   virtual void OnAcquireEntity(const AtlasNetEntityID& id, ByteReader& reader) = 0;
-
+// Received by the frontend of the shard
+struct ClientSpawnInfo
+{
+  AtlasNetClientID clientID;
+  AtlasNetEntityID entityID;
+  Entity::Position position;
+  std::vector<uint8_t>
+      clientSpawnPayload; // This contains developer-defined data that will be
+                          // given to the shard that spawns the client
+};
   virtual void OnSpawnClient(const ClientSpawnInfo& info) = 0;
 };
 } // namespace AtlasNet

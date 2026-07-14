@@ -109,7 +109,7 @@ public:
     // and reconstruct the entity's components, position, health, etc.
   }
 
-  void OnSpawnClient(const AtlasNet::ClientSpawnInfo& info) override
+  void OnSpawnClient(const ClientSpawnInfo& info) override
   {
     // Implementation for spawning a client
     logger->info("Spawning client with ID: {} and entity ID: {} at location {}",

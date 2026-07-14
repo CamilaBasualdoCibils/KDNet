@@ -11,8 +11,8 @@
 
 namespace AtlasNet
 {
-  class ByteWriter;
-  class ByteReader;
+class ByteWriter;
+class ByteReader;
 
 class UUID
 {
@@ -73,6 +73,12 @@ public:
   {
     return sizeof(id.data);
   }
+  template <typename Archive> void serialize(Archive& ar)
+  {
+    ar(id.data[0], id.data[1], id.data[2], id.data[3], id.data[4], id.data[5],
+       id.data[6], id.data[7], id.data[8], id.data[9], id.data[10],
+       id.data[11], id.data[12], id.data[13], id.data[14], id.data[15]);
+  }
 };
 
 template <typename Tag> struct StrongUUID : public UUID
@@ -87,29 +93,27 @@ template <typename Tag> struct StrongUUID : public UUID
 
 namespace std
 {
-  template <>
-  struct hash<AtlasNet::UUID>
+template <> struct hash<AtlasNet::UUID>
+{
+  size_t operator()(const AtlasNet::UUID& uuid) const noexcept
   {
-    size_t operator()(const AtlasNet::UUID& uuid) const noexcept
+    const auto* bytes = static_cast<const uint8_t*>(uuid.data());
+    size_t h = 0;
+
+    for (size_t i = 0; i < uuid.size(); ++i)
     {
-      const auto* bytes = static_cast<const uint8_t*>(uuid.data());
-      size_t h = 0;
-
-      for (size_t i = 0; i < uuid.size(); ++i)
-      {
-        h ^= static_cast<size_t>(bytes[i]) + 0x9e3779b9u + (h << 6) + (h >> 2);
-      }
-
-      return h;
+      h ^= static_cast<size_t>(bytes[i]) + 0x9e3779b9u + (h << 6) + (h >> 2);
     }
-  };
 
-  template <typename Tag>
-  struct hash<AtlasNet::StrongUUID<Tag>>
+    return h;
+  }
+};
+
+template <typename Tag> struct hash<AtlasNet::StrongUUID<Tag>>
+{
+  size_t operator()(const AtlasNet::StrongUUID<Tag>& uuid) const noexcept
   {
-    size_t operator()(const AtlasNet::StrongUUID<Tag>& uuid) const noexcept
-    {
-      return hash<AtlasNet::UUID>{}(static_cast<const AtlasNet::UUID&>(uuid));
-    }
-  };
-}
+    return hash<AtlasNet::UUID>{}(static_cast<const AtlasNet::UUID&>(uuid));
+  }
+};
+} // namespace std

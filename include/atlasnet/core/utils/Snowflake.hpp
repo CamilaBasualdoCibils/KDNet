@@ -217,7 +217,11 @@ public:
   {
     br.u64(_value);
   }
-
+  template <typename Archive>
+  void serialize(Archive& ar)
+  {
+    ar(_value);
+  }
 private:
   static constexpr char Hex[] = "0123456789ABCDEF";
 

@@ -14,7 +14,7 @@ void AtlasNet::IAtlasNetShard::OnInit()
       .rpcSystem = &GetRPCSystem(),
       .entityIDGenerator = &_entityIDGenerator.value()});
 
-  GetRPCSystem().Bind<ShardRPC::SpawnClient>(
+  GetRPCSystem().Bind<ShardRPC_SpawnClient>(
       [this](ShardSpawnClientRequest request)
       { return impl_RPCSpawnClient(request); });
 

@@ -24,6 +24,10 @@ template <typename underlying_type, typename tag> struct StrongTypedef
   {
     reader(value);
   }
+  template <typename Archive> void serialize(Archive& ar)
+  {
+    ar(value);
+  }
   std::string to_string() const
   {
     return std::to_string(value);

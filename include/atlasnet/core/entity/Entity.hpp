@@ -1,10 +1,10 @@
 #pragma once
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/utils/Snowflake.hpp"
-#include "atlasnet/core/utils/UUID.hpp"
 #include "atlasnet/core/entity/collider/Collider.hpp"
 #include "atlasnet/core/geometry/Vec.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
+#include "atlasnet/core/utils/Snowflake.hpp"
+#include "atlasnet/core/utils/UUID.hpp"
 #include "boost/container/small_vector.hpp"
 #include "boost/describe/enum_from_string.hpp"
 #include "boost/describe/enum_to_string.hpp"
@@ -16,7 +16,6 @@
 
 namespace AtlasNet
 {
-
 
 namespace Entity
 {
@@ -32,12 +31,20 @@ BOOST_DESCRIBE_ENUM(CoordinateSystem, Cartesian, Geospatial);
 struct CartesianPosition
 {
   dvec3 position;
+  template <typename Archive> void serialize(Archive& ar)
+  {
+    ar(position[0], position[1], position[2]);
+  }
 };
 struct GeospatialPosition
 {
   double latitude;
   double longitude;
   double altitude;
+  template <typename Archive> void serialize(Archive& ar)
+  {
+    ar(latitude, longitude, altitude);
+  }
 };
 struct Position
 {
@@ -116,38 +123,11 @@ struct Position
                                     posJson.at("altitude").get<double>()};
     }
   }
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive> void serialize(Archive& ar)
   {
-    if (std::holds_alternative<CartesianPosition>(position))
-    {
-      writer(CoordinateSystem::Cartesian); // Type discriminator
-      const auto& pos = std::get<CartesianPosition>(position);
-      writer.f64(pos.position.x).f64(pos.position.y).f64(pos.position.z);
-    }
-    else if (std::holds_alternative<GeospatialPosition>(position))
-    {
-      writer(CoordinateSystem::Geospatial); // Type discriminator
-      const auto& pos = std::get<GeospatialPosition>(position);
-      writer.f64(pos.latitude).f64(pos.longitude).f64(pos.altitude);
-    }
+    ar(position);
   }
-  void Deserialize(ByteReader& reader)
-  {
-    CoordinateSystem spaceType;
-    reader(spaceType);
-    if (spaceType == CoordinateSystem::Cartesian)
-    {
-      CartesianPosition pos;
-      reader.f64(pos.position.x).f64(pos.position.y).f64(pos.position.z);
-      position = pos;
-    }
-    else if (spaceType == CoordinateSystem::Geospatial)
-    {
-      GeospatialPosition pos;
-      reader.f64(pos.latitude).f64(pos.longitude).f64(pos.altitude);
-      position = pos;
-    }
-  }
+
   std::string to_string() const
   {
     std::ostringstream oss;
@@ -194,15 +174,9 @@ struct Location
     worldId = (WorldID)WorldID::from_string(j.at("worldId").get<std::string>());
     position.from_json(j.at("position"));
   }
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive> void serialize(Archive& ar)
   {
-   writer.uuid(worldId);
-   position.Serialize(writer);
-  }
-  void Deserialize(ByteReader& reader)
-  {
-    reader.uuid(worldId);
-    position.Deserialize(reader);
+    ar(worldId, position);
   }
 
   friend std::ostream& operator<<(std::ostream& os, const Location& loc)
@@ -230,13 +204,9 @@ struct BaseEntityInfo
   {
     location.from_json(j.at("location"));
   }
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive> void serialize(Archive& ar)
   {
-    location.Serialize(writer);
-  }
-  void Deserialize(ByteReader& reader)
-  {
-    location.Deserialize(reader);
+    ar(location);
   }
 };
 struct EntityInfo : public EntityComponent
@@ -251,10 +221,11 @@ struct EntityInfo : public EntityComponent
   }
   void from_json(const _Json& j)
   {
-    std::optional<AtlasNetEntityID> optId = AtlasNetEntityID::from_string(j.at("id").get<std::string>());
-    if(optId.has_value())
+    std::optional<AtlasNetEntityID> optId =
+        AtlasNetEntityID::from_string(j.at("id").get<std::string>());
+    if (optId.has_value())
     {
-        id = optId.value();
+      id = optId.value();
     }
     else
     {
@@ -262,15 +233,9 @@ struct EntityInfo : public EntityComponent
     }
     baseInfo.from_json(j.at("baseInfo"));
   };
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive> void serialize(Archive& ar)
   {
-    writer(id);
-    baseInfo.Serialize(writer);
-  }
-  void Deserialize(ByteReader& reader)
-  {
-    reader(id);
-    baseInfo.Deserialize(reader);
+    ar(id, baseInfo);
   }
 };
 struct ActorInfo : public EntityComponent
@@ -293,10 +258,11 @@ struct ClientInfo : public EntityComponent
   }
   void from_json(const _Json& j)
   {
-    std::optional<AtlasNetClientID> optId = AtlasNetClientID::from_string(j.at("id").get<std::string>());
-    if(optId.has_value())
+    std::optional<AtlasNetClientID> optId =
+        AtlasNetClientID::from_string(j.at("id").get<std::string>());
+    if (optId.has_value())
     {
-        id = optId.value();
+      id = optId.value();
     }
     else
     {

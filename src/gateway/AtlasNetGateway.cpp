@@ -1,5 +1,7 @@
 #include "AtlasNetGateway.hpp"
+#include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/shard/ShardRPC.hpp"
 #include <iterator>
 
 void AtlasNet::AtlasNetGateway::OnClientConnected(
@@ -74,12 +76,26 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
   }
 
   auto spawnResult =
-      GetRPCSystem().Call<ShardRPC::SpawnClient>(*shardAddress, request);
+      GetRPCSystem().Call_R<ShardRPC_SpawnClient>(*shardAddress, request);
 
   std::future_status status = spawnResult.wait_for(std::chrono::seconds(5));
   std::optional<ShardSpawnClientResponse> spawnResponse;
   if (status == std::future_status::ready)
-    spawnResponse = spawnResult.get();
+  {
+    auto result = spawnResult.get();
+    if (result.has_value())
+    {
+      spawnResponse = result.value();
+    }
+    else
+    {
+      GetLogger()->error(
+          "Received error response for SpawnClient RPC call for client {}: {}",
+          entry->clientID.to_string(),
+          boost::describe::enum_to_string(result.error(),
+                                         "<INVALID>"));
+    }
+  }
 
   if (spawnResponse)
   {
@@ -97,8 +113,8 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
     result.entityID = spawnResponse->entityID;
     result.result = ClientConnectionResult::Success;
 
-    GetRPCSystem().Call<ClientRPC::ClientConnectionCompleteNotification>(
-        event.address, result);
+    GetRPCSystem().Call<ClientRPC_ClientConnectionCompleteNotification>(
+        event.address, {result});
   }
   else
   {

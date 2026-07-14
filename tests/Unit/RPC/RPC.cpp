@@ -1,9 +1,6 @@
 
-#include "atlasnet/core/RPC/RPCMacros.hpp"
-#include "atlasnet/core/RPC/RPCMessage.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/RPC/new/RPCConcepts_N.hpp"
-#include "atlasnet/core/RPC/new/RPCSystem_N.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 
 #include "atlasnet/core/messages/MessageSystem.hpp"
@@ -59,7 +56,7 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-
+/* 
 ATLASNET_RPC(
     TESTRpc,
     // TestMethod(int,float) -> void
@@ -328,13 +325,13 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   ASSERT_EQ(waitpid(pid, &childStatus, 0), pid);
   ASSERT_TRUE(WIFEXITED(childStatus));
   EXPECT_EQ(WEXITSTATUS(childStatus), 0);
-}
+} */
 
 TEST(RPC, NewStyleRPC_SelfReceive)
 {
   TaskSystem taskSystem(TaskSystem::Config{});
   MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
-  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem});
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem});
 
   PortType port = pick_available_port();
   SocketAddress address(IPv4(127, 0, 0, 1), port);
@@ -364,7 +361,7 @@ TEST(RPC, NewStyleRPC_UnknownRPCError)
 {
   TaskSystem taskSystem(TaskSystem::Config{});
   MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
-  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem});
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem});
 
   PortType port = pick_available_port();
   SocketAddress address(IPv4(127, 0, 0, 1), port);
@@ -385,7 +382,7 @@ TEST(RPC, NewStyleRPC_Timeout)
 {
   TaskSystem taskSystem(TaskSystem::Config{});
   MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
-  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem,
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem,
                                       .timeout = std::chrono::seconds(1)});
 
   PortType port = pick_available_port();
@@ -419,7 +416,7 @@ using N_RPC_NewTestMethod_Ret_String =
 {
   TaskSystem taskSystem(TaskSystem::Config{});
   MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
-  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem,
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem,
                                       .timeout = std::chrono::seconds(1)});
 
   PortType port = pick_available_port();

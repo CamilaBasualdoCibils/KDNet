@@ -1,443 +1,183 @@
 #pragma once
 
-#include "atlasnet/core/RPC/RPCMessage.hpp"
-
-#include "RPCConcepts.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
-#include "atlasnet/core/serialize/ByteReader.hpp"
-#include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "atlasnet/core/serialize/BinarySerializer.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
-#include "boost/describe/enum_to_string.hpp"
-#include "enviroment/Enviroment.hpp"
-#include <functional>
+#include "spdlog/sinks/stdout_color_sinks-inl.h"
 #include <future>
-#include <mutex>
 #include <shared_mutex>
-#include <span>
-#include <stack>
-#include <stdexcept>
-#include <tuple>
 #include <type_traits>
 #include <unordered_map>
-#include <utility>
-#include <vector>
-
 namespace AtlasNet
 {
 
-using RPCTarget = SocketAddress;
 class RPCSystem
 {
+
 public:
   struct Config
   {
-    std::optional<PortType>
-        port; // if not specified then listens for requests on any port
+    TaskSystem* taskSystem = nullptr;
     MessageSystem* messageSystem = nullptr;
+    std::chrono::milliseconds timeout = std::chrono::seconds(5);
   };
-
   RPCSystem(const Config& config);
-  ~RPCSystem()
-  {
-    /* {
-    logger->info("RPC destructor called, shutting down RPC and waiting for
-    active jobs to complete...");
+  void Bind(std::string_view name, RPC_BindCallFunction_Raw func);
+  void Bind(RPCID id, RPC_BindCallFunction_Raw func);
 
-      std::unique_lock u(_activeJobsMutex);
-      while (!activeJobs.empty())
+  template <typename rpc, typename Func>
+    requires(rpc::template Invocable<Func> ||
+             rpc::template ContextInvocable<Func>)
+  void Bind(Func&& func)
+  {
+    logger->info("Binding RPC {} -> {}", rpc::NameString.value, rpc::Id);
+    RPC_BindCallFunction_Raw rawFunc =
+        [func = std::move(func)](const RPCContext& context,
+                                 std::span<const uint8_t> payload) -> RPCResult
+    {
+      // deserialize the payload
+      NetBinaryReader deserializer(payload);
+      using Return = typename rpc::ReturnType;
+      using ArgsTuple = typename rpc::ArgsTuple;
+      ArgsTuple args;
+      deserializer(args);
+      RPCResult result;
+      if constexpr (std::is_void_v<Return>)
       {
-        if (!activeJobs.top().is_completed())
-        {
-        logger->info("Waiting for active job {} to complete... Current State:
-    {}", activeJobs.top().name().value_or("<unnamed>"),
-                     boost::describe::enum_to_string(activeJobs.top().state(),
-                                                    "UNKNOWN"));
+        std::apply(
+            [&](auto&... xs)
+            {
+              if constexpr (rpc::template ContextInvocable<Func>)
+                std::invoke(func, context, xs...);
+              else
+                std::invoke(func, xs...);
+            },
+            args);
 
-          activeJobs.top().wait();
-        }
-
-        activeJobs.pop();
-      }
-        logger->info("RPC destructor done, all active jobs have completed.");
-    } */
-  }
-
-  template <typename MethodType, typename Func>
-    requires RPC_Internal::BindableRpcHandler<MethodType, Func>
-  void Bind(Func&& func);
-
-  /*   template <typename MethodType, typename... Args>
-      requires(!std::is_void_v<typename MethodType::ReturnType>)
-    [[nodiscard]] std::future<typename MethodType::ReturnType>
-    Call(const RPCTarget& target, Args&&... args);
-
-    template <typename MethodType, typename... Args>
-      requires(std::is_void_v<typename MethodType::ReturnType>)
-    void Call(const RPCTarget& target, Args&&... args); */
-
-  template <typename MethodType, typename... Args>
-  [[nodiscard]] std::conditional_t<
-      std::is_void_v<typename MethodType::ReturnType>, void,
-      std::future<typename MethodType::ReturnType>>
-  Call(const RPCTarget& target, Args&&... args);
-  template <typename MethodType, typename... Args>
-  [[nodiscard]] std::conditional_t<
-      std::is_void_v<typename MethodType::ReturnType>, void,
-      std::future<typename MethodType::ReturnType>>
-  CallEx(const RPCTarget& target, MessageSendMode sendMode, Args&&... args);
-
-private:
-  void Shutdown();
-
-  template <typename MethodType, typename... Args>
-  std::pair<RPC_Internal::MethodID, RPC_Internal::CallID>
-  SendRequest(const RPCTarget& target, MessageSendMode sendMode,
-              Args&&... args);
-
-  template <typename MethodType>
-  void SendResponse(const RPCTarget& target, RPC_Internal::CallID callID,
-                    const typename MethodType::ReturnType& ret);
-
-  void SendError(const RPCTarget& target, RPC_Internal::MethodID methodId,
-                 RPC_Internal::CallID callID, std::string errorMsg);
-
-  void OnRPCRequest(const RpcRequestMessage& msg, const SocketAddress& address);
-  void OnRPCResponse(const RpcResponseMessage& msg,
-                     const SocketAddress& address);
-  void OnRPCError(const RpcErrorMessage& msg, const SocketAddress& address);
-
-  RPC_Internal::CallID GetNextCallID(RPC_Internal::MethodID methodId)
-  {
-    auto& next = _nextCallID[methodId];
-    return next++;
-  }
-  /* void NewActiveJob(JobHandle handle)
-  {
-    std::unique_lock u(_activeJobsMutex);
-    for (int i = 0; i < activeJobs.size(); ++i)
-    {
-      if (activeJobs.top().is_completed())
-      {
-        activeJobs.pop();
-      }
-    }
-    activeJobs.push(handle);
-  } */
-  struct PendingPromiseKey
-  {
-    RPC_Internal::MethodID methodId;
-    RPC_Internal::CallID callId;
-
-    bool operator==(const PendingPromiseKey& other) const noexcept
-    {
-      return methodId == other.methodId && callId == other.callId;
-    }
-  };
-
-  struct PendingPromiseKeyHash
-  {
-    std::size_t operator()(const PendingPromiseKey& k) const noexcept
-    {
-      std::size_t h1 = std::hash<RPC_Internal::MethodID>{}(k.methodId);
-      std::size_t h2 = std::hash<RPC_Internal::CallID>{}(k.callId);
-      return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
-    }
-  };
-
-  using BindFunc = std::function<void(const RPCTarget&, RPC_Internal::CallID,
-                                      std::span<const uint8_t>)>;
-
-  struct PendingRequest
-  {
-    std::function<void(std::span<const uint8_t>)> onResponse;
-    std::function<void(const std::string&)> onError;
-  };
-
-  std::unordered_map<RPC_Internal::MethodID, BindFunc> _methodBindHandlers;
-  std::unordered_map<RPC_Internal::MethodID, RPC_Internal::CallID> _nextCallID;
-  std::unordered_map<PendingPromiseKey, PendingRequest, PendingPromiseKeyHash>
-      _pendingPromises;
-  // std::shared_mutex _activeJobsMutex;
-  // std::stack<JobHandle> activeJobs;
-
-  std::shared_mutex _mutex;
-  const Config config_;
-  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("RPC");
-};
-template <typename MethodType, typename... Args>
-[[nodiscard]] inline std::conditional_t<
-    std::is_void_v<typename MethodType::ReturnType>, void,
-    std::future<typename MethodType::ReturnType>>
-RPCSystem::CallEx(const RPCTarget& target, MessageSendMode sendMode,
-                  Args&&... args)
-{
-
-  using ReturnType = typename MethodType::ReturnType;
-  if constexpr (std::is_void_v<ReturnType>)
-  {
-    SendRequest<MethodType>(target, sendMode, std::forward<Args>(args)...);
-    return;
-  }
-  else
-  {
-    auto promise = std::make_shared<std::promise<ReturnType>>();
-    auto future = promise->get_future();
-
-    std::pair<RPC_Internal::MethodID, RPC_Internal::CallID> requestIDs =
-        SendRequest<MethodType>(target, sendMode, std::forward<Args>(args)...);
-    RPC_Internal::MethodID methodId = requestIDs.first;
-    RPC_Internal::CallID callID = requestIDs.second;
-
-    {
-      // first check if lock is taken in this scope, if it is then warn
-      if (_mutex.try_lock())
-      {
-        _mutex.unlock();
+        return result;
       }
       else
       {
-        logger->warn("RPCSystem::Call is waiting for lock. This may indicate a "
-                     "deadlock or long-running RPC handler.");
+        Return ret = std::apply(
+            [&](auto&... xs) -> Return
+            {
+              if constexpr (rpc::template ContextInvocable<Func>)
+                return std::invoke(func, context, xs...);
+              else
+                return std::invoke(func, xs...);
+            },
+            args);
+
+        NetBinaryWriter writer;
+
+        writer(ret);
+        auto bytes = writer.GetBytes();
+        // result is a std::expected<vector<uint8_t>, RPCError>
+        result = std::vector<uint8_t>(bytes.begin(), bytes.end());
+
+        return result;
       }
-      PendingRequest pending;
-      pending.onResponse = [promise](std::span<const uint8_t> payload) mutable
+    };
+    std::unique_lock lock(mutex);
+    bindings[rpc::Id] = std::move(rawFunc);
+  }
+
+  void Call(SocketAddress target, std::string_view methodName,
+            std::span<const uint8_t> payload);
+  void Call(SocketAddress target, RPCID methodId,
+            std::span<const uint8_t> payload);
+
+  [[nodiscard]] std::future<RPCResult> Call_R(SocketAddress target,
+                                              std::string_view methodName,
+                                              std::span<const uint8_t> payload);
+  [[nodiscard]] std::future<RPCResult> Call_R(SocketAddress target,
+                                              RPCID methodId,
+                                              std::span<const uint8_t> payload);
+
+  template <typename rpc, typename Args = typename rpc::ArgsTuple>
+    requires(std::is_void<typename rpc::ReturnType>::value)
+  void Call(SocketAddress target, const Args& args)
+  {
+    logger->info("Calling RPC {} -> {} on target {}", rpc::NameString.value, rpc::Id, target.to_string());
+    std::vector<uint8_t> payload;
+    NetBinaryWriter serializer;
+    serializer(args);
+    auto bytes = serializer.GetBytes();
+    payload.insert(payload.end(), bytes.begin(), bytes.end());
+    Call(target, rpc::Id, payload);
+  }
+  template <typename rpc, typename Args = typename rpc::ArgsTuple>
+    requires(!std::is_void<typename rpc::ReturnType>::value)
+  [[nodiscard]] std::future<TRPCResult<typename rpc::ReturnType>>
+  Call_R(SocketAddress target, const Args& args)
+  {
+    logger->info("Calling RPC {} -> {} on target {}, response expected", rpc::NameString.value, rpc::Id, target.to_string());
+    static_assert(!std::is_void<typename rpc::ReturnType>::value,
+                  "Use the void overload of Call for RPCs with no return value");
+    RPCCallID callId = nextCallID++;
+    std::unique_lock lock(mutex);
+    pendingCall newCall;
+    newCall.timestamp = std::chrono::steady_clock::now();
+    std::promise<TRPCResult<typename rpc::ReturnType>> typedPromise;
+    std::future<TRPCResult<typename rpc::ReturnType>> future =
+        typedPromise.get_future();
+    newCall.onComplete =
+        [typedPromise = std::move(typedPromise)](
+            const pendingCall& call, const RPCResult& result) mutable
+    {
+      if (result.has_value())
       {
-        auto serializeFunction =
-            [](std::span<const uint8_t> payload) -> ReturnType
-        {
-          ByteReader reader(payload);
-          ReturnType value{};
-          reader(value);
-          return value;
-        };
-        if (Env::DebugMode)
-        {
-          try
-          {
-            ByteReader reader(payload);
-            ReturnType value{};
-            reader(value);
-            promise->set_value(std::move(value));
-          }
-          catch (...)
-          {
-            promise->set_exception(std::current_exception());
-          }
-        }
-        else
-        {
-          serializeFunction(payload);
-        }
-      };
-
-      pending.onError = [promise](const std::string& errorMsg) mutable
+        NetBinaryReader deserializer(result.value());
+        typename rpc::ReturnType returnValue;
+        deserializer(returnValue);
+        typedPromise.set_value(
+            TRPCResult<typename rpc::ReturnType>{std::move(returnValue)});
+      }
+      else
       {
-        promise->set_exception(
-            std::make_exception_ptr(std::runtime_error(errorMsg)));
-      };
-      std::unique_lock lock(_mutex);
+        typedPromise.set_value(std::unexpected(RPCError::RemoteException));
+      }
+    };
+    pendingCalls.emplace(callId, std::move(newCall));
+    lock.unlock();
+    std::vector<uint8_t> payload;
+    NetBinaryWriter serializer;
+    serializer(args);
+    auto bytes = serializer.GetBytes();
+    payload.insert(payload.end(), bytes.begin(), bytes.end());
 
-      _pendingPromises.emplace(PendingPromiseKey{methodId, callID},
-                               std::move(pending));
-    }
-
-    logger->info("Sending RPC request for methodId {} callId {} to {}",
-                 methodId, callID, target.to_string());
-
+    _SendCallRequest(target,
+                     RPC_Internal::RPCRequestContext{
+                         .rpcId = rpc::Id,
+                         .callId = callId,
+                         .responseExpected = true,
+                     },
+                     payload);
     return future;
   }
-}
 
-template <typename MethodType, typename... Args>
-[[nodiscard]] inline std::conditional_t<
-    std::is_void_v<typename MethodType::ReturnType>, void,
-    std::future<typename MethodType::ReturnType>>
-RPCSystem::Call(const RPCTarget& target, Args&&... args)
-{
-  return CallEx<MethodType>(target, MessageSendMode::eReliableBatched,
-                            std::forward<Args>(args)...);
-}
-
-} // namespace AtlasNet
-
-template <typename MethodType, typename... Args>
-inline std::pair<AtlasNet::RPC_Internal::MethodID,
-                 AtlasNet::RPC_Internal::CallID>
-AtlasNet::RPCSystem::SendRequest(const RPCTarget& target,
-                                 MessageSendMode sendMode, Args&&... args)
-{
-  ByteWriter writeArgs;
-  writeArgs(std::forward<Args>(args)...);
-
-  RpcRequestMessage request{.methodId = MethodType::Id,
-                            .callID = GetNextCallID(MethodType::Id),
-                            .payload =
-                                std::vector<uint8_t>(writeArgs.bytes().begin(),
-                                                     writeArgs.bytes().end())};
-
-  auto sendRequestHandle =
-      config_.messageSystem->QueueMessage(request, target, sendMode);
-  // NewActiveJob(sendRequestHandle);
-  return std::make_pair(request.methodId, request.callID);
-}
-
-template <typename MethodType>
-inline void
-AtlasNet::RPCSystem::SendResponse(const RPCTarget& target,
-                                  RPC_Internal::CallID callID,
-                                  const typename MethodType::ReturnType& ret)
-{
-  ByteWriter writeArgs;
-  writeArgs(ret);
-
-  RpcResponseMessage response{
-      .methodId = MethodType::Id,
-      .callID = callID,
-      .payload = std::vector<uint8_t>(writeArgs.bytes().begin(),
-                                      writeArgs.bytes().end())};
-
-  auto sendResponseHandle = config_.messageSystem->QueueMessage(
-      response, target, MessageSendMode::eReliableBatched);
-  sendResponseHandle->wait();
-  assert(sendResponseHandle.GetTask().is_done() &&
-         "Failed to send RPC request message and no fault scenarios have been "
-         "implemented");
-  logger->info("Sent RPC response for methodId {} callId {} to {}",
-               response.methodId, response.callID, target.to_string());
-  // NewActiveJob(sendResponseHandle);
-}
-
-/* template <typename MethodType, typename... Args>
-  requires(std::is_void_v<typename MethodType::ReturnType>)
-inline void AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
-{
-  SendRequest<MethodType>(target, std::forward<Args>(args)...);
-}
-
-template <typename MethodType, typename... Args>
-  requires(!std::is_void_v<typename MethodType::ReturnType>)
-std::future<typename MethodType::ReturnType>
-AtlasNet::RPCSystem::Call(const RPCTarget& target, Args&&... args)
-{
-  using ReturnType = typename MethodType::ReturnType;
-
-  auto promise = std::make_shared<std::promise<ReturnType>>();
-  auto future = promise->get_future();
-
-  RPC_Internal::MethodID methodId = MethodType::Id;
-  RPC_Internal::CallID callID;
-
+private:
+  void _SendCallRequest(SocketAddress target,
+                        RPC_Internal::RPCRequestContext int_context,
+                        std::span<const uint8_t> payload);
+  void _HandleCall(const RPC_Internal::RPCRequestMessage& request,
+                   const SocketAddress& sender);
+  void _HandleResponse(const RPC_Internal::RPCResponseMessage& response,
+                       const SocketAddress& sender);
+  const Config config_;
+  std::shared_mutex mutex;
+  std::unordered_map<RPCID, RPC_BindCallFunction_Raw> bindings;
+  std::atomic<RPCCallID> nextCallID{0};
+  struct pendingCall
   {
-    // first check if lock is taken in this scope, if it is then warn
-    if (_mutex.try_lock())
-    {
-      _mutex.unlock();
-    }
-    else
-    {
-      logger->warn("RPCSystem::Call is waiting for lock. This may indicate a "
-                   "deadlock or long-running RPC handler.");
-    }
-    std::unique_lock lock(_mutex);
-    callID = GetNextCallID(methodId);
-
-    PendingRequest pending;
-    pending.onResponse = [promise](std::span<const uint8_t> payload) mutable
-    {
-      auto serializeFunction =
-          [](std::span<const uint8_t> payload) -> ReturnType
-      {
-        ByteReader reader(payload);
-        ReturnType value{};
-        reader(value);
-        return value;
-      };
-      if (Env::DebugMode)
-      {
-        try
-        {
-          ByteReader reader(payload);
-          ReturnType value{};
-          reader(value);
-          promise->set_value(std::move(value));
-        }
-        catch (...)
-        {
-          promise->set_exception(std::current_exception());
-        }
-      }
-      else
-      {
-        serializeFunction(payload);
-      }
-    };
-
-    pending.onError = [promise](const std::string& errorMsg) mutable
-    {
-      promise->set_exception(
-          std::make_exception_ptr(std::runtime_error(errorMsg)));
-    };
-
-    _pendingPromises.emplace(PendingPromiseKey{methodId, callID},
-                             std::move(pending));
-  }
-
-  ByteWriter writeArgs;
-  writeArgs(std::forward<Args>(args)...);
-
-  RpcRequestMessage request{.methodId = methodId,
-                            .callID = callID,
-                            .payload =
-                                std::vector<uint8_t>(writeArgs.bytes().begin(),
-                                                     writeArgs.bytes().end())};
-  logger->info("Sending RPC request for methodId {} callId {} to {}", methodId,
-               callID, target.to_string());
-  auto sendMessageJobHandle = config_.messageSystem->QueueMessage(
-      request, target, MessageSendMode::eReliableBatched);
-
-
-  return future;
-}
- */
-template <typename MethodType, typename Func>
-  requires AtlasNet::RPC_Internal::BindableRpcHandler<MethodType, Func>
-inline void AtlasNet::RPCSystem::Bind(Func&& func)
-{
-  using ReturnType = std::remove_cvref_t<typename MethodType::ReturnType>;
-  using ArgsTuple = typename MethodType::ArgsTuple;
-
-  std::unique_lock lock(_mutex);
-  _methodBindHandlers[MethodType::Id] =
-      [f = std::forward<Func>(func),
-       this](const RPCTarget& caller, RPC_Internal::CallID callId,
-             std::span<const uint8_t> payload) mutable
-  {
-    /*  try
-     { */
-    ByteReader reader(payload);
-
-    ArgsTuple args;
-    std::apply([&](auto&... arg) { (reader(arg), ...); }, args);
-
-    if constexpr (std::is_void_v<ReturnType>)
-    {
-      std::apply(f, args);
-    }
-    else
-    {
-      ReturnType result = std::apply(f, args);
-      SendResponse<MethodType>(caller, callId, result);
-    }
-    /* }
-    catch (const std::exception& e)
-    {
-      SendError(caller, MethodType::Id, callId, e.what());
-    }
-    catch (...)
-    {
-      SendError(caller, MethodType::Id, callId, "Unhandled RPC exception");
-    } */
+    // std::promise<RPCResult> promise;
+    std::chrono::steady_clock::time_point timestamp;
+    std::move_only_function<void(const pendingCall&, const RPCResult&)>
+        onComplete;
   };
-  logger->info("Bound RPC method {} with MethodID {}", MethodType::GetName(),
-               MethodType::Id);
-}
+  std::unordered_map<RPCCallID, pendingCall> pendingCalls;
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("RPC");
+};
+}; // namespace AtlasNet

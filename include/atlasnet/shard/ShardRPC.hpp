@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/RPC/RPCMacros.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 namespace AtlasNet
@@ -13,54 +13,23 @@ struct ShardSpawnClientRequest
   AtlasNetGatewayID gatewayRelayID;
   std::vector<uint8_t>
       clientSpawnPayload; // This contains developer-defined data that was given
-                          // by the login services that is specific to this
-                          // client
+  // by the login services that is specific to this
+  // client
 
-  void Serialize(ByteWriter& writer) const
-  {
-    spawnTransform.Serialize(writer);
-    writer(clientID);
-    writer(gatewayRelayID);
-    writer.blob(std::span<const uint8_t>(clientSpawnPayload.data(),
-                                         clientSpawnPayload.size()));
-  }
-
-  void Deserialize(ByteReader& reader)
-  {
-    spawnTransform.Deserialize(reader);
-    reader(clientID);
-    reader(gatewayRelayID);
-    std::span<const uint8_t> payloadSpan;
-    reader.blob(payloadSpan);
-    clientSpawnPayload =
-        std::vector<uint8_t>(payloadSpan.begin(), payloadSpan.end());
+  template <typename Archive> void serialize(Archive& ar) {
+    ar(spawnTransform,clientID,gatewayRelayID,clientSpawnPayload);
   }
 };
-// Received by the frontend of the shard
-struct ClientSpawnInfo
-{
-  AtlasNetClientID clientID;
-  AtlasNetEntityID entityID;
-  Entity::Position position;
-  std::vector<uint8_t>
-      clientSpawnPayload; // This contains developer-defined data that will be
-                          // given to the shard that spawns the client
-};
+
 struct ShardSpawnClientResponse
 {
   AtlasNetEntityID entityID;
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive> void serialize(Archive& ar)
   {
-
-    writer(entityID);
-  }
-  void Deserialize(ByteReader& reader)
-  {
-    reader(entityID);
+    ar(entityID);
   }
 };
-ATLASNET_RPC(ShardRPC,
-             ATLASNET_RPC_METHOD(SpawnClient,
-                                 ATLASNET_RPC_SIG(ShardSpawnClientResponse(
-                                     ShardSpawnClientRequest))));
+using ShardRPC_SpawnClient =
+    RPC<"Shard_SpawnClient", ShardSpawnClientResponse, ShardSpawnClientRequest>;
+
 }; // namespace AtlasNet

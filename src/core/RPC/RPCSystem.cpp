@@ -1,132 +1,189 @@
+
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/RPC/RPCMessage.hpp"
-#include "atlasnet/core/utils/assert.hpp"
-#include "atlasnet/core/messages/Message.hpp"
-#include "atlasnet/core/messages/MessageSystem.hpp"
-#include <iostream>
-#include <shared_mutex>
-#include <utility>
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
+#include "atlasnet/core/address/SocketAddress.hpp"
 
-AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
+void AtlasNet::RPCSystem::_SendCallRequest(
+    SocketAddress target, RPC_Internal::RPCRequestContext int_context,
+    std::span<const uint8_t> payload)
 {
-  AN_ASSERT(config_.messageSystem != nullptr,
-            "RPC requires a valid MessageSystem");
+  RPC_Internal::RPCRequestMessage message{
+      .context = std::move(int_context),
+      .payload = std::vector<uint8_t>(payload.begin(), payload.end()),
+  };
+  auto msg = config_.messageSystem->QueueMessage(
+      message, target, MessageSendMode::eReliableBatched);
+  std::future_status status = msg->wait_for(config_.timeout);
+  assert(status == std::future_status::ready &&
+         "Failed to send RPC call: message send timed out");
+  MessageSendResultCode resultCode = msg->get().code;
+  assert(resultCode == MessageSendResultCode::eSuccess &&
+         "Failed to send RPC call: message send failed");
+}
+void AtlasNet::RPCSystem::_HandleCall(
+    const RPC_Internal::RPCRequestMessage& request, const SocketAddress& sender)
+{
+  const RPCID rpcId = request.context.rpcId;
+  const RPCCallID callId = request.context.callId;
+  const bool responseExpected = request.context.responseExpected;
 
-  if (config.port.has_value())
+  std::shared_lock lock(mutex);
+  auto it = bindings.find(rpcId);
+  if (it == bindings.end())
   {
-    config_.messageSystem->OpenListenSocket(config.port.value())
-        .On<RpcRequestMessage>(
-            [this](const RpcRequestMessage& msg, const SocketAddress& address)
-            {
-              OnRPCRequest(msg, address);
-            }); // requests should be handled by the listen socket callback to
-                // ensure we know which port they came in on
+
+    lock.unlock();
+    logger->error("Non bound RPC called: {}, from address: {}", rpcId,
+                  sender.to_string());
+    if (responseExpected)
+    {
+      RPC_Internal::RPCResponseMessage response{
+          .context = RPC_Internal::RPCResponseContext{.rpcId = rpcId,
+                                                      .callId = callId},
+          .result = RPCResultW{std::unexpected(RPCError::UnknownRPC)}};
+      auto msg = config_.messageSystem->QueueMessage(
+          response, sender, MessageSendMode::eReliableBatched);
+      auto status = msg->wait_for(config_.timeout);
+      assert(status == std::future_status::ready &&
+             "Failed to send RPC response: message send timed out");
+      MessageSendResultCode resultCode = msg->get().code;
+      assert(resultCode == MessageSendResultCode::eSuccess &&
+             "Failed to send RPC response: message send failed");
+    }
   }
   else
   {
-    config_.messageSystem->On<RpcRequestMessage>(
-        [this](const RpcRequestMessage& msg, const SocketAddress& address)
-        { OnRPCRequest(msg, address); });
-  }
-  config_.messageSystem
-      ->On<RpcResponseMessage>(
-          [this](const RpcResponseMessage& msg, const SocketAddress& address)
-          { OnRPCResponse(msg, address); })
-      .On<RpcErrorMessage>(
-          [this](const RpcErrorMessage& msg, const SocketAddress& address)
-          { OnRPCError(msg, address); });
-}
+    logger->info("Received RPC call for RPC {} from {}", rpcId, sender.to_string());
+    RPC_BindCallFunction_Raw func = it->second;
+    lock.unlock();
+    RPCResult result = func(RPCContext{.caller = sender}, request.payload);
 
-void AtlasNet::RPCSystem::OnRPCRequest(const RpcRequestMessage& msg,
-                                       const SocketAddress& address)
-{
-  logger->info("Received RPC request for methodId {} callId {} from {}",
-               msg.methodId, msg.callID, address.to_string());
-
-  BindFunc handler;
-  {
-    std::shared_lock<std::shared_mutex> lock(_mutex);
-    auto it = _methodBindHandlers.find(msg.methodId);
-    if (it == _methodBindHandlers.end())
+    if (responseExpected)
     {
-      return;
+      RPC_Internal::RPCResponseMessage response{
+          .context = RPC_Internal::RPCResponseContext{.rpcId = rpcId,
+                                                      .callId = callId},
+          .result = RPCResultW{std::move(result)}};
+      auto msg = config_.messageSystem->QueueMessage(
+          response, sender, MessageSendMode::eReliableBatched);
+      auto status = msg->wait_for(config_.timeout);
+      logger->info("Sending RPC response for RPC {} to {}, result: {}", rpcId,
+                   sender.to_string(),
+                   result.has_value() ? "success" : "timeout/error");
+      assert(status == std::future_status::ready &&
+             "Failed to send RPC response: message send timed out");
+      MessageSendResultCode resultCode = msg->get().code;
+      assert(resultCode == MessageSendResultCode::eSuccess &&
+             "Failed to send RPC response: message send failed");
     }
-    handler = it->second;
-  }
-
-  handler(address, msg.callID, msg.payload);
-}
-
-void AtlasNet::RPCSystem::Shutdown() {}
-
-void AtlasNet::RPCSystem::SendError(const RPCTarget& target,
-                                    RPC_Internal::MethodID methodId,
-                                    RPC_Internal::CallID callID,
-                                    std::string errorMsg)
-{
-  RpcErrorMessage error{
-      .methodId = methodId, .callID = callID, .ErrorMsg = std::move(errorMsg)};
-
-  auto sendErrorHandle = config_.messageSystem->TrySendMessage(
-      error, target, MessageSendMode::eReliableBatched);
-
-  // NewActiveJob(sendErrorHandle);
-}
-
-void AtlasNet::RPCSystem::OnRPCError(const RpcErrorMessage& msg,
-                                     const SocketAddress& address)
-{
-  logger->error("Received RPC error for methodId {} callId {} from {}: {}",
-                msg.methodId, msg.callID, address.to_string(), msg.ErrorMsg);
-
-  (void)address;
-
-  PendingRequest pending;
-  {
-    std::unique_lock<std::shared_mutex> lock(_mutex);
-    auto it =
-        _pendingPromises.find(PendingPromiseKey{msg.methodId, msg.callID});
-    if (it == _pendingPromises.end())
-    {
-      return;
-    }
-
-    pending = std::move(it->second);
-    _pendingPromises.erase(it);
-  }
-
-  if (pending.onError)
-  {
-    pending.onError(msg.ErrorMsg);
   }
 }
 
-void AtlasNet::RPCSystem::OnRPCResponse(const RpcResponseMessage& msg,
-                                        const SocketAddress& address)
+void AtlasNet::RPCSystem::_HandleResponse(
+    const RPC_Internal::RPCResponseMessage& response,
+    const SocketAddress& sender)
 {
-  logger->info("Received RPC response for methodId {} callId {} from {}",
-               msg.methodId, msg.callID, address.to_string());
-
-
-  PendingRequest pending;
+  logger->info("Received RPC response for RPC {} from {}, {}",
+               response.context.rpcId, sender.to_string(),
+               response.result.result.has_value()
+                   ? "success"
+                   : boost::describe::enum_to_string(
+                         response.result.result.error(), "<UNKNOWN ERROR>"));
+  const RPCID rpcId = response.context.rpcId;
+  const RPCCallID callId = response.context.callId;
+  std::unique_lock lock(mutex);
+  auto it = pendingCalls.find(callId);
+  if (it != pendingCalls.end())
   {
-    std::unique_lock<std::shared_mutex> lock(_mutex);
-    auto it =
-        _pendingPromises.find(PendingPromiseKey{msg.methodId, msg.callID});
-    if (it == _pendingPromises.end())
-    {
-      logger->error("No pending promise found for RPC response with methodId {} callId {}",
-                    msg.methodId, msg.callID);
-
-      return;
-    }
-
-    pending = std::move(it->second);
-    _pendingPromises.erase(it);
+    it->second.onComplete(it->second, response.result.result);
+    pendingCalls.erase(it);
+    lock.unlock();
   }
-
-  if (pending.onResponse)
+  else
   {
-    pending.onResponse(msg.payload);
+    logger->error(
+        "Received response for unknown RPC ID: {},  call ID: {}, address: {}",
+        rpcId, callId, sender.to_string());
   }
+}
+
+AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
+{
+  assert(config_.messageSystem &&
+         "RPCSystem requires a MessageSystem in its config");
+  config_.messageSystem->On<RPC_Internal::RPCRequestMessage>(
+      [this](const RPC_Internal::RPCRequestMessage& request,
+             const SocketAddress& sender) { _HandleCall(request, sender); });
+  config_.messageSystem->On<RPC_Internal::RPCResponseMessage>(
+      [this](const RPC_Internal::RPCResponseMessage& response,
+             const SocketAddress& sender)
+      { _HandleResponse(response, sender); });
+}
+void AtlasNet::RPCSystem::Bind(std::string_view name,
+                               RPC_BindCallFunction_Raw func)
+{
+  const RPCID id = RPC_Internal::HashRPCName(name.data());
+  Bind(id, std::move(func));
+}
+void AtlasNet::RPCSystem::Bind(RPCID id, RPC_BindCallFunction_Raw func)
+{
+  logger->info("Binding RPC {}", id);
+  std::unique_lock lock(mutex);
+  bindings[id] = std::move(func);
+}
+void AtlasNet::RPCSystem::Call(SocketAddress target,
+                               std::string_view methodName,
+                               std::span<const uint8_t> payload)
+{
+  const RPCID methodId = RPC_Internal::HashRPCName(methodName.data());
+  Call(target, methodId, payload);
+}
+void AtlasNet::RPCSystem::Call(SocketAddress target, RPCID methodId,
+                               std::span<const uint8_t> payload)
+{
+  logger->info("Calling RPC {} on target {}", methodId, target.to_string());
+
+  RPCCallID callId = nextCallID++;
+  _SendCallRequest(target,
+                   RPC_Internal::RPCRequestContext{
+                       .rpcId = methodId,
+                       .callId = callId,
+                       .responseExpected = false,
+                   },
+                   payload);
+}
+[[nodiscard]] std::future<AtlasNet::RPCResult>
+AtlasNet::RPCSystem::Call_R(AtlasNet::SocketAddress target,
+                            std::string_view methodName,
+                            std::span<const uint8_t> payload)
+{
+  const RPCID methodId = RPC_Internal::HashRPCName(methodName.data());
+  return Call_R(target, methodId, payload);
+}
+[[nodiscard]] std::future<AtlasNet::RPCResult>
+AtlasNet::RPCSystem::Call_R(AtlasNet::SocketAddress target, RPCID methodId,
+                            std::span<const uint8_t> payload)
+{
+  logger->info("Calling RPC {} on target {}, response expected", methodId,
+               target.to_string());
+  RPCCallID callId = nextCallID++;
+  std::unique_lock<std::shared_mutex> lock(mutex);
+  pendingCall newCall;
+  std::promise<RPCResult> promise;
+  std::future<RPCResult> future = promise.get_future();
+  newCall.timestamp = std::chrono::steady_clock::now();
+  newCall.onComplete =
+      [promise = std::move(promise)](const pendingCall& call,
+                                     const RPCResult& result) mutable
+  { promise.set_value(result); };
+  pendingCalls[callId] = std::move(newCall);
+  lock.unlock();
+  _SendCallRequest(target,
+                   RPC_Internal::RPCRequestContext{
+                       .rpcId = methodId,
+                       .callId = callId,
+                       .responseExpected = true,
+                   },
+                   payload);
+  return future;
 }

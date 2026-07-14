@@ -1,24 +1,26 @@
 #pragma once
 
+#include "SerializationConcepts.hpp"
 #include "bitsery/deserializer.h"
 #include "bitsery/serializer.h"
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
-#include <bitsery/traits/vector.h>
 #include <bitsery/brief_syntax.h>
-#include <bitsery/traits/string.h>
-
-
+#include <bitsery/brief_syntax/string.h>
+#include <bitsery/brief_syntax/array.h>
+#include <bitsery/brief_syntax/vector.h>
+#include <bitsery/brief_syntax/tuple.h>
 #include <boost/container/small_vector.hpp>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 namespace AtlasNet
 {
 
-class BinaryDeserializer
+class NetBinaryReader
 {
 
 public:
@@ -26,11 +28,11 @@ public:
   using InputAdapter = bitsery::InputBufferAdapter<Data>;
   using Deserializer = bitsery::Deserializer<InputAdapter>;
 
-  BinaryDeserializer(Data data, size_t size)
+  NetBinaryReader(Data data, size_t size)
       : deserializer(InputAdapter{data, size})
   {
   }
-  BinaryDeserializer(std::span<const uint8_t> bytes)
+  NetBinaryReader(std::span<const uint8_t> bytes)
       : deserializer(InputAdapter{bytes.data(), bytes.size()})
   {
   }
@@ -38,7 +40,7 @@ public:
   {
     (DeserializeOne(std::forward<Args>(args)), ...);
   }
-  template <typename... Args> BinaryDeserializer& operator()(Args&&... args)
+  template <typename... Args> NetBinaryReader& operator()(Args&&... args)
   {
     Deserialize(std::forward<Args>(args)...);
     return *this;
@@ -49,26 +51,27 @@ public:
   }
 
 private:
+
   template <typename T> void DeserializeOne(T&& value)
   {
-    deserializer(value);
+      deserializer(value);
   }
   Deserializer deserializer;
 };
-class BinarySerializer
+class NetBinaryWriter
 {
 public:
   using Buffer = std::vector<uint8_t>;
   using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
   using Serializer = bitsery::Serializer<OutputAdapter>;
 
-  BinarySerializer() : buffer(), serializer(buffer) {}
+  NetBinaryWriter() : buffer(), serializer(buffer) {}
   template <typename... Args> void Serialize(Args&&... args)
   {
     (SerializeOne(std::forward<Args>(args)), ...);
     serializer.adapter().flush();
   }
-  template <typename... Args> BinarySerializer& operator()(Args&&... args)
+  template <typename... Args> NetBinaryWriter& operator()(Args&&... args)
   {
     Serialize(std::forward<Args>(args)...);
     return *this;
@@ -90,9 +93,11 @@ public:
   }
 
 private:
+
   template <typename T> void SerializeOne(T&& value)
   {
-    serializer(value);
+      serializer(value);
+    
   }
   Buffer buffer;
   Serializer serializer;

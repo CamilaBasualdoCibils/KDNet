@@ -1,11 +1,13 @@
-#pragma once
+
 #include "atlasnet/core/RPC/RPCMacros.hpp"
 #include "atlasnet/core/RPC/RPCMessage.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/RPC/new/RPCConcepts_N.hpp"
+#include "atlasnet/core/RPC/new/RPCSystem_N.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 
 #include "atlasnet/core/messages/MessageSystem.hpp"
+#include "atlasnet/core/serialize/BinarySerializer.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
 
 #include <condition_variable>
@@ -328,7 +330,114 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   EXPECT_EQ(WEXITSTATUS(childStatus), 0);
 }
 
-ATLASNET_RPC_NEW(NewStyleRPC, NewTestMethod, void, int, float);
-ATLASNET_RPC_NEW(NewStyleRPC, NewTestMethod_Ret, int);
-ATLASNET_RPC_NEW(NewStyleRPC, NewTestMethod_Ret_String, std::string,
-                 std::string_view);
+TEST(RPC, NewStyleRPC_SelfReceive)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+  rpc.Bind(0,
+           [](const RPCContext& c, std::span<const uint8_t> data) -> RPCResult
+           {
+             std::string str(data.begin(), data.end());
+             std::cout << "Received RPC call with data: " << str << std::endl;
+             str += " world";
+             std::vector<uint8_t> responseData(str.begin(), str.end());
+             return RPCResult(responseData);
+           });
+  std::vector<uint8_t> payload{'H', 'e', 'l', 'l', 'o'};
+  auto result = rpc.Call_R(
+      address, 0, std::span<const uint8_t>(payload.data(), payload.size()));
+
+  std::future_status status = result.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  RPCResult rpcResult = result.get();
+  EXPECT_TRUE(rpcResult.has_value());
+  SUCCEED() << "RPC call succeeded with result: "
+            << std::string(rpcResult.value().begin(), rpcResult.value().end());
+}
+TEST(RPC, NewStyleRPC_UnknownRPCError)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+
+  std::vector<uint8_t> payload{'H', 'e', 'l', 'l', 'o'};
+  auto result = rpc.Call_R(
+      address, 9999, std::span<const uint8_t>(payload.data(), payload.size()));
+
+  std::future_status status = result.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  RPCResult rpcResult = result.get();
+  EXPECT_FALSE(rpcResult.has_value());
+  EXPECT_EQ(rpcResult.error(), RPCError::UnknownRPC);
+}
+TEST(RPC, NewStyleRPC_Timeout)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem,
+                                      .timeout = std::chrono::seconds(1)});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+  rpc.Bind(0,
+           [](const RPCContext& c, std::span<const uint8_t> data) -> RPCResult
+           {
+             std::this_thread::sleep_for(
+                 std::chrono::seconds(2)); // Sleep longer than RPC timeout
+             return std::unexpected(RPCError::None);
+           });
+
+  std::vector<uint8_t> payload{'H', 'e', 'l', 'l', 'o'};
+  auto result = rpc.Call_R(
+      address, 0, std::span<const uint8_t>(payload.data(), payload.size()));
+
+  std::future_status status = result.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  RPCResult rpcResult = result.get();
+  EXPECT_FALSE(rpcResult.has_value());
+  EXPECT_EQ(rpcResult.error(), RPCError::Timeout);
+}
+using N_RPC_NewTestMethod = RPC<"NewTestMethod", void, int, float>;
+using N_RPC_NewTestMethod_Ret = RPC<"NewTestMethod_Ret", int>;
+using N_RPC_NewTestMethod_Ret_String =
+    RPC<"NewTestMethod_Ret_String", std::string, std::string>;
+
+ TEST(RPC, NewStyleRPC_SelfReceiveWithConcepts)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem_N rpc(RPCSystem_N::Config{.messageSystem = &msgSystem,
+                                      .timeout = std::chrono::seconds(1)});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+  rpc.Bind<N_RPC_NewTestMethod_Ret_String>(
+      [](const RPCContext& c, const std::string& data) -> std::string
+      {
+        std::cout << "Received RPC call with data: " << data << std::endl;
+        return std::string(data) + " world";
+      });
+  auto call_future = rpc.Call_R<N_RPC_NewTestMethod_Ret_String>(
+      address,{"hello"});
+
+  std::future_status status = call_future.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  auto rpcResult = call_future.get();
+  EXPECT_TRUE(rpcResult.has_value());
+  EXPECT_EQ(rpcResult.value(), "hello world");
+}  

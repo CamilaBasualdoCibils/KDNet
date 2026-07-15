@@ -102,6 +102,7 @@ void AtlasNet::IAtlasNetNode::Init()
           GetNodeRegistry().RegisterNode(GetNodeType(), GetNetworkAddress());
       info.has_value())
   {
+    this->nodeInfo = *info; // Store the NodeInfo for later use
     this->id = info->id; // Set the container ID to the registered ID
     _Json jsonDump;
     info->to_json(jsonDump);
@@ -130,7 +131,18 @@ void AtlasNet::IAtlasNetNode::Init()
                                                  .serviceType = GetNodeType()},
           },
   });
-  _addressResolver.emplace(AddressResolver::Config{.nodeRegistry = &_nodeRegistry.value()});
+  _entityRegistry.emplace(EntityRegistry::Config{._redisConn = _redisDatabase.get()});
+  clientIDGenerator.emplace(GetNodeID());
+  _clientRegistry.emplace(ClientRegistry::Config{
+      ._globalEventSystem = &GetGlobalEventSystem(),
+      .__redisConn = &GetRedisConn(),
+      ._clientIDGenerator = &*clientIDGenerator,
+  });
+
+  _addressResolver.emplace(
+      AddressResolver::Config{.nodeRegistry = &_nodeRegistry.value(),
+                              .clientRegistry = &_clientRegistry.value(),
+                              .entityRegistry = &_entityRegistry.value()});
   _rpcSystem.emplace(
       RPCSystem::Config{.messageSystem = &_messageSystem.value()});
 

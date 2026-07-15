@@ -1,7 +1,9 @@
 
 #include "TankBattleClient.hpp"
 #include "Commands.hpp"
+#include "atlasnet/core/CmdSig/command/CommandEnums.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
+#include "boost/describe/enum_to_string.hpp"
 int main()
 {
   TankBattle::TankBattleClient client;
@@ -32,12 +34,12 @@ void TankBattle::TankBattleClient::Run()
   {
     logger->info("Successfully connected to AtlasNet server.");
   }
-/*   logger->info("Dispatching PlayerMoveCommand to server.");
+   logger->info("Dispatching PlayerMoveCommand to server.");
   PlayerMoveCommand moveCommand;
   moveCommand.delta = {0.01f, 0.0f}; // Example movement delta
-  AtlasNetClient_DispatchCommand(moveCommand,
-                                 AtlasNet::MessageSendMode::eReliableBatched);
-  logger->info("Dispatched PlayerMoveCommand to server."); */
+  AtlasNet::CommandAckStatus status = AtlasNetClient_DispatchCommand(moveCommand,
+                                 AtlasNet::CommandDeliveryGuarantee::ServerConfirmed);
+  logger->info("Dispatched PlayerMoveCommand to server. with status {}", boost::describe::enum_to_string(status, "<INVALID>"));
   while (!WindowShouldClose())
   {
     BeginDrawing();

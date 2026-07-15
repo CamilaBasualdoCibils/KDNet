@@ -1,5 +1,6 @@
 #pragma once
 
+#include "atlasnet/core/CmdSig/command/Command.hpp"
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
@@ -16,8 +17,9 @@ struct ShardSpawnClientRequest
   // by the login services that is specific to this
   // client
 
-  template <typename Archive> void serialize(Archive& ar) {
-    ar(spawnTransform,clientID,gatewayRelayID,clientSpawnPayload);
+  template <typename Archive> void serialize(Archive& ar)
+  {
+    ar(spawnTransform, clientID, gatewayRelayID, clientSpawnPayload);
   }
 };
 
@@ -31,5 +33,7 @@ struct ShardSpawnClientResponse
 };
 using ShardRPC_SpawnClient =
     RPC<"Shard_SpawnClient", ShardSpawnClientResponse, ShardSpawnClientRequest>;
+using ShardRPC_ClientTransitCommand =
+    RPC<"Shard_ClientTransitCommand", CommandAck, TransitCommandEnvelope>;
 
 }; // namespace AtlasNet

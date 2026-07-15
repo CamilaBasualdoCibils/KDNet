@@ -453,7 +453,7 @@ void AtlasNet::MessageSystem::SetIdentity(
 }
 
 void AtlasNet::MessageSystem::ListenSocketHandle::DispatchCallbacks(
-    const IMessage& message, MessageIDHash typeIdHash,
+    const IMessage& message, MessageID typeIdHash,
     const SocketAddress& caller_address)
 {
   HandlerFunc dispatcher;
@@ -574,7 +574,7 @@ void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
         {
           ByteReader readerID(messageData);
 
-          const MessageIDHash typeIdHash =
+          const MessageID typeIdHash =
               IMessage::DeserializeTypeIdHash(readerID);
 
           logger->info("Message of type hash: {} {}", typeIdHash,

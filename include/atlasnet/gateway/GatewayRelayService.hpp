@@ -2,6 +2,7 @@
 
 #include "atlasnet/core/CmdSig/command/CommandEnums.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/address/AddressResolver.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
@@ -17,6 +18,7 @@
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 
 #include "atlasnet/gateway/GatewayRPC.hpp"
+#include "atlasnet/shard/ShardRPC.hpp"
 #include "enviroment/Enviroment.hpp"
 #include "spdlog/sinks/stdout_color_sinks-inl.h"
 #include <cassert>
@@ -55,12 +57,10 @@ public:
     assert(config_.addressResolver && "AddressResolver pointer cannot be null");
     assert(config_.rpcSystem && "RPCSystem pointer cannot be null");
 
-
-    /* config_.rpcSystem->Bind<GatewayRPC::IngressCommand>(
-        [this](IngressCommandEnvelope commandEnvelope,
-               const SocketAddress& sourceAddress) -> CommandAck
-        { return HandleIngressCommand(commandEnvelope, sourceAddress); }); */
-
+    config_.rpcSystem->Bind<GatewayRPC_IngressCommand>(
+        [this](const RPCContext& context,
+               const IngressCommandEnvelope& commandEnvelope) -> CommandAck
+        { return HandleIngressCommand(commandEnvelope, context); });
 
     /* config_.messageSystem->On<ExternalCommandMessage>(
         [&](const ExternalCommandMessage& message,
@@ -117,14 +117,88 @@ private:
     return GatewayID2ClientIDs_Set + ":" + gatewayID.to_string();
   }
   CommandAck HandleIngressCommand(const IngressCommandEnvelope& commandEnvelope,
-                            const SocketAddress& sourceAddress)
+                                  const RPCContext& context)
   {
     logger->info("Received ingress command: {} from address: {}",
-                 commandEnvelope.commandPayload.commandName,
-                 sourceAddress.to_string());
+                 commandEnvelope.package.commandPayload.commandName,
+                 context.sourceAddress.to_string());
 
-    return CommandAck{CommandAckStatus::GatewayAck};
-  } /*
+    const std::optional<AtlasNetClientID> clientID =
+        config_.clientRegistry->GetAddressClientID(context.sourceAddress);
+    if (!clientID)
+    {
+      assert(clientID && "Received ingress command from unknown address, "
+                         "cannot find associated ClientID");
+      logger->error("Received ingress command from unknown address: {}, cannot "
+                    "find associated ClientID",
+                    context.sourceAddress.to_string());
+      return CommandAck{CommandAckStatus::UnknownError};
+    }
+    const std::optional<AtlasNetEntityID> entityID =
+        config_.clientRegistry->GetClientEntityID(*clientID);
+    if (!entityID)
+    {
+      assert(entityID && "Received ingress command from unknown client, "
+                         "cannot find associated EntityID");
+      logger->error("Received ingress command from unknown client: {}, cannot "
+                    "find associated EntityID",
+                    clientID->to_string());
+      return CommandAck{CommandAckStatus::UnknownError};
+    }
+    const std::optional<AtlasNetShardID> shardID =
+        config_.addressResolver->ResolveEntityShard(*entityID);
+    if (!shardID)
+    {
+      assert(shardID && "Received ingress command from unknown client, "
+                        "cannot find associated ShardID");
+      logger->error("Received ingress command from unknown client: {}, cannot "
+                    "find associated ShardID",
+                    clientID->to_string());
+      return CommandAck{CommandAckStatus::UnknownError};
+    }
+    const std::optional<SocketAddress> shardAddress =
+        config_.addressResolver->ResolveShard(*shardID);
+    if (!shardAddress)
+    {
+      assert(shardAddress && "Received ingress command from unknown shard, "
+                             "cannot find associated ShardAddress");
+      logger->error("Received ingress command from unknown shard: {}, cannot "
+                    "find associated ShardAddress",
+                    shardID->to_string());
+      return CommandAck{CommandAckStatus::UnknownError};
+    }
+    TransitCommandEnvelope commandEnvelopeWithClientID{
+        .targetEntity = entityID.value(),
+        .commandPackage = commandEnvelope.package};
+
+    if (commandEnvelope.package.deliveryMode ==
+            CommandDeliveryGuarantee::NoDelay ||
+        commandEnvelope.package.deliveryMode ==
+            CommandDeliveryGuarantee::Unreliable ||
+        commandEnvelope.package.deliveryMode ==
+            CommandDeliveryGuarantee::UnreliableBatched)
+    {
+      // no Ack expected
+      config_.rpcSystem->Call<ShardRPC_ClientTransitCommand>(
+          *shardAddress, {commandEnvelopeWithClientID});
+      return CommandAck{CommandAckStatus::GatewayAck};
+    }
+
+    auto result = config_.rpcSystem->Call_R<ShardRPC_ClientTransitCommand>(
+        *shardAddress, {commandEnvelopeWithClientID});
+
+    std::future_status status = result.wait_for(std::chrono::seconds(5));
+    if (status == std::future_status::ready)
+    {
+      auto ackResult = result.get();
+      if (ackResult.has_value())
+      {
+        return ackResult.value();
+      }
+    }
+    return CommandAck{CommandAckStatus::TimedOut};
+  }
+  /*
    void HandleExternalCommand(const ExternalCommandMessage& message,
                               const AtlasNetClientID& sourceClientID)
    {

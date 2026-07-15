@@ -9,6 +9,8 @@
 #include <shared_mutex>
 #include <thread>
 using namespace drogon;
+namespace AtlasNet
+{
 class EntityStreamWebSockController
     : public drogon::WebSocketController<EntityStreamWebSockController>
 {
@@ -54,3 +56,4 @@ public:
       spdlog::stdout_color_mt("EntityStreamWebSock");
 
 };
+}

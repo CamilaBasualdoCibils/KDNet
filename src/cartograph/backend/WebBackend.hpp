@@ -29,6 +29,8 @@ class CartographBackendService : public IAtlasNetNode
   using IAtlasNetNode::GetMessageSystem;
   using IAtlasNetNode::GetRPCSystem;
   using IAtlasNetNode::GetNodeRegistry;
+  using IAtlasNetNode::GetLogger;
+  using IAtlasNetNode::GetAddressResolver;
 private:
   void OnInit() override;
 

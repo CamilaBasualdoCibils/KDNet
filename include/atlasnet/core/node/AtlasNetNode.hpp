@@ -1,19 +1,20 @@
 #pragma once
-#include "atlasnet/core/address/Address.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
+#include "atlasnet/core/address/Address.hpp"
 #include "atlasnet/core/address/AddressResolver.hpp"
-#include "atlasnet/core/utils/Snowflake.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
-#include "atlasnet/core/node/NodeTypes.hpp"
+#include "atlasnet/core/client/ClientRegistry.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
-#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/node/NodeRegistry.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "atlasnet/core/universe/Universe.hpp"
+#include "atlasnet/core/utils/Snowflake.hpp"
 #include <atomic>
 #include <boost/describe.hpp>
 #include <cassert>
@@ -55,11 +56,10 @@ protected:
 
       if (!serviceInfo)
       {
-        logger->error("Handshake failed: requested service ID {} not found in registry",
-                     requestData.serviceID.to_string());
-        return HandshakeResponsePacket{.accepted = false,
-                                       .rejectReason =
-                                           "Requested service ID not found"};
+        logger->error("Handshake failed: requested service ID {} not found in
+    registry", requestData.serviceID.to_string()); return
+    HandshakeResponsePacket{.accepted = false, .rejectReason = "Requested
+    service ID not found"};
       }
       return HandshakeResponsePacket{.accepted = true};
     }
@@ -123,6 +123,21 @@ protected:
     assert(_addressResolver.has_value() && "AddressResolver not initialized");
     return _addressResolver.value();
   }
+  ClientRegistry& GetClientRegistry()
+  {
+    assert(_clientRegistry.has_value() && "ClientRegistry not initialized");
+    return _clientRegistry.value();
+  }
+  EntityRegistry& GetEntityRegistry()
+  {
+    assert(_entityRegistry.has_value() && "EntityRegistry not initialized");
+    return _entityRegistry.value();
+  }
+  NodeInfo& GetNodeInfo()
+  {
+    assert(nodeInfo.has_value() && "NodeInfo not initialized");
+    return *nodeInfo;
+  }
 
 public:
   void Init();
@@ -136,13 +151,12 @@ public:
     return *id;
   }
 
-
 private:
-
   std::optional<AtlasNetNodeID> id;
+  std::optional<NodeInfo> nodeInfo;
   const AtlasNetNodeType type;
 
-std::shared_ptr<spdlog::logger> logger;
+  std::shared_ptr<spdlog::logger> logger;
   std::atomic<bool> shutdown_requested{false};
   std::mutex mutex;
   std::condition_variable cv;
@@ -156,7 +170,10 @@ std::shared_ptr<spdlog::logger> logger;
   std::optional<Universe> _universe;
   std::optional<NodeRegistry> _nodeRegistry;
   std::unique_ptr<Database::RedisConn> _redisDatabase;
+  std::optional<EntityRegistry> _entityRegistry;
+  std::optional<ClientRegistry> _clientRegistry;
   std::optional<AddressResolver> _addressResolver;
+  std::optional<AtlasNetClientID::Generator> clientIDGenerator;
 
   // Database::InternalDB _internalDB;
   static inline IAtlasNetNode& Get()

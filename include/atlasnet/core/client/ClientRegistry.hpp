@@ -5,8 +5,6 @@
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
-#include "atlasnet/core/node/AtlasNetNode.hpp"
-#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "enviroment/Enviroment.hpp"
@@ -162,6 +160,40 @@ public:
           address.to_string());
     }
     return LoginResult{newClientID, Entity::Location{}, std::vector<uint8_t>{}};
+  }
+  [[nodiscard]] std::optional<AtlasNetEntityID> GetClientEntityID(const AtlasNetClientID& clientID)
+  {
+    ByteWriter clientIDWriter;
+    clientIDWriter(clientID);
+    std::optional<std::string> value =
+        config_.__redisConn->HashMap().GetSet().HGet(
+            ClientID2EntityIDHashKey, clientIDWriter.as_string_view());
+    if (!value)
+    {
+      return std::nullopt;
+    }
+    ByteReader reader(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(value->data()), value->size()));
+    AtlasNetEntityID entityID;
+    reader(entityID);
+    return entityID;
+  }
+  [[nodiscard]] std::optional<AtlasNetClientID> GetClientIDFromEntityID(const AtlasNetEntityID& entityID)
+  {
+    ByteWriter entityIDWriter;
+    entityIDWriter(entityID);
+    std::optional<std::string> value =
+        config_.__redisConn->HashMap().GetSet().HGet(
+            EntityID2ClientIDHashKey, entityIDWriter.as_string_view());
+    if (!value)
+    {
+      return std::nullopt;
+    }
+    ByteReader reader(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(value->data()), value->size()));
+    AtlasNetClientID clientID;
+    reader(clientID);
+    return clientID;
   }
 
 private:

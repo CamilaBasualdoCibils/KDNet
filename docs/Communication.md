@@ -33,21 +33,19 @@ digraph MessageFlow {
     Gateway [label="Gateway",pos="0,1!"];
     ShardA [label="Shard A",pos="-1,2!"];
     ShardB [label="Shard B",pos="1,2!"];
-    LoginServer [label="Login Server",pos="2,1!"];
+
 
     Client1 -> Gateway [color="black",style=dashed,dir=none];
     Client2 -> Gateway [color="black",style=dashed,dir=none];
     Gateway -> ShardA [color="black",style=dashed,dir=none];
     Gateway -> ShardB [color="black",style=dashed,dir=none];
     ShardA -> ShardB [color="black",style=dashed,dir=none];
-    LoginServer -> Gateway [color="black",style=dashed,dir=none];
     Client1 -> Client2 [color="black",style=dashed,dir=none];
 }
 
 ```
 ### RPC
 
-//this section is about RPC
 
 RPC (Remote Procedure Call) is a communication pattern that allows any component to invoke methods on remote servers as if they were local. In AtlasNet, RPCs are used for synchronous operations where a client needs to request data or trigger an action on the server and wait for a response.
 

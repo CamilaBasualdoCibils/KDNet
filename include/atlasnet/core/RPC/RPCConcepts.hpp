@@ -2,7 +2,9 @@
 
 #include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/Message.hpp"
+#include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "atlasnet/core/utils/FixedString.hpp"
 #include "atlasnet/core/utils/MacroConcepts.hpp"
 #include <cstdint>
 #include <expected>
@@ -15,7 +17,7 @@ using RPCID = uint32_t;
 using RPCCallID = uint64_t;
 struct RPCContext
 {
-  SocketAddress caller;
+  SocketAddress sourceAddress;
 };
 
 enum class RPCError
@@ -104,8 +106,12 @@ struct RPCResponseContext
     ar(callId);
   }
 };
+/* using RPCRequestMessage = Message<"RPCRequestMessage", RPCRequestContext, std::vector<uint8_t>>;
+using RPCResponseMessage = Message<"RPCResponseMessage", RPCResponseContext, RPCResultW>;
+ */
 ATLASNET_MESSAGE(RPCRequestMessage,
                  ATLASNET_MESSAGE_DATA(RPCRequestContext, context),
+                 ATLASNET_MESSAGE_DATA(MessageSendMode, sendMode),
                  ATLASNET_MESSAGE_DATA(std::vector<uint8_t>, payload));
 ATLASNET_MESSAGE(RPCResponseMessage,
                  ATLASNET_MESSAGE_DATA(RPCResponseContext, context),
@@ -121,20 +127,13 @@ constexpr RPCID HashRPCName(const char* str)
   }
   return hash;
 }
-template <std::size_t N> struct RPCFuncName
-{
-  char value[N];
 
-  constexpr RPCFuncName(const char (&str)[N])
-  {
-    std::copy_n(str, N, value);
-  }
-};
 } // namespace RPC_Internal
 template <typename Archive, typename... Ts>
 concept DefaultRPCSerializable =
     requires(Archive& ar, Ts&&... args) { ar(std::forward<Ts>(args)...); };
-template <RPC_Internal::RPCFuncName Name, typename Return, typename... Args>
+
+template <FixedString Name, typename Return, typename... Args>
 struct RPC
 {
   using ReturnType = Return;

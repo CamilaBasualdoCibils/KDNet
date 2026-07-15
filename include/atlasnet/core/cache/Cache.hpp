@@ -122,7 +122,7 @@ public:
     }
     return std::nullopt;
   }
-  void Invalidate(const First& key)
+  void InvalidateKey(const First& key)
   {
     std::unique_lock lock(mutex_);
     if (auto it = data_.find(key); it != data_.end())
@@ -131,7 +131,7 @@ public:
       data_.erase(it);
     }
   }
-  void Invalidate(const Second& value)
+  void InvalidateValue(const Second& value)
   {
     std::unique_lock lock(mutex_);
     if (auto it = reverseData_.find(value); it != reverseData_.end())

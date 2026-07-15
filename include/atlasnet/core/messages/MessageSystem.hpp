@@ -36,13 +36,15 @@ static void OnSteamNetConnectionStatusChanged(
     SteamNetConnectionStatusChangedCallback_t* info);
 enum class MessageSendMode
 {
+  eNoDelay = k_nSteamNetworkingSend_UnreliableNoDelay,
   eReliable = k_nSteamNetworkingSend_ReliableNoNagle,
   eReliableBatched = k_nSteamNetworkingSend_Reliable,
   eUnreliable = k_nSteamNetworkingSend_UnreliableNoNagle,
-  eUnreliableBatched = k_nSteamNetworkingSend_Unreliable
+  eUnreliableBatched = k_nSteamNetworkingSend_Unreliable,
+  eINVALID,
 };
-BOOST_DESCRIBE_ENUM(MessageSendMode, eReliable, eReliableBatched, eUnreliable,
-                    eUnreliableBatched)
+BOOST_DESCRIBE_ENUM(MessageSendMode, eNoDelay, eReliable, eReliableBatched, eUnreliable,
+                    eUnreliableBatched, eINVALID)
 enum class ConnectionState
 {
   eNone = k_ESteamNetworkingConnectionState_None,
@@ -116,14 +118,14 @@ public:
     PortType port;
     using HandlerFunc =
         std::function<void(const IMessage&, const SocketAddress&)>;
-    std::unordered_map<MessageIDHash, HandlerFunc> _handlers;
-    // using DispatchFunc = std::function<void(const IMessage&, MessageIDHash,
+    std::unordered_map<MessageID, HandlerFunc> _handlers;
+    // using DispatchFunc = std::function<void(const IMessage&, MessageID,
     //                                         const SocketAddress&)>;
-    // std::unordered_map<MessageIDHash, DispatchFunc> _dispatchTable;
+    // std::unordered_map<MessageID, DispatchFunc> _dispatchTable;
     friend class MessageSystem;
 
   protected:
-    void DispatchCallbacks(const IMessage& message, MessageIDHash typeIdHash,
+    void DispatchCallbacks(const IMessage& message, MessageID typeIdHash,
                            const SocketAddress& caller_address);
 
   public:
@@ -321,10 +323,10 @@ private:
   std::vector<TaskHandle<MessageSendResult>> _sendJobs;
   using HandlerFunc =
       std::function<void(const IMessage&, const SocketAddress&)>;
-  std::unordered_map<MessageIDHash, HandlerFunc> _handlers;
+  std::unordered_map<MessageID, HandlerFunc> _handlers;
   using DispatchFunc = std::function<void(ByteReader&, const SocketAddress&,
                                           std::optional<PortType>)>;
-  std::unordered_map<MessageIDHash, DispatchFunc> _dispatchTable;
+  std::unordered_map<MessageID, DispatchFunc> _dispatchTable;
   std::jthread _pollThread;
   std::atomic_bool shutdown = false;
 
@@ -342,7 +344,7 @@ inline MessageSystem::ListenSocketHandle& MessageSystem::ListenSocketHandle::On(
                       "listen socket port {}",
                       MessageType::TypeIdHash, port);
   std::unique_lock lock(socket_mutex);
-  MessageIDHash typeIdHash = MessageType::TypeIdHash;
+  MessageID typeIdHash = MessageType::TypeIdHash;
   AN_ASSERT(
       !_handlers.contains(typeIdHash),
       std::format("Handler already registered for message type with hash {}",
@@ -359,7 +361,7 @@ template <typename MsgType>
 inline void
 MessageSystem::ListenSocketHandle::_ensure_socket_message_dispatcher()
 {
-  MessageIDHash typeIdHash = MsgType::TypeIdHash;
+  MessageID typeIdHash = MsgType::TypeIdHash;
   {
     std::shared_lock lock(socket_mutex);
     if (_handlers.contains(typeIdHash))
@@ -401,7 +403,7 @@ inline MessageSystem& MessageSystem::On(
                "message system",
                MessageType::TypeIdHash);
   std::unique_lock lock(_mutex);
-  MessageIDHash typeIdHash = MessageType::TypeIdHash;
+  MessageID typeIdHash = MessageType::TypeIdHash;
   AN_ASSERT(
       !_handlers.contains(typeIdHash),
       std::format("Handler already registered for message type with hash {}",
@@ -417,7 +419,7 @@ template <typename MsgType>
   requires std::is_base_of_v<IMessage, MsgType>
 inline void MessageSystem::_ensure_message_dispatcher()
 {
-  MessageIDHash typeIdHash = MsgType::TypeIdHash;
+  MessageID typeIdHash = MsgType::TypeIdHash;
   {
     std::shared_lock lock(_mutex);
     if (_dispatchTable.contains(typeIdHash))
@@ -432,7 +434,7 @@ inline void MessageSystem::_ensure_message_dispatcher()
         [this](ByteReader& reader, const SocketAddress& address,
                std::optional<PortType> port_received_on)
     {
-      MessageIDHash typeIdHash = MsgType::TypeIdHash;
+      MessageID typeIdHash = MsgType::TypeIdHash;
       MsgType msg;
       msg.Deserialize(reader);
 

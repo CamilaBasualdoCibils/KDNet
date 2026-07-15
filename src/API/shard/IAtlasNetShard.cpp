@@ -1,5 +1,6 @@
 #include "IAtlasNetShard.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 
 AtlasNet::IAtlasNetShard::IAtlasNetShard()
@@ -8,6 +9,10 @@ AtlasNet::IAtlasNetShard::IAtlasNetShard()
 }
 void AtlasNet::IAtlasNetShard::OnInit()
 {
+  assert(GetNodeInfo().specificInfo.has_value() &&
+         "NodeInfo specificInfo must be set for Shard node");
+    assert(std::holds_alternative<ShardNodeInfo>(GetNodeInfo().specificInfo.value()));
+  shardID_ = std::get<ShardNodeInfo>(GetNodeInfo().specificInfo.value()).id;
   GetLogger()->info("Shard OnInit called.");
   _entityIDGenerator.emplace(GetNodeID());
   _entityLedger.emplace(Entity::EntityLedger::Config{
@@ -17,6 +22,9 @@ void AtlasNet::IAtlasNetShard::OnInit()
   GetRPCSystem().Bind<ShardRPC_SpawnClient>(
       [this](ShardSpawnClientRequest request)
       { return impl_RPCSpawnClient(request); });
+      GetRPCSystem().Bind<ShardRPC_ClientTransitCommand>(
+      [this](const RPCContext& context, const TransitCommandEnvelope& commandEnvelope)
+      { return HandleTransitCommand(commandEnvelope, context); });
 
   OnShardInit();
 }
@@ -36,7 +44,7 @@ AtlasNet::IAtlasNetShard::impl_RPCSpawnClient(
     auto writeAccess = _entityLedger->GetWriteAccess();
     newEntityID = writeAccess.CreateEntity(info);
   }
-
+  GetEntityRegistry().SetEntityToShard(newEntityID, GetShardID());
   OnSpawnClient(ClientSpawnInfo{
       .clientID = request.clientID,
       .entityID = newEntityID,

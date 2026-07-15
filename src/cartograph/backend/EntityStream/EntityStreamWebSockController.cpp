@@ -1,6 +1,7 @@
 #include "EntityStreamWebSockController.hpp"
 #include "WebBackend.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityLedgerRPC.hpp"
@@ -11,10 +12,11 @@
 #include <execution>
 #include <future>
 #include <iostream>
+#include <iterator>
 #include <numeric>
 #include <thread>
 
-void EntityStreamWebSockController::handleNewMessage(
+void AtlasNet::EntityStreamWebSockController::handleNewMessage(
     const WebSocketConnectionPtr& wsConnPtr, std::string&& message,
     const WebSocketMessageType& conn)
 {
@@ -23,7 +25,7 @@ void EntityStreamWebSockController::handleNewMessage(
 
   // wsConnPtr->send(message);
 }
-void EntityStreamWebSockController::handleNewConnection(
+void AtlasNet::EntityStreamWebSockController::handleNewConnection(
     const HttpRequestPtr& req, const WebSocketConnectionPtr& wsConnPtr)
 {
   auto state = std::make_shared<ConnectionState>();
@@ -74,7 +76,7 @@ void EntityStreamWebSockController::handleNewConnection(
   }
   // write your application logic here
 }
-void EntityStreamWebSockController::handleConnectionClosed(
+void AtlasNet::EntityStreamWebSockController::handleConnectionClosed(
     const WebSocketConnectionPtr& wsConnPtr)
 {
   // write your application logic here
@@ -96,122 +98,131 @@ void EntityStreamWebSockController::handleConnectionClosed(
     FetchJobShouldShutdown.store(false);
   }
 }
-EntityStreamWebSockController::EntityStreamWebSockController() {}
+AtlasNet::EntityStreamWebSockController::EntityStreamWebSockController() {}
 
-void EntityStreamWebSockController::StartFetchJob()
+void AtlasNet::EntityStreamWebSockController::StartFetchJob()
 {
   assert((!fetchEntityDataThread.joinable()) && "Fetch job is already running");
-  /*
-    fetchEntityDataThread =
-       std::jthread(
-            [this](std::stop_token st)
+
+  fetchEntityDataThread = std::jthread(
+      [this](std::stop_token st)
+      {
+        auto& backend = AtlasNet::CartographBackendService::GetInstance();
+        auto& rpcSystem = backend.GetRPCSystem();
+
+        while (!st.stop_requested() && !FetchJobShouldShutdown.load())
+        {
+          boost::container::small_vector<AtlasNetShardID, 64> shardIDs;
+          backend.GetNodeRegistry().GetAllShardIDs(
+              std::back_inserter(shardIDs));
+
+          logger->info("Fetched {} shard IDs", shardIDs.size());
+
+          // -----------------------------
+          // 1. Dispatch all RPC calls FIRST (no waiting yet)
+          // -----------------------------
+          using ResultType =
+              std::unordered_map<AtlasNet::AtlasNetEntityID,
+                                 AtlasNet::Entity::Components::EntityInfo>;
+
+          std::vector<std::future<TRPCResult<ResultType>>> futures;
+          futures.reserve(shardIDs.size());
+
+          for (const auto& shardID : shardIDs)
+          {
+            logger->info("Dispatching shard {}", shardID.to_string());
+            auto shardAddress =
+                backend.GetAddressResolver().ResolveShard(shardID);
+            if (shardAddress)
             {
-              auto& backend = AtlasNet::WebBackendService::GetInstance();
-              auto& rpcSystem = backend.GetRPCSystem();
+              futures.push_back(
+                  rpcSystem.Call_R<EntityLedger_GetAllEntitiesInfoRPC>(
+                      shardAddress.value(), {}));
+            }
+          }
 
-              while (!st.stop_requested() && !FetchJobShouldShutdown.load())
+          // -----------------------------
+          // 2. Collect results (single-threaded, safe .get())
+          // -----------------------------
+          std::unordered_map<AtlasNet::AtlasNetEntityID,
+                             AtlasNet::Entity::Components::EntityInfo>
+              entityInfoCache;
+
+          for (auto& fut : futures)
+          {
+            if (fut.wait_for(std::chrono::seconds(1)) ==
+                std::future_status::ready)
+            {
+              try
               {
-                std::vector<AtlasNet::NodeRegistry::ServiceInfo> shardServices;
-              backend.GetServiceRegistry().GetServicesOfType(
-                  AtlasNet::AtlasNetNodeType::Shard, shardServices);
-              logger->info("Fetched {} shard services", shardServices.size());
-
-              // -----------------------------
-              // 1. Dispatch all RPC calls FIRST (no waiting yet)
-              // -----------------------------
-              using ResultType =
-                  std::unordered_map<AtlasNet::EntityID,
-                                     AtlasNet::Entity::Components::EntityInfo>;
-
-              std::vector<std::future<ResultType>> futures;
-              futures.reserve(shardServices.size());
-
-              for (const auto& info : shardServices)
-              {
-                logger->info("Dispatching shard {} at {}", info.id.to_string(),
-                             info.address.to_string());
-
-                futures.push_back(
-                    rpcSystem.Call<EntityLedgerRPC::GetAllEntitiesInfo>(
-                        AtlasNet::SocketAddress(
-                            info.address, AtlasNet::Env::InternalMessagePort)));
-              }
-
-              // -----------------------------
-              // 2. Collect results (single-threaded, safe .get())
-              // -----------------------------
-              std::unordered_map<AtlasNet::EntityID,
-                                 AtlasNet::Entity::Components::EntityInfo>
-                  entityInfoCache;
-
-              for (auto& fut : futures)
-              {
-                if (fut.wait_for(std::chrono::seconds(1)) ==
-                    std::future_status::ready)
+                auto result = fut.get();
+                if (result.has_value())
                 {
-                  try
-                  {
-                    auto result = fut.get();
+                  logger->info("Fetched {} entities from shard",
+                               result.value().size());
 
-                    logger->info("Fetched {} entities from shard",
-    result.size());
-
-                    for (auto& [entityId, entityInfo] : result)
-                    {
-                      logger->info(
-                          "Entity ID: {}\npos: {}", entityId.to_string(),
-                          entityInfo.baseInfo.location.position.to_string());
-                      entityInfoCache.emplace(entityId, entityInfo);
-                    }
-                  }
-                  catch (const std::exception& e)
+                  for (auto& [entityId, entityInfo] : result.value())
                   {
-                    logger->error("Shard RPC failed: {}", e.what());
+                    logger->info(
+                        "Entity ID: {}\npos: {}", entityId.to_string(),
+                        entityInfo.baseInfo.location.position.to_string());
+                    entityInfoCache.emplace(entityId, entityInfo);
                   }
                 }
                 else
                 {
-                  logger->error("Shard RPC timeout");
+                  logger->error("RPC call returned error: {}",
+                                boost::describe::enum_to_string(
+                                    result.error(), "<UNKNOWN ERROR>"));
                 }
               }
-
-              // -----------------------------
-              // 3. Broadcast to all connections (snapshot first!)
-              // -----------------------------
-              std::vector<WebSocketConnectionPtr> conns;
+              catch (const std::exception& e)
               {
-                std::lock_guard lock(ConnectionMutex);
-                for (auto& [ws, _] : connectionStates)
-                  conns.push_back(ws);
+                logger->error("Shard RPC failed: {}", e.what());
               }
+            }
+            else
+            {
+              logger->error("Shard RPC timeout");
+            }
+          }
 
-              _Json payload;
+          // -----------------------------
+          // 3. Broadcast to all connections (snapshot first!)
+          // -----------------------------
+          std::vector<WebSocketConnectionPtr> conns;
+          {
+            std::lock_guard lock(ConnectionMutex);
+            for (auto& [ws, _] : connectionStates)
+              conns.push_back(ws);
+          }
 
-              for (const auto& [entityId, entityInfo] : entityInfoCache)
-              {
-                _Json entityJson;
-                entityInfo.to_json(entityJson);
-                payload[entityId.to_string()] = entityJson;
-              }
+          _Json payload;
 
-              const std::string message = payload.dump();
-              logger->info("EntityStream Response json\n{}", payload.dump(2));
-              for (auto& ws : conns)
-              {
-                ws->send(message);
-              }
+          for (const auto& [entityId, entityInfo] : entityInfoCache)
+          {
+            _Json entityJson;
+            entityInfo.to_json(entityJson);
+            payload[entityId.to_string()] = entityJson;
+          }
 
-              // -----------------------------
-              // 4. Reschedule
-              // -----------------------------
-              if (FetchJobShouldShutdown.load())
-              {
-               break;
-              }
-              std::this_thread::sleep_for(std::chrono::milliseconds(50));
-              }
+          const std::string message = payload.dump();
+          logger->info("EntityStream Response json\n{}", payload.dump(2));
+          for (auto& ws : conns)
+          {
+            ws->send(message);
+          }
 
-            });
-   */
+          // -----------------------------
+          // 4. Reschedule
+          // -----------------------------
+          if (FetchJobShouldShutdown.load())
+          {
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+      });
+
   FetchJobRunning.store(true);
 }

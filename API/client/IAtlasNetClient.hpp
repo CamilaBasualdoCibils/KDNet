@@ -1,11 +1,15 @@
 #pragma once
 #include "atlasnet/client/ClientRPC.hpp"
+#include "atlasnet/core/CmdSig/command/Command.hpp"
+#include "atlasnet/core/CmdSig/command/CommandEnums.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
-#include "atlasnet/core/CmdSig/command/Command.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
+#include "atlasnet/gateway/GatewayRPC.hpp"
 #include "boost/describe/enum_to_string.hpp"
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -41,12 +45,14 @@ public:
                               std::string* errorMessage = nullptr)
   {
     SocketAddress serverAddress(HostAddress(std::string(address)), port);
-    TaskHandle<MessageConnectionResult> jobHandle = messageSystem->Connect(serverAddress);
+    TaskHandle<MessageConnectionResult> jobHandle =
+        messageSystem->Connect(serverAddress);
 
     jobHandle->wait_for(std::chrono::seconds(5));
     if (jobHandle.GetTask().is_done())
     {
-      logger->info("Successfully connected to server at {}.", serverAddress.to_string());
+      logger->info("Successfully connected to server at {}.",
+                   serverAddress.to_string());
       logger->info("Waiting for connection complete notification...");
 
       std::unique_lock<std::mutex> lock(lastConnectionCompleteDataMutex);
@@ -79,28 +85,77 @@ public:
     }
   }
 
-/*   void AtlasNetClient_DispatchCommand(
+  CommandAckStatus AtlasNetClient_DispatchCommand(
       const std::string_view& commandName, const std::string_view& commanddata,
-      MessageSendMode sendMode = MessageSendMode::eReliableBatched)
+      CommandDeliveryGuarantee deliveryMode =
+          CommandDeliveryGuarantee::GatewayConfirmedBatched,
+      std::chrono::milliseconds timeout = std::chrono::seconds(5))
   {
-    ExternalCommandMessage message;
-    message.envelope.commandName.assign(commandName.data(), commandName.size());
-    message.envelope.payload.assign(commanddata.begin(), commanddata.end());
-    MessageSendResult jobHandle = messageSystem->TrySendMessage(
-        message, _serverAddress, sendMode);
+    assert(deliveryMode != CommandDeliveryGuarantee::Invalid &&
+           "Invalid send mode specified");
+
+    IngressCommandEnvelope message;
+    message.package.commandPayload.commandName.assign(commandName.data(),
+                                                      commandName.size());
+    message.package.commandPayload.payload.assign(commanddata.begin(),
+                                                  commanddata.end());
+    message.package.deliveryMode = deliveryMode;
+
+    const bool batched =
+        static_cast<uint8_t>(deliveryMode) & CommandDeliveryBatchedBit;
+    const bool ackExpected =
+        (deliveryMode != CommandDeliveryGuarantee::NoDelay) &&
+        (deliveryMode != CommandDeliveryGuarantee::Unreliable) &&
+        (deliveryMode != CommandDeliveryGuarantee::UnreliableBatched);
+
+    if (!ackExpected)
+    {
+      logger->info("Dispatching command '{}' with send mode {} (batched: {}, "
+                   "no ack expected)",
+                   commandName,
+                   boost::describe::enum_to_string(deliveryMode, "<INVALID>"),
+                   batched);
+      rpcSystem->Call<GatewayRPC_IngressCommand>(
+          _serverAddress, message,
+          CommandDeliveryToMessageSendMode(deliveryMode));
+      return CommandAckStatus::Sent; // Optimistically assume it was sent
+                                     // successfully
+    }
+
+    logger->info("Dispatching command '{}' with send mode {} (batched: {}, "
+                 "ack expected)",
+                 commandName,
+                 boost::describe::enum_to_string(deliveryMode, "<INVALID>"),
+                 batched);
+    auto result = rpcSystem->Call_R<GatewayRPC_IngressCommand>(
+        _serverAddress, message,
+        CommandDeliveryToMessageSendMode(deliveryMode));
+    std::future_status status = result.wait_for(timeout);
+    if (status == std::future_status::timeout)
+    {
+      logger->warn("Command '{}' timed out after {} milliseconds.", commandName,
+                   timeout.count());
+      return CommandAckStatus::TimedOut;
+    }
+    else if (status == std::future_status::ready)
+    {
+      return result.get()->status;
+    }
+    assert(false && "Unexpected future status");
+    return CommandAckStatus::UnknownError; // Should not reach here
   }
 
   template <typename CMD>
-    requires(std::is_base_of_v<AtlasNet::ICommandSerializable, CMD>)
-  void AtlasNetClient_DispatchCommand(
-      const CMD& command,
-      MessageSendMode sendMode = MessageSendMode::eReliableBatched)
+  requires std::is_base_of_v<ICommand, CMD>
+  CommandAckStatus AtlasNetClient_DispatchCommand(
+      const CMD& command, CommandDeliveryGuarantee sendMode =
+                              CommandDeliveryGuarantee::GatewayConfirmedBatched)
   {
     ByteWriter writer;
     command.Serialize(writer);
-    AtlasNetClient_DispatchCommand(command.GetName(), writer.as_string_view(),
+    return AtlasNetClient_DispatchCommand(command.GetName(), writer.as_string_view(),
                                    sendMode);
-  } */
+  }
 
 private:
   void OnClientConnectionCompleteNotification(
@@ -118,6 +173,7 @@ private:
   std::optional<MessageSystem> messageSystem;
   std::optional<RPCSystem> rpcSystem;
 
-  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("AtlasNetClient");
+  std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("AtlasNetClient");
 };
 } // namespace AtlasNet

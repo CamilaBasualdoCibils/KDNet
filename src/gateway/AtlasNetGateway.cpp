@@ -1,9 +1,61 @@
+#include <variant>
+
 #include "AtlasNetGateway.hpp"
 #include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/core/address/SocketAddress.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 #include <iterator>
 
+void AtlasNet::AtlasNetGateway::OnInit()
+{
+  assert(GetNodeInfo().specificInfo.has_value() &&
+         "NodeInfo specificInfo must be set for Gateway node");
+  assert(std::holds_alternative<GatewayNodeInfo>(GetNodeInfo().specificInfo.value()));
+  gatewayID_ = std::get<GatewayNodeInfo>(GetNodeInfo().specificInfo.value()).id;
+  gatewayRelayService_.emplace(GatewayRelayService::Config{
+      .redisConn = &GetRedisConn(),
+      .gateway = this,
+      .messageSystem = &GetMessageSystem(),
+      .rpcSystem = &GetRPCSystem(),
+      .clientRegistry = &GetClientRegistry(),
+      .addressResolver = &GetAddressResolver(),
+  });
+  GetMessageSystem().OpenListenSocket(Env::GatewayListenPort);
+  GetLocalEventSystem().On<ConnectionEstablishedEvent>(
+      [&](const ConnectionEstablishedEvent& event)
+      {
+        if (event.source == ConnectionSource::External)
+        {
+          OnClientConnected(event);
+        }
+        else if (event.source == ConnectionSource::Internal)
+        {
+          GetLogger()->info("Internal connection established with address {}",
+                            event.address.to_string());
+        }
+        else
+        {
+          GetLogger()->warn(
+              "Connection established with unknown source from address {}",
+              event.address.to_string());
+        }
+      });
+}
+AtlasNet::HandshakeResponsePacket
+AtlasNet::AtlasNetGateway::HandleHandshake(const HandshakeIdentity& identity,
+                                           const SocketAddress& remoteAddr)
+{
+  if (identity.role == HandshakeRole::eClient)
+  {
+    GetLogger()->info("Received handshake from client at {}",
+                      remoteAddr.to_string());
+    return HandshakeResponsePacket{.accepted = true};
+  }
+  else
+  {
+    return IAtlasNetNode::HandleHandshake(identity, remoteAddr);
+  }
+}
 void AtlasNet::AtlasNetGateway::OnClientConnected(
     const ConnectionEstablishedEvent& event)
 {
@@ -12,7 +64,7 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
 
   GetLogger()->info("Logging in new client at {}", event.address.to_string());
   const std::optional<ClientRegistry::LoginResult> entry =
-      clientRegistry->LoginClient(event.address, GetGatewayID());
+      GetClientRegistry().LoginClient(event.address, GetGatewayID());
   if (!entry)
     return;
 
@@ -74,7 +126,6 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
     GetLogger()->warn("Failed to resolve address for shard ID {}",
                       shardIDs[0].to_string());
   }
-
   auto spawnResult =
       GetRPCSystem().Call_R<ShardRPC_SpawnClient>(*shardAddress, request);
 
@@ -92,8 +143,7 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
       GetLogger()->error(
           "Received error response for SpawnClient RPC call for client {}: {}",
           entry->clientID.to_string(),
-          boost::describe::enum_to_string(result.error(),
-                                         "<INVALID>"));
+          boost::describe::enum_to_string(result.error(), "<INVALID>"));
     }
   }
 
@@ -105,8 +155,8 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
         spawnResponse->entityID.to_string(), resolvedShardID->to_string());
 
     gatewayRelayService_->DeclareGatewayRelay(entry->clientID);
-    clientRegistry->AssociateClientWithEntity(entry->clientID,
-                                              spawnResponse->entityID);
+    GetClientRegistry().AssociateClientWithEntity(entry->clientID,
+                                                  spawnResponse->entityID);
 
     ClientConnectionCompleteData result;
     result.clientID = entry->clientID;

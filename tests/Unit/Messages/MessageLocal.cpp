@@ -86,7 +86,7 @@ TEST(MessageSystem, MessageIO)
   auto bytes = writer.bytes();
 
   ByteReader readerID(bytes);
-  MessageIDHash typeHash = IMessage::DeserializeTypeIdHash(readerID);
+  MessageID typeHash = IMessage::DeserializeTypeIdHash(readerID);
   EXPECT_EQ(typeHash, IOTestMessage::TypeIdHash);
   ByteReader reader(bytes);
   IOTestMessage deserializedMsg;

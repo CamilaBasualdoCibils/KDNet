@@ -85,20 +85,19 @@ public:
   }
 
   void Call(SocketAddress target, std::string_view methodName,
-            std::span<const uint8_t> payload);
+            std::span<const uint8_t> payload,MessageSendMode mode = MessageSendMode::eReliableBatched);
   void Call(SocketAddress target, RPCID methodId,
-            std::span<const uint8_t> payload);
+            std::span<const uint8_t> payload,MessageSendMode mode = MessageSendMode::eReliableBatched);
 
   [[nodiscard]] std::future<RPCResult> Call_R(SocketAddress target,
                                               std::string_view methodName,
-                                              std::span<const uint8_t> payload);
+                                              std::span<const uint8_t> payload, MessageSendMode mode = MessageSendMode::eReliableBatched);
   [[nodiscard]] std::future<RPCResult> Call_R(SocketAddress target,
                                               RPCID methodId,
-                                              std::span<const uint8_t> payload);
+                                              std::span<const uint8_t> payload, MessageSendMode mode = MessageSendMode::eReliableBatched);
 
   template <typename rpc, typename Args = typename rpc::ArgsTuple>
-    requires(std::is_void<typename rpc::ReturnType>::value)
-  void Call(SocketAddress target, const Args& args)
+  void Call(SocketAddress target, const Args& args, MessageSendMode mode = MessageSendMode::eReliableBatched)
   {
     logger->info("Calling RPC {} -> {} on target {}", rpc::NameString.value, rpc::Id, target.to_string());
     std::vector<uint8_t> payload;
@@ -106,12 +105,12 @@ public:
     serializer(args);
     auto bytes = serializer.GetBytes();
     payload.insert(payload.end(), bytes.begin(), bytes.end());
-    Call(target, rpc::Id, payload);
+    Call(target, rpc::Id, payload, mode);
   }
   template <typename rpc, typename Args = typename rpc::ArgsTuple>
     requires(!std::is_void<typename rpc::ReturnType>::value)
   [[nodiscard]] std::future<TRPCResult<typename rpc::ReturnType>>
-  Call_R(SocketAddress target, const Args& args)
+  Call_R(SocketAddress target, const Args& args, MessageSendMode mode = MessageSendMode::eReliableBatched)
   {
     logger->info("Calling RPC {} -> {} on target {}, response expected", rpc::NameString.value, rpc::Id, target.to_string());
     static_assert(!std::is_void<typename rpc::ReturnType>::value,
@@ -154,14 +153,14 @@ public:
                          .callId = callId,
                          .responseExpected = true,
                      },
-                     payload);
+                     payload, mode);
     return future;
   }
 
 private:
   void _SendCallRequest(SocketAddress target,
                         RPC_Internal::RPCRequestContext int_context,
-                        std::span<const uint8_t> payload);
+                        std::span<const uint8_t> payload, MessageSendMode mode);
   void _HandleCall(const RPC_Internal::RPCRequestMessage& request,
                    const SocketAddress& sender);
   void _HandleResponse(const RPC_Internal::RPCResponseMessage& response,

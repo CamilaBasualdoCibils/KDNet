@@ -9,6 +9,8 @@
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "atlasnet/core/serialize/XMLSerializer.hpp"
 #include "bitsery/serializer.h"
+#include "boost/container/static_vector.hpp"
+#include "boost/static_string/static_string.hpp"
 #include "glm/ext/quaternion_relational.hpp"
 #include "glm/fwd.hpp"
 #include "glm/gtc/epsilon.hpp"
@@ -387,4 +389,22 @@ TEST(Serialization, BinarySerializer_array_vector_string)
   type value_out;
   deserializer(value_out);
   EXPECT_EQ(value_out, value);
+}
+TEST(Serialization, BinarySerializer_BoostTypes)
+{
+  boost::static_string<64> static_str_val = "Hello, AtlasNet!";
+  boost::container::small_vector<uint8_t, 64> small_vector_val = {1, 2, 3, 4,
+                                                                  5};
+  boost::container::static_vector<uint8_t, 64> static_vector_val = {1, 2, 3, 4,
+                                                                    5};
+  AtlasNet::NetBinaryWriter serializer;
+  serializer(static_str_val, small_vector_val, static_vector_val);
+  AtlasNet::NetBinaryReader deserializer(serializer.GetBytes());
+  boost::static_string<64> static_str_out;
+  boost::container::small_vector<uint8_t, 64> small_vector_out;
+  boost::container::static_vector<uint8_t, 64> static_vector_out;
+  deserializer(static_str_out, small_vector_out, static_vector_out);
+  EXPECT_EQ(static_str_out, static_str_val);
+  EXPECT_EQ(small_vector_out, small_vector_val);
+  EXPECT_EQ(static_vector_out, static_vector_val);
 }

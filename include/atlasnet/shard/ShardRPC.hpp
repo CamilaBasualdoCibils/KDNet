@@ -1,66 +1,39 @@
 #pragma once
 
-#include "atlasnet/core/RPC/RPCMacros.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/core/CmdSig/command/Command.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 namespace AtlasNet
 {
 // Received by the backend of the shard
 struct ShardSpawnClientRequest
 {
   Entity::Position spawnTransform;
-  ClientID clientID;
-  ServiceID gatewayRelayID;
+  AtlasNetClientID clientID;
+  AtlasNetGatewayID gatewayRelayID;
   std::vector<uint8_t>
       clientSpawnPayload; // This contains developer-defined data that was given
-                          // by the login services that is specific to this
-                          // client
+  // by the login services that is specific to this
+  // client
 
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive> void serialize(Archive& ar)
   {
-    spawnTransform.Serialize(writer);
-    writer.uuid(clientID);
-    writer.uuid(gatewayRelayID);
-    writer.blob(std::span<const uint8_t>(clientSpawnPayload.data(),
-                                         clientSpawnPayload.size()));
-  }
-
-  void Deserialize(ByteReader& reader)
-  {
-    spawnTransform.Deserialize(reader);
-    reader.uuid(clientID);
-    reader.uuid(gatewayRelayID);
-    std::span<const uint8_t> payloadSpan;
-    reader.blob(payloadSpan);
-    clientSpawnPayload =
-        std::vector<uint8_t>(payloadSpan.begin(), payloadSpan.end());
+    ar(spawnTransform, clientID, gatewayRelayID, clientSpawnPayload);
   }
 };
-// Received by the frontend of the shard
-struct ClientSpawnInfo
-{
-  ClientID clientID;
-  EntityID entityID;
-  Entity::Position position;
-  std::vector<uint8_t>
-      clientSpawnPayload; // This contains developer-defined data that will be
-                          // given to the shard that spawns the client
-};
+
 struct ShardSpawnClientResponse
 {
-  EntityID entityID;
-  void Serialize(ByteWriter& writer) const
+  AtlasNetEntityID entityID;
+  template <typename Archive> void serialize(Archive& ar)
   {
-
-    writer.uuid(entityID);
-  }
-  void Deserialize(ByteReader& reader)
-  {
-    reader.uuid(entityID);
+    ar(entityID);
   }
 };
-ATLASNET_RPC(ShardRPC,
-             ATLASNET_RPC_METHOD(SpawnClient,
-                                 ATLASNET_RPC_SIG(ShardSpawnClientResponse(
-                                     ShardSpawnClientRequest))));
+using ShardRPC_SpawnClient =
+    RPC<"Shard_SpawnClient", ShardSpawnClientResponse, ShardSpawnClientRequest>;
+using ShardRPC_ClientTransitCommand =
+    RPC<"Shard_ClientTransitCommand", CommandAck, TransitCommandEnvelope>;
+
 }; // namespace AtlasNet

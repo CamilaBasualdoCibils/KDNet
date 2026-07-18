@@ -1,7 +1,7 @@
 #pragma once
 
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "boost/describe/enum.hpp"
 #include "sw/redis++/async_redis.h"
 #include "sw/redis++/async_redis_cluster.h"
@@ -20,6 +20,8 @@
 #include <sw/redis++/redis++.h>
 #include <sys/types.h>
 #include <variant>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 namespace AtlasNet::Database
 {
 namespace Redis
@@ -47,8 +49,8 @@ public:
   struct Settings
   {
 
-    HostAddress host;
-    PortType port;
+    Network::HostAddress host;
+    Network::PortType port;
     RedisMode Mode = RedisMode::eStandalone;
     bool ExceptionOnFailure = false;
     uint32_t MaxConnectRetries = 0;
@@ -113,6 +115,12 @@ public:
     return RedisFunc([&](auto& handle) -> Result
                      { return handle.template command<Result>(first, last); });
   }
+  template <typename Input, typename Output>
+  void Command(Input first, Input last, Output output)
+  {
+    return RedisFunc([&](auto& handle) -> void
+                     { return handle.command(first, last, output); });
+  }
   sw::redis::Subscriber Subscribe()
   {
     return RedisFunc([&](auto& handle) { return handle.subscriber(); });
@@ -132,6 +140,7 @@ private:
   std::unique_ptr<Redis::HashMapWrapper> hashMapWrapper;
   std::unique_ptr<Redis::SetWrapper> setWrapper;
   std::unique_ptr<Redis::SortedSetWrapper> sortedSetWrapper;
+  static inline std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("Redis");
 };
 
 } // namespace AtlasNet::Database

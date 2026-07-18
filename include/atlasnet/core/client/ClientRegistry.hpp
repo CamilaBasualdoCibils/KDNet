@@ -1,9 +1,7 @@
 #pragma once
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
-#include "atlasnet/core/container/Container.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
@@ -19,7 +17,7 @@ public:
   {
     GlobalEventSystem* _globalEventSystem;
     Database::RedisConn* __redisConn;
-    IService* containerService;
+    AtlasNetClientID::Generator* _clientIDGenerator;
   };
 
   ClientRegistry(const Config& config) : config_(config)
@@ -27,11 +25,11 @@ public:
     assert(config_._globalEventSystem &&
            "GlobalEventSystem pointer cannot be null");
     assert(config_.__redisConn && "RedisConn pointer cannot be null");
-    assert(config_.containerService &&
-           "Container service pointer cannot be null");
+    assert(config_._clientIDGenerator &&
+           "ClientID generator pointer cannot be null");
   };
 
-  std::optional<ClientID> GetAddressClientID(const SocketAddress& address)
+  std::optional<AtlasNetClientID> GetAddressClientID(const Network::SocketAddress& address)
   {
 
     ByteWriter addressWriter;
@@ -45,15 +43,15 @@ public:
     }
     ByteReader reader(std::span<const uint8_t>(
         reinterpret_cast<const uint8_t*>(value->data()), value->size()));
-    ClientID clientID;
-    reader.uuid(clientID);
+    AtlasNetClientID clientID;
+    reader(clientID);
     return clientID;
   }
 
-  std::optional<SocketAddress> GetClientIDAddress(const ClientID& clientID)
+  std::optional<Network::SocketAddress> GetClientIDAddress(const AtlasNetClientID& clientID)
   {
     ByteWriter clientIDWriter;
-    clientIDWriter.uuid(clientID);
+    clientIDWriter(clientID);
     std::optional<std::string> value =
         config_.__redisConn->HashMap().GetSet().HGet(
             ClientIDToAddressHashKey, clientIDWriter.as_string_view());
@@ -63,17 +61,18 @@ public:
     }
     ByteReader reader(std::span<const uint8_t>(
         reinterpret_cast<const uint8_t*>(value->data()), value->size()));
-    SocketAddress address;
+    Network::SocketAddress address;
     address.Deserialize(reader);
     return address;
   }
-  void AssociateClientWithEntity(const ClientID& clientID,
-                                 const EntityID& entityID)
+  void AssociateClientWithEntity(const AtlasNetClientID& clientID,
+                                 const AtlasNetEntityID& entityID)
   {
     ByteWriter clientIDWriter;
-    clientIDWriter.uuid(clientID);
+        clientIDWriter(clientID);
+
     ByteWriter entityIDWriter;
-    entityIDWriter.uuid(entityID);
+    entityIDWriter(entityID);
 
     assert(config_.__redisConn->HashMap().Exists().HExists(
                ClientID2EntityIDHashKey, clientIDWriter.as_string_view()) ==
@@ -104,35 +103,34 @@ public:
   struct LoginResult
   {
 
-    ClientID clientID;
+    AtlasNetClientID clientID;
     Entity::Location SpawnLocation;
     std::vector<uint8_t>
         SpawnShardPayload; // This contains developer-defined data that will be
                            // given to the shard that spawns the client
   };
   [[nodiscard]] std::optional<LoginResult>
-  LoginClient(const SocketAddress& address)
+  LoginClient(const Network::SocketAddress& address,AtlasNetGatewayID managingGatewayID)
   {
 
-    std::optional<ClientID> existingClientID = GetAddressClientID(address);
+    std::optional<AtlasNetClientID> existingClientID = GetAddressClientID(address);
     if (existingClientID)
     {
-      std::cerr << "Client with address " << address.to_string()
-                << " is already logged in with ClientID: "
-                << existingClientID->to_string() << std::endl;
-
+        logger->error("Client with address {} is already logged in with ClientID: {}",
+                     address.to_string(), existingClientID->to_string());
+     
       return std::nullopt; // Address is already logged in
     }
 
-    ClientID newClientID = ClientID::Generate();
+    AtlasNetClientID newClientID = config_._clientIDGenerator->Next();
     ByteWriter addressWriter;
     LoginData entry;
     entry.address = address;
     entry.clientID = newClientID;
-    entry.managingGateway = config_.containerService->GetID();
+    entry.managingGateway = managingGatewayID;
     entry.address.Serialize(addressWriter);
     ByteWriter clientIDWriter;
-    clientIDWriter.uuid(newClientID);
+    clientIDWriter(newClientID);
 
     config_.__redisConn->HashMap().GetSet().HSet(
         AddressToClientIDHashKey, addressWriter.as_string_view(),
@@ -161,10 +159,46 @@ public:
           ClientIDToAddressHashKey + "_Debug", newClientID.to_string(),
           address.to_string());
     }
-    return LoginResult{newClientID, Entity::Location{}};
+    return LoginResult{newClientID, Entity::Location{}, std::vector<uint8_t>{}};
+  }
+  [[nodiscard]] std::optional<AtlasNetEntityID> GetClientEntityID(const AtlasNetClientID& clientID)
+  {
+    ByteWriter clientIDWriter;
+    clientIDWriter(clientID);
+    std::optional<std::string> value =
+        config_.__redisConn->HashMap().GetSet().HGet(
+            ClientID2EntityIDHashKey, clientIDWriter.as_string_view());
+    if (!value)
+    {
+      return std::nullopt;
+    }
+    ByteReader reader(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(value->data()), value->size()));
+    AtlasNetEntityID entityID;
+    reader(entityID);
+    return entityID;
+  }
+  [[nodiscard]] std::optional<AtlasNetClientID> GetClientIDFromEntityID(const AtlasNetEntityID& entityID)
+  {
+    ByteWriter entityIDWriter;
+    entityIDWriter(entityID);
+    std::optional<std::string> value =
+        config_.__redisConn->HashMap().GetSet().HGet(
+            EntityID2ClientIDHashKey, entityIDWriter.as_string_view());
+    if (!value)
+    {
+      return std::nullopt;
+    }
+    ByteReader reader(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(value->data()), value->size()));
+    AtlasNetClientID clientID;
+    reader(clientID);
+    return clientID;
   }
 
 private:
+std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("ClientRegistry");
   const Config config_;
   const std::string ClientRegistryNamespace =
       Env::DatabaseNamespace + "ClientRegistry{ATLASNET_CLIENT_REGISTRY}:";

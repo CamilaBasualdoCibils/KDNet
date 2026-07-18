@@ -1,6 +1,6 @@
 #pragma once
 #include "WorldConcepts.hpp"
-#include "atlasnet/core/Json.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
@@ -13,7 +13,7 @@
 namespace AtlasNet
 {
 class AtlasNetController;
-class IService;
+class IAtlasNetNode;
 class Universe
 {
   friend AtlasNetController;
@@ -52,6 +52,8 @@ protected:
   CreateWorld(const WorldDefinition& def);
 
 private:
+std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("Universe");
   GlobalEventSystem* _globalEventSystem;
   Database::RedisConn* _redisConn;
   const std::string UniverseNamePrefix =

@@ -88,13 +88,13 @@ void TransferCoordinator::ParseEntitiesForTargets()
 	std::unordered_set<BoundsID> allBounds;
 	for (auto& e : processedEntities) allBounds.insert(*e.boundsID);
 
-	std::unordered_map<BoundsID, ShardID> ownershipMap;
+	std::unordered_map<BoundsID, AtlasNetShardID> ownershipMap;
 	if (!allBounds.empty())
 	{
 		ownershipMap = HeuristicManifest::Get().QueryOwnershipState(
 			[&](const HeuristicManifest::OwnershipStateWrapper& w)
 			{
-				std::unordered_map<BoundsID, ShardID> result;
+				std::unordered_map<BoundsID, AtlasNetShardID> result;
 				for (const BoundsID& bID : allBounds)
 				{
 					auto shard = w.GetBoundOwner(bID);

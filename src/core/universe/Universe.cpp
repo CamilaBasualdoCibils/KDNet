@@ -61,13 +61,13 @@ AtlasNet::Universe::CreateWorld(const AtlasNet::WorldDefinition& def)
     def.to_json(debugJson);
     _redisConn->KeyVal().GetSet().Set(worldIDKey + "_debug", debugJson.dump());
   }
-  std::cerr << std::format("Created World {} with ID {}", def.name,
-                           potentialWorldID.to_string())
-            << std::endl;
+  logger->info("Created World {} with ID {}", def.name,
+               potentialWorldID.to_string());
+
   WorldCreatedEvent event;
   event.worldID = potentialWorldID;
   event.worldName = def.name;
   event.worldDefinition = def;
-  _globalEventSystem->Emit(event).wait();
+  _globalEventSystem->Emit(event)->wait();
   return {WorldCreationResult::Success, potentialWorldID};
 }

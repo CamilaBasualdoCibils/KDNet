@@ -1,6 +1,7 @@
 #pragma once
 
-#include "atlasnet/core/shard/shard.hpp"
+
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <string_view>

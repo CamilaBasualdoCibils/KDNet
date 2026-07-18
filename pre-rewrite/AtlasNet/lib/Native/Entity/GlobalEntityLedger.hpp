@@ -14,7 +14,7 @@ class GlobalEntityLedger : public Singleton<GlobalEntityLedger>
 
    public:
 	GlobalEntityLedger() = default;
-	void DeclareEntityRecord(const ShardID& NetID, const AtlasEntityID& EntityID)
+	void DeclareEntityRecord(const AtlasNetShardID& NetID, const AtlasEntityID& EntityID)
 	{
 		// 1. check if entity already exists and has owner
 		// 2. update EntityOwner
@@ -35,7 +35,7 @@ class GlobalEntityLedger : public Singleton<GlobalEntityLedger>
 		InternalDB::Get()->SAdd(std::format(ShardEntitiesList, UUIDGen::ToString(NetID)),
 								{UUIDGen::ToString(EntityID)});
 	}
-	void DeleteEntityRecord(const ShardID& NetID, const AtlasEntityID& EntityID)
+	void DeleteEntityRecord(const AtlasNetShardID& NetID, const AtlasEntityID& EntityID)
 	{
 		// remove from both hash table and shardentitylist only if the NetID matches
 
@@ -53,7 +53,7 @@ class GlobalEntityLedger : public Singleton<GlobalEntityLedger>
 		}
 	}
 	// using back inserter
-	void GetAllEntitiesInShard(const ShardID& NetID,
+	void GetAllEntitiesInShard(const AtlasNetShardID& NetID,
 							   std::back_insert_iterator<std::vector<AtlasEntityHandle>> inserter)
 	{
 		std::vector<std::string> entityIDs =
@@ -78,7 +78,7 @@ class GlobalEntityLedger : public Singleton<GlobalEntityLedger>
 		}
 	}
 
-	std::optional<ShardID> GetEntityOwnerShard(const AtlasEntityID& EntityID)
+	std::optional<AtlasNetShardID> GetEntityOwnerShard(const AtlasEntityID& EntityID)
 	{
 		std::optional<std::string> ownerStr =
 			InternalDB::Get()->HGet(entityID2ShardHashMap, UUIDGen::ToString(EntityID));

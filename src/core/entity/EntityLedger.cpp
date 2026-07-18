@@ -5,19 +5,20 @@
 
 void AtlasNet::Entity::EntityLedger::SetRPCBinds()
 {
-  rpcSystem->Bind<EntityLedgerRPC::GetAllEntitiesInfo>(
+  _config.rpcSystem->Bind<EntityLedger_GetAllEntitiesInfoRPC>(
       [this]()
       {
-        std::cerr << "RPC call received: GetAllEntitiesInfo" << std::endl;
-        std::unordered_map<EntityID, Components::EntityInfo> allInfo;
+        logger->info("RPC call received: GetAllEntitiesInfo");
+        std::unordered_map<AtlasNetEntityID, Components::EntityInfo> allInfo;
         {
           auto access = GetReadAccess();
-          std::cerr << "Entity Count: " << IDMapping.size() << std::endl;
+
+          logger->info("Entity Count: {}", IDMapping.size());
           for (const auto& [id, enttId] : IDMapping.left)
           {
             const auto& entityInfo = access.GetEntityInfo(id);
             allInfo[id] = entityInfo;
-            std::cerr << "Entity ID: " << id.to_string() <<"\npos: " << entityInfo.baseInfo.location.position << std::endl;
+            logger->info("Entity ID: {}\npos: {}", id.to_string(), entityInfo.baseInfo.location.position.to_string());
           }
         }
         return allInfo;

@@ -32,7 +32,25 @@ concept ResizableIterable =
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                         "abcdefghijklmnopqrstuvwxyz"
                                         "0123456789+/";
+template <typename T>
+concept byte = std::same_as<std::remove_cvref_t<T>, uint8_t>;
 
+template <typename T>
+concept resizable_byte_container =
+    requires(T t, size_t n) {
+      t.resize(n);
+      { t.data() } -> std::convertible_to<uint8_t*>;
+      { t.size() } -> std::convertible_to<size_t>;
+    } &&
+    byte<std::remove_cvref_t<decltype(*std::declval<T>().data())>>;
+    template <typename T>
+concept fixed_byte_container =
+    requires(T t) {
+      { t.data() } -> std::convertible_to<const uint8_t*>;
+      { t.size() } -> std::convertible_to<size_t>;
+    } &&
+    !resizable_byte_container<T> &&
+    byte<std::remove_cvref_t<decltype(*std::declval<T>().data())>>;
 static inline bool is_base64(uint8_t c)
 {
   return (isalnum(c) || (c == '+') || (c == '/'));

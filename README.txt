@@ -24,6 +24,8 @@ Explain why it exists, what problems it solves, and who it’s for.
 ## Features
 ---
 ## Build
+Ubuntu: 
+Arch: 
 requires build packages
 - libssl-dev
 - python3.13-venv

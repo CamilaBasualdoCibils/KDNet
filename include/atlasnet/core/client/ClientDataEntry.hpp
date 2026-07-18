@@ -1,28 +1,28 @@
 #pragma once
 
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 
 namespace AtlasNet
 {
 struct LoginData
 {
-  SocketAddress address;
-  ServiceID managingGateway;
-  ClientID clientID;
-  std::optional<EntityID> entityID;
+  Network::SocketAddress address;
+  AtlasNetGatewayID managingGateway;
+  AtlasNetClientID clientID;
+  std::optional<AtlasNetEntityID> entityID;
 
   void Serialize(ByteWriter& writer) const
   {
     address.Serialize(writer);
-    writer.uuid(managingGateway);
-    writer.uuid(clientID);
+    writer(managingGateway); 
+    clientID.Serialize(writer);
     if (entityID.has_value())
     {
       writer.u8(true);
-      writer.uuid(entityID.value());
+      entityID.value().Serialize(writer);
     }
     else
     {
@@ -32,15 +32,15 @@ struct LoginData
   void Deserialize(ByteReader& reader)
   {
     address.Deserialize(reader);
-    reader.uuid(managingGateway);
-    reader.uuid(clientID);
+    reader(managingGateway); 
+    clientID.Deserialize(reader);
     uint8_t hasEntityID_v;
     reader.u8(hasEntityID_v);
     bool hasEntityID = hasEntityID_v != 0;
     if (hasEntityID)
     {
-      EntityID id;
-      reader.uuid(id);
+      AtlasNetEntityID id;
+      id.Deserialize(reader);
       entityID = id;
     }
     else

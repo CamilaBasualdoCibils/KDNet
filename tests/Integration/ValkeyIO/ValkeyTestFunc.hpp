@@ -25,7 +25,7 @@ std::unique_ptr<RedisConn> MakeStandaloneConn(Fixture* self)
 {
   RedisConn::Settings settings;
   settings.Mode = RedisConn::RedisMode::eStandalone;
-  settings.host = AtlasNet::HostAddress(self->Host);
+  settings.host = AtlasNet::Network::HostAddress(self->Host);
   settings.port = self->Port;
   return RedisConn::Connect(settings);
 }
@@ -35,7 +35,7 @@ std::unique_ptr<RedisConn> MakeClusterConn(Fixture* self)
 {
   RedisConn::Settings settings;
   settings.Mode = RedisConn::RedisMode::eCluster;
-  settings.host = AtlasNet::HostAddress(self->Host);
+  settings.host = AtlasNet::Network::HostAddress(self->Host);
   settings.port = self->Port;
   return RedisConn::Connect(settings);
 }

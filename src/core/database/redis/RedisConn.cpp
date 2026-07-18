@@ -1,6 +1,6 @@
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 
-#include "atlasnet/core/assert.hpp"
+#include "atlasnet/core/utils/assert.hpp"
 #include "atlasnet/core/database/redis/HashMapWrapper.hpp"
 #include "atlasnet/core/database/redis/KeyValWrapper.hpp"
 #include "atlasnet/core/database/redis/SetWrapper.hpp"
@@ -31,14 +31,11 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
   {
     pool_opts.connection_idle_time = *settings.PoolConnectionIdleTimeout;
   }
-  std::cerr
-      << std::format(
-             "Attempting to connect to Redis at {}:{} in {} mode with up to "
-             "{} retries...",
-             opts.host, opts.port,
-             boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
-             settings.MaxConnectRetries)
-      << std::endl;
+  logger->info("Attempting to connect to Redis at {}:{} in {} mode with up to {} retries...",
+               opts.host, opts.port,
+               boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
+               settings.MaxConnectRetries);
+  
   for (uint32_t attempt = 1; attempt <= settings.MaxConnectRetries; ++attempt)
   {
     try
@@ -54,9 +51,8 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
         {
           throw sw::redis::Error("Cluster PING returned no responses");
         }
+        logger->info("Successfully connected to Redis in Cluster mode.");
 
-        std::cout << "Successfully connected to Redis in Cluster mode."
-                  << std::endl;
 
         auto acluster = sw::redis::AsyncRedisCluster(opts, pool_opts);
 
@@ -74,8 +70,7 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
           throw sw::redis::Error("Standalone PING did not return PONG");
         }
 
-        std::cout << "Successfully connected to Redis in Standalone mode."
-                  << std::endl;
+        logger->info("Successfully connected to Redis in Standalone mode.");
 
         auto aredis = sw::redis::AsyncRedis(opts, pool_opts);
 
@@ -85,22 +80,19 @@ AtlasNet::Database::RedisConn::Connect(const Settings& settings)
     }
     catch (const sw::redis::Error& e)
     {
-      std::cerr << std::format("Attempt {}/{}: Failed to connect to Redis: {}",
-                               attempt, settings.MaxConnectRetries, e.what())
-                << std::endl;
+      logger->error("Attempt {}/{}: Failed to connect to Redis: {}",
+                    attempt, settings.MaxConnectRetries, e.what());
       if (attempt < settings.MaxConnectRetries)
       {
         std::this_thread::sleep_for(settings.ConnectRetryDelay);
       }
     }
   }
-  std::cerr
-      << std::format(
-             "Failed to connect to Redis at {}:{} in {} mode after {} attempts",
-             opts.host, opts.port,
-             boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
-             settings.MaxConnectRetries)
-      << std::endl;
+  logger->error("Failed to connect to Redis at {}:{} in {} mode after {} attempts",
+                opts.host, opts.port,
+                boost::describe::enum_to_string(settings.Mode, "UNKNOWN MODE"),
+                settings.MaxConnectRetries);
+        
   return nullptr;
 }
 AtlasNet::Database::Redis::KeyValWrapper&

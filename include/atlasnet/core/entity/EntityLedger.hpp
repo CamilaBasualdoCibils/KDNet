@@ -29,11 +29,13 @@ public:
   {
     ActorTransferMode transferMode = ActorTransferMode::eRPC;
     RPCSystem* rpcSystem = nullptr;
+    AtlasNetEntityID::Generator* entityIDGenerator = nullptr;
   };
   EntityLedger(const Config& config)
-      : _config(config), rpcSystem(config.rpcSystem)
+      : _config(config)
   {
-    assert(rpcSystem != nullptr && "RPCSystem pointer cannot be null in EntityLedger config");
+    assert(_config.rpcSystem != nullptr && "RPCSystem pointer cannot be null in EntityLedger config");
+    assert(_config.entityIDGenerator != nullptr && "EntityID generator pointer cannot be null in EntityLedger config");
     SetRPCBinds();
   }
 
@@ -45,20 +47,20 @@ public:
     {
     }
 
-    bool EntityExists(const EntityID& id) const
+    bool EntityExists(const AtlasNetEntityID& id) const
     {
       return _ledger._entityExists(id);
     }
 
-    bool IsClient(const EntityID& id) const
+    bool IsClient(const AtlasNetEntityID& id) const
     {
       return _ledger._isClient(id);
     }
-    bool IsActor(const EntityID& id) const
+    bool IsActor(const AtlasNetEntityID& id) const
     {
       return _ledger._isActor(id);
     }
-    Entity::Components::EntityInfo GetEntityInfo(const EntityID& id) const
+    Entity::Components::EntityInfo GetEntityInfo(const AtlasNetEntityID& id) const
     {
       return _ledger._GetEntityInfo(id);
     }
@@ -75,39 +77,38 @@ public:
     {
     }
 
-    bool EntityExists(const EntityID& id) const
+    bool EntityExists(const AtlasNetEntityID& id) const
     {
       return _ledger._entityExists(id);
     }
 
-    bool IsClient(const EntityID& id) const
+    bool IsClient(const AtlasNetEntityID& id) const
     {
       return _ledger._isClient(id);
     }
-    bool IsActor(const EntityID& id) const
+    bool IsActor(const AtlasNetEntityID& id) const
     {
       return _ledger._isActor(id);
     }
 
-    EntityID CreateEntity(const Components::BaseEntityInfo& info)
+    AtlasNetEntityID CreateEntity(const Components::BaseEntityInfo& info)
     {
-      EntityID id = EntityID(UUID::Generate());
+      AtlasNetEntityID id = _ledger._config.entityIDGenerator->Next();
       Entity::Components::EntityInfo entityInfo;
       entityInfo.baseInfo = info;
       entityInfo.id = id;
       _ledger._createEntity(id, entityInfo);
-      std::cerr << "Entity created with ID: " << id.to_string() << std::endl;
       return id;
     }
-    void RemoveEntity(const EntityID& id)
+    void RemoveEntity(const AtlasNetEntityID& id)
     {
       _ledger._removeEntity(id);
     }
-    Entity::Components::EntityInfo GetEntityInfo(const EntityID& id)
+    Entity::Components::EntityInfo GetEntityInfo(const AtlasNetEntityID& id)
     {
       return _ledger._GetEntityInfo(id);
     }
-    void SetEntityInfo(const EntityID& id,
+    void SetEntityInfo(const AtlasNetEntityID& id,
                        const Entity::Components::EntityInfo& info)
     {
       _ledger._SetEntityInfo(id, info);
@@ -127,25 +128,23 @@ public:
   }
 
 protected:
-  EnTTEntityID _createEntity(const EntityID& id,
+  EnTTEntityID _createEntity(const AtlasNetEntityID& id,
                              const Entity::Components::EntityInfo& info)
   {
     EnTTEntityID enttId = entityTable.create();
     IDMapping.insert({id, enttId});
     entityTable.emplace<Entity::Components::EntityInfo>(enttId, info);
-    std::cerr << "Entity created with ID: " << id.to_string()
-              << " with internal entt ID: " << static_cast<int>(enttId)
-              << std::endl;
+    logger->info("Entity created with ID: {} with internal entt ID: {}", id.to_string(), static_cast<int>(enttId));
     return enttId;
   }
-  bool _entityExists(const EntityID& id) const
+  bool _entityExists(const AtlasNetEntityID& id) const
   {
     return IDMapping.left.find(id) != IDMapping.left.end();
   }
   template <typename ComponentType>
     requires std::derived_from<ComponentType,
                                Entity::Components::EntityComponent>
-  bool _EntityHasComponent(const EntityID& id) const
+  bool _EntityHasComponent(const AtlasNetEntityID& id) const
   {
     EnTTEntityID enttId = GetEnTTEntityID(id);
     return entityTable.all_of<ComponentType>(enttId);
@@ -153,7 +152,7 @@ protected:
   template <typename ComponentType>
     requires std::derived_from<ComponentType,
                                Entity::Components::EntityComponent>
-  void _EntityAddComponent(const EntityID& id, const ComponentType& component)
+  void _EntityAddComponent(const AtlasNetEntityID& id, const ComponentType& component)
   {
     EnTTEntityID enttId = GetEnTTEntityID(id);
     if (entityTable.all_of<ComponentType>(enttId))
@@ -165,7 +164,7 @@ protected:
   template <typename ComponentType>
     requires std::derived_from<ComponentType,
                                Entity::Components::EntityComponent>
-  void _EntityRemoveComponent(const EntityID& id)
+  void _EntityRemoveComponent(const AtlasNetEntityID& id)
   {
     EnTTEntityID enttId = GetEnTTEntityID(id);
     if (!entityTable.all_of<ComponentType>(enttId))
@@ -177,7 +176,7 @@ protected:
   template <typename ComponentType>
     requires std::derived_from<ComponentType,
                                Entity::Components::EntityComponent>
-  ComponentType _EntityGetComponent(const EntityID& id)
+  ComponentType _EntityGetComponent(const AtlasNetEntityID& id)
   {
     EnTTEntityID enttId = GetEnTTEntityID(id);
     if (!entityTable.all_of<ComponentType>(enttId))
@@ -186,39 +185,39 @@ protected:
     }
     return entityTable.get<ComponentType>(enttId);
   }
-  bool _isClient(const EntityID& id) const
+  bool _isClient(const AtlasNetEntityID& id) const
   {
     return _EntityHasComponent<Entity::Components::ClientInfo>(id);
   }
-  bool _isActor(const EntityID& id) const
+  bool _isActor(const AtlasNetEntityID& id) const
   {
     return _EntityHasComponent<Entity::Components::ActorInfo>(id);
   }
-  void _setEntityActor(const EntityID& id,
+  void _setEntityActor(const AtlasNetEntityID& id,
                        const Entity::Components::ActorInfo& actorInfo)
   {
     _EntityAddComponent(id, actorInfo);
   }
-  void _setEntityClient(const EntityID& id,
+  void _setEntityClient(const AtlasNetEntityID& id,
                         const Entity::Components::ClientInfo& clientInfo)
   {
     _EntityAddComponent(id, clientInfo);
   }
-  void _removeEntity(const EntityID& id)
+  void _removeEntity(const AtlasNetEntityID& id)
   {
     entt::entity enttId = GetEnTTEntityID(id);
     entityTable.destroy(enttId);
     IDMapping.left.erase(id);
   }
 
-  Entity::Components::EntityInfo _GetEntityInfo(const EntityID& id) const
+  Entity::Components::EntityInfo _GetEntityInfo(const AtlasNetEntityID& id) const
   {
     EnTTEntityID _id = GetEnTTEntityID(id);
     auto& info = entityTable.get<Entity::Components::EntityInfo>(_id);
     // Use info as needed
     return info;
   }
-  void _SetEntityInfo(const EntityID& id,
+  void _SetEntityInfo(const AtlasNetEntityID& id,
                       const Entity::Components::EntityInfo& info)
   {
     EnTTEntityID _id = GetEnTTEntityID(id);
@@ -228,7 +227,7 @@ protected:
 
 private:
 void SetRPCBinds();
-  [[nodiscard]] EnTTEntityID GetEnTTEntityID(const EntityID& id) const
+  [[nodiscard]] EnTTEntityID GetEnTTEntityID(const AtlasNetEntityID& id) const
   {
     auto it = IDMapping.left.find(id);
     if (it != IDMapping.left.end())
@@ -237,13 +236,13 @@ void SetRPCBinds();
     }
     throw std::runtime_error("EntityID not found in mapping");
   }
+  std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("EntityLedger");
   const Config _config;
-  boost::bimap<EntityID, EnTTEntityID> IDMapping;
+  boost::bimap<AtlasNetEntityID, EnTTEntityID> IDMapping;
   // std::unordered_map<EntityID, typename Tp>
   EntityTable entityTable;
   mutable std::shared_mutex _mutex;
 
-  RPCSystem* rpcSystem = nullptr;
 };
 } // namespace Entity
 } // namespace AtlasNet

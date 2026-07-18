@@ -1,25 +1,63 @@
-#pragma once
-#include "atlasnet/core/RPC/RPCMessage.hpp"
-#include "atlasnet/core/RPC/RPCMacros.hpp"
+
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
+
 #include "atlasnet/core/messages/MessageSystem.hpp"
+#include "atlasnet/core/serialize/BinarySerializer.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 
 #include <condition_variable>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <mutex>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
+
+int pick_available_port()
+{
+  int Min = 1024;
+  int Max = 65535;
+  if (Min > Max)
+    std::swap(Min, Max);
+
+  auto can_bind = [](int port, int sock_type) -> bool
+  {
+    int fd = ::socket(AF_INET, sock_type, 0);
+    if (fd < 0)
+      return false;
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(static_cast<uint16_t>(port));
+
+    const bool ok =
+        (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+    ::close(fd);
+    return ok;
+  };
+
+  for (int port = Min; port <= Max; ++port)
+  {
+    // Consider the port "available" only if both TCP and UDP can bind.
+    if (can_bind(port, SOCK_STREAM) && can_bind(port, SOCK_DGRAM))
+      return port;
+  }
+
+  return -1; // no free port in range
+}
 using namespace AtlasNet;
+using namespace AtlasNet::Network;
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-
+/* 
 ATLASNET_RPC(
     TESTRpc,
     // TestMethod(int,float) -> void
@@ -40,9 +78,9 @@ ATLASNET_RPC(MyOtherRPC,
 
 TEST(RPC, BaseMessage)
 {
-  JobSystem jobsystem(JobSystem::Config{});
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobsystem});
-  const PortType port = 41001;
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  const PortType port = pick_available_port();
   std::mutex mutex;
   bool success = false;
   std::condition_variable cv;
@@ -59,9 +97,11 @@ TEST(RPC, BaseMessage)
                 .callID = msg.callID,
                 .payload = std::vector<uint8_t>{1, 2, 3, 4, 5},
             };
-            msgSystem.SendMessage(response,
-                                  SocketAddress(IPv4(127, 0, 0, 1), port),
-                                  MessageSendMode::eReliableBatched);
+            auto messageHandle = msgSystem.QueueMessage(
+                response, SocketAddress(IPv4(127, 0, 0, 1), port),
+                MessageSendMode::eReliableBatched);
+            EXPECT_EQ(messageHandle->get().code,
+                      MessageSendResultCode::eSuccess);
           })
       .On<RpcResponseMessage>(
           [&](const RpcResponseMessage& msg, const SocketAddress&)
@@ -75,20 +115,23 @@ TEST(RPC, BaseMessage)
       .callID = 456,
       .payload = std::vector<uint8_t>{10, 20, 30},
   };
-  msgSystem.SendMessage(request, SocketAddress(IPv4(127, 0, 0, 1), port),
-                        MessageSendMode::eReliableBatched);
+  auto messageHandle =
+      msgSystem.QueueMessage(request, SocketAddress(IPv4(127, 0, 0, 1), port),
+                             MessageSendMode::eReliableBatched);
+  EXPECT_EQ(messageHandle->get().code, MessageSendResultCode::eSuccess);
+
   std::unique_lock lock(mutex);
   cv.wait_for(lock, std::chrono::seconds(5), [&success] { return success; });
   EXPECT_TRUE(success);
 }
 TEST(RPC, SelfReceive)
 {
-  JobSystem jobSystem(JobSystem::Config{});
-  const PortType port = 41001;
+  TaskSystem taskSystem(TaskSystem::Config{});
+  const PortType port = pick_available_port();
   bool success = false;
   std::mutex mutex;
   std::condition_variable cv;
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
 
   RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
@@ -110,10 +153,10 @@ TEST(RPC, SelfReceive)
 }
 TEST(RPC, SelfReceiveAndReply)
 {
-  JobSystem jobSystem(JobSystem::Config{});
+  TaskSystem taskSystem(TaskSystem::Config{});
 
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
-  const PortType port = 41001;
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  const PortType port = pick_available_port();
   bool success = false;
 
   RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
@@ -153,10 +196,10 @@ TEST(RPC, SelfReceiveAndReply)
 }
 TEST(RPC, SelfReceiveWrongPort)
 {
-  JobSystem jobSystem(JobSystem::Config{});
-  const PortType port = 41001;
+  TaskSystem taskSystem(TaskSystem::Config{});
+  const PortType port = pick_available_port();
 
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
   RPCSystem rpc(RPCSystem::Config{.port = port, .messageSystem = &msgSystem});
 
   bool success = false;
@@ -179,12 +222,12 @@ TEST(RPC, SelfReceiveWrongPort)
 }
 TEST(RPC, SelfReceiveAnyPort)
 {
-  JobSystem jobSystem(JobSystem::Config{});
+  TaskSystem taskSystem(TaskSystem::Config{});
 
-
-  MessageSystem msgSystem(MessageSystem::Config{.jobSystem = &jobSystem});
-  msgSystem.OpenListenSocket(12345);
-  RPCSystem rpc(RPCSystem::Config{ .messageSystem = &msgSystem});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  const PortType port = pick_available_port();
+  msgSystem.OpenListenSocket(port);
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem});
 
   bool success = false;
   std::mutex mutex;
@@ -197,7 +240,7 @@ TEST(RPC, SelfReceiveAnyPort)
         success = true;
         cv.notify_one();
       });
-  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), 12345), 42,
+  rpc.Call<TESTRpc::TestMethod>(SocketAddress(IPv4(127, 0, 0, 1), port), 42,
                                 3.14f);
 
   std::unique_lock lock(mutex);
@@ -206,8 +249,8 @@ TEST(RPC, SelfReceiveAnyPort)
 }
 TEST(RPC, ForkParentCallsChildAndGetsResult)
 {
-  const PortType parentPort = 41011;
-  const PortType childPort = 41012;
+  const PortType parentPort = pick_available_port();
+  const PortType childPort = pick_available_port();
 
   int readyPipe[2];
   ASSERT_EQ(pipe(readyPipe), 0) << "Failed to create pipe";
@@ -222,9 +265,9 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
     // Child process: hosts RPC server on childPort.
     close(readyPipe[0]);
 
-    JobSystem childJobSystem(JobSystem::Config{});
+    TaskSystem childTaskSystem(TaskSystem::Config{});
     MessageSystem childMsgSystem(
-        MessageSystem::Config{.jobSystem = &childJobSystem});
+        MessageSystem::Config{.taskSystem = &childTaskSystem});
     RPCSystem childRpc(
         RPCSystem::Config{.port = childPort, .messageSystem = &childMsgSystem});
 
@@ -265,9 +308,9 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
       << "Parent failed waiting for child readiness";
   close(readyPipe[0]);
 
-  JobSystem parentJobSystem(JobSystem::Config{});
+  TaskSystem parentTaskSystem(TaskSystem::Config{});
   MessageSystem parentMsgSystem(
-      MessageSystem::Config{.jobSystem = &parentJobSystem});
+      MessageSystem::Config{.taskSystem = &parentTaskSystem});
   RPCSystem parentRpc(
       RPCSystem::Config{.port = parentPort, .messageSystem = &parentMsgSystem});
 
@@ -283,4 +326,116 @@ TEST(RPC, ForkParentCallsChildAndGetsResult)
   ASSERT_EQ(waitpid(pid, &childStatus, 0), pid);
   ASSERT_TRUE(WIFEXITED(childStatus));
   EXPECT_EQ(WEXITSTATUS(childStatus), 0);
+} */
+
+TEST(RPC, NewStyleRPC_SelfReceive)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+  rpc.Bind(0,
+           [](const RPCContext& c, std::span<const uint8_t> data) -> RPCResult
+           {
+             std::string str(data.begin(), data.end());
+             std::cout << "Received RPC call with data: " << str << std::endl;
+             str += " world";
+             std::vector<uint8_t> responseData(str.begin(), str.end());
+             return RPCResult(responseData);
+           });
+  std::vector<uint8_t> payload{'H', 'e', 'l', 'l', 'o'};
+  auto result = rpc.Call_R(
+      address, 0, std::span<const uint8_t>(payload.data(), payload.size()));
+
+  std::future_status status = result.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  RPCResult rpcResult = result.get();
+  EXPECT_TRUE(rpcResult.has_value());
+  SUCCEED() << "RPC call succeeded with result: "
+            << std::string(rpcResult.value().begin(), rpcResult.value().end());
 }
+TEST(RPC, NewStyleRPC_UnknownRPCError)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+
+  std::vector<uint8_t> payload{'H', 'e', 'l', 'l', 'o'};
+  auto result = rpc.Call_R(
+      address, 9999, std::span<const uint8_t>(payload.data(), payload.size()));
+
+  std::future_status status = result.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  RPCResult rpcResult = result.get();
+  EXPECT_FALSE(rpcResult.has_value());
+  EXPECT_EQ(rpcResult.error(), RPCError::UnknownRPC);
+}
+TEST(RPC, NewStyleRPC_Timeout)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem,
+                                      .timeout = std::chrono::seconds(1)});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+  rpc.Bind(0,
+           [](const RPCContext& c, std::span<const uint8_t> data) -> RPCResult
+           {
+             std::this_thread::sleep_for(
+                 std::chrono::seconds(2)); // Sleep longer than RPC timeout
+             return std::unexpected(RPCError::None);
+           });
+
+  std::vector<uint8_t> payload{'H', 'e', 'l', 'l', 'o'};
+  auto result = rpc.Call_R(
+      address, 0, std::span<const uint8_t>(payload.data(), payload.size()));
+
+  std::future_status status = result.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  RPCResult rpcResult = result.get();
+  EXPECT_FALSE(rpcResult.has_value());
+  EXPECT_EQ(rpcResult.error(), RPCError::Timeout);
+}
+using N_RPC_NewTestMethod = RPC<"NewTestMethod", void, int, float>;
+using N_RPC_NewTestMethod_Ret = RPC<"NewTestMethod_Ret", int>;
+using N_RPC_NewTestMethod_Ret_String =
+    RPC<"NewTestMethod_Ret_String", std::string, std::string>;
+
+ TEST(RPC, NewStyleRPC_SelfReceiveWithConcepts)
+{
+  TaskSystem taskSystem(TaskSystem::Config{});
+  MessageSystem msgSystem(MessageSystem::Config{.taskSystem = &taskSystem});
+  RPCSystem rpc(RPCSystem::Config{.messageSystem = &msgSystem,
+                                      .timeout = std::chrono::seconds(1)});
+
+  PortType port = pick_available_port();
+  SocketAddress address(IPv4(127, 0, 0, 1), port);
+  msgSystem.OpenListenSocket(port);
+  rpc.Bind<N_RPC_NewTestMethod_Ret_String>(
+      [](const RPCContext& c, const std::string& data) -> std::string
+      {
+        std::cout << "Received RPC call with data: " << data << std::endl;
+        return std::string(data) + " world";
+      });
+  auto call_future = rpc.Call_R<N_RPC_NewTestMethod_Ret_String>(
+      address,{"hello"});
+
+  std::future_status status = call_future.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "RPC future not ready in time";
+  auto rpcResult = call_future.get();
+  EXPECT_TRUE(rpcResult.has_value());
+  EXPECT_EQ(rpcResult.value(), "hello world");
+}  

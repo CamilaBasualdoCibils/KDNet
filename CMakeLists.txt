@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(AtlasNet)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -20,10 +20,12 @@ set(ATLASNET_CARTOGRAPH ON CACHE BOOL "Build AtlasNet web interface")
 
 add_custom_target(AtlasNetDocs
     COMMAND doxygen docs/Doxyfile
+    COMMAND xdg-open docs/html/index.html
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating documentation with Doxygen"
     VERBATIM
 )
+
 if (ATLASNET_EXAMPLES)
     add_subdirectory(examples)
 endif()
@@ -62,20 +64,25 @@ hiredis::hiredis_ssl
 uv_a
 Boost::headers
 Boost::beast
+Boost::graph
 Boost::bimap
 Boost::describe
 Boost::dynamic_bitset
 Boost::flyweight
+Boost::lockfree
 Boost::multi_array
 Boost::multi_index
 Boost::stacktrace_addr2line 
 Boost::static_string
 Boost::uuid
 glm::glm
-#Taskflow::Taskflow
+Taskflow::Taskflow
 EnTT
 nlohmann_json::nlohmann_json
-yaml-cpp::yaml-cpp
+cereal::cereal
+Bitsery::bitsery
+#yaml-cpp::yaml-cpp
+spdlog::spdlog
 )
 
 
@@ -122,18 +129,18 @@ target_compile_definitions(AtlasNetController PRIVATE ATLASNET_CONTROLLER_BUILD)
 #target_compile_definitions(AtlasNetAgent PRIVATE ATLASNET_AGENT_BUILD)
 # ========= ATLASNET CARTOGRAPH ========
 if (ATLASNET_CARTOGRAPH)
-include(cmake/WebDeps.cmake)
+include(cmake/CartographDeps.cmake)
     #directory(web)
 
-file(GLOB_RECURSE _web_backend_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend/*.cpp"
+file(GLOB_RECURSE _cartograph_backend_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/backend/*.cpp"
 )
 
-add_executable(AtlasNetCartographBackend ${_web_backend_sources})
+add_executable(AtlasNetCartographBackend ${_cartograph_backend_sources})
 # Optional, but common: local includes
 target_include_directories(AtlasNetCartographBackend
       PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/web/backend"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/backend"
 )
 target_link_libraries(AtlasNetCartographBackend
 AtlasNetCore
@@ -144,13 +151,13 @@ target_compile_definitions(AtlasNetCartographBackend PRIVATE ATLASNET_CARTOGRAPH
 add_custom_target(AtlasNetCartographFrontend_DevRun
     COMMAND npm install
     COMMAND npm run dev
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/web/frontend
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/frontend
     COMMENT "Developing AtlasNet Cartograph frontend"
     VERBATIM
 )
 add_custom_target(AtlasNetCartographFrontend_Clean
     COMMAND npm run clean
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/web/frontend
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cartograph/frontend
     COMMENT "Cleaning AtlasNet Cartograph frontend"
     VERBATIM
 )
@@ -212,22 +219,3 @@ target_link_libraries(AtlasNetClientAPI_s AtlasNetCore)
 #)
 #target_link_libraries(AtlasNetDummy AtlasNetShardAPI_s)
 #target_compile_definitions(AtlasNetDummy PRIVATE ATLASNET_DUMMY_BUILD)
-#
-# ========= ATLASNET PHYSICS API ========
-file(GLOB_RECURSE _physics_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/API/physics/*.cpp"
-)
-add_library(AtlasNetPhysicsAPI ${_physics_sources})
-target_include_directories(AtlasNetPhysicsAPI
-      PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/API/physics"
-)
-target_link_libraries(AtlasNetPhysicsAPI AtlasNetCore)
-
-# ======== ATLASNET JOLT PHYSICS ========
-file(GLOB_RECURSE _physics_jolt_sources CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/jolt/*.cpp"
-)
-add_executable(AtlasNetJoltPhysics ${_physics_jolt_sources})
-target_compile_definitions(AtlasNetJoltPhysics PRIVATE ATLASNET_PHYSICS_JOLT_BUILD)
-#target_link_libraries(AtlasNetJoltPhysics AtlasNetPhysicsAPI Jolt::Jolt)

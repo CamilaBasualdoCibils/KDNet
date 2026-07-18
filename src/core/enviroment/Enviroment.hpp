@@ -162,8 +162,8 @@
 #pragma once
 
 #include "atlasnet/controller/ServiceAdapterEnums.hpp"
-#include "atlasnet/core/Address.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "boost/describe/enum_from_string.hpp"
 #include <cstdint>
 #include <cstdlib>
@@ -201,11 +201,11 @@ public:
 
   const static inline std::string DatabaseNamespace =
       GetEnvVarOrDefault("ATLASNET_DATABASE_NAMESPACE", "atlasnet:");
-  const static inline PortType DatabasePort = static_cast<PortType>(
+  const static inline Network::PortType DatabasePort = static_cast<Network::PortType>(
       std::atoi(GetEnvVarOrDefault("ATLASNET_DATABASE_TCP_PORT", "6379")));
   const static inline std::string InternalMessagingSubnet =
       GetEnvVarOrDefault("ATLASNET_NETWORK_SUBNET", "10.0.0.0/16");
-  const static inline PortType InternalMessagePort = static_cast<PortType>(
+  const static inline Network::PortType InternalMessagePort = static_cast<Network::PortType>(
       std::atoi(GetEnvVarOrDefault("ATLASNET_INTERNAL_MESSAGE_PORT", "41000")));
   const static inline bool DebugMode =
       std::atoi(GetEnvVarOrDefault("ATLASNET_DEBUG_MODE", "1")) != 0;
@@ -241,7 +241,7 @@ public:
   const static inline std::string DockerSocketPath =
       GetEnvVarOrDefault("ATLASNET_DOCKER_SOCKET_PATH", "/var/run/docker.sock");
 
-  const static inline PortType GatewayListenPort = static_cast<PortType>(
+  const static inline Network::PortType GatewayListenPort = static_cast<Network::PortType>(
       std::atoi(GetEnvVarOrDefault("ATLASNET_PROXY_LISTEN_PORT", "42000")));
 };
 

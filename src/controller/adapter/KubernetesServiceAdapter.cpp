@@ -1,4 +1,5 @@
 #include "KubernetesServiceAdapter.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
 
 void AtlasNet::KubernetesServiceAdapter::Create()
 {
@@ -7,20 +8,22 @@ void AtlasNet::KubernetesServiceAdapter::Create()
   auto res = Request("POST",
                      "/apis/apps/v1/namespaces/" + _namespace + "/statefulsets",
                      body.dump());
+  logger->info("Create service adapter response: {} - {}", res.status,
+               res.body);
 
-  std::cerr << "Create service adapter response: " << res.status << " - "
-            << res.body << std::endl;
   if (res.status != 201)
   {
-    std::cerr << "Failed to create service adapter for " << _serviceName
-              << " in namespace " << _namespace << std::endl;
+    logger->error("Failed to create service adapter for {} in namespace {}. "
+                  "Response: {} - {}",
+                  _serviceName, _namespace, res.status, res.body);
   }
 }
 AtlasNet::KubernetesServiceAdapter::KubernetesServiceAdapter(
-    const std::string_view& serviceName, const std::string_view& imageName,std::vector<std::pair<PortType, PortType>> portMappings,
+    const std::string_view& serviceName, const std::string_view& imageName,
+    std::vector<std::pair<Network::PortType, Network::PortType>> portMappings,
     ImagePullPolicy imagePullPolicy, const std::string& namespaceName)
     : IServiceAdapter(serviceName, imageName),
-    portMappings(std::move(portMappings)),
+      portMappings(std::move(portMappings)),
       _namespace(namespaceName.empty() ? DetectNamespace() : namespaceName),
       _ctx(boost::asio::ssl::context::tlsv12_client), _resolver(_ioc),
       _stream(_ioc, _ctx), _imagePullPolicy(imagePullPolicy)
@@ -34,19 +37,18 @@ bool AtlasNet::KubernetesServiceAdapter::Exists() const
                      "/apis/apps/v1/namespaces/" + _namespace +
                          "/statefulsets/" + _serviceName,
                      "");
-
-  std::cerr << "Check service adapter existence response: " << res.status
-            << " - " << res.body << std::endl;
+  logger->info("Check service adapter existence response: {} - {}", res.status,
+               res.body);
   if (res.status == 404)
   {
-    std::cerr << "Service adapter " << _serviceName
-              << " does not exist in namespace " << _namespace << std::endl;
+    logger->info("Service adapter {} does not exist in namespace {}",
+                 _serviceName, _namespace);
   }
   else if (res.status != 200)
   {
-    std::cerr << "Failed to check existence of service adapter for "
-              << _serviceName << " in namespace " << _namespace
-              << ". Assuming it does not exist." << std::endl;
+    logger->error("Failed to check existence of service adapter for {} in "
+                  "namespace {}. Assuming it does not exist.",
+                  _serviceName, _namespace);
   }
   return res.status == 200;
 }
@@ -57,12 +59,12 @@ void AtlasNet::KubernetesServiceAdapter::Destroy()
                          "/statefulsets/" + _serviceName,
                      "");
 
-  std::cerr << "Destroy service adapter response: " << res.status << " - "
-            << res.body << std::endl;
+  logger->info("Destroy service adapter response: {} - {}", res.status,
+               res.body);
   if (res.status != 200 && res.status != 204)
   {
-    std::cerr << "Failed to destroy service adapter for " << _serviceName
-              << " in namespace " << _namespace << std::endl;
+    logger->error("Failed to destroy service adapter for {} in namespace {}",
+                  _serviceName, _namespace);
   }
   (void)res;
 }
@@ -74,12 +76,12 @@ void AtlasNet::KubernetesServiceAdapter::SetReplicaCount(uint32_t count)
                      "/apis/apps/v1/namespaces/" + _namespace +
                          "/statefulsets/" + _serviceName,
                      patch.dump(), "application/merge-patch+json");
-  std::cerr << "SetReplicaCount response: " << res.status << " - " << res.body
-            << std::endl;
+  logger->info("SetReplicaCount response: {} - {}", res.status, res.body);
   if (res.status != 200)
   {
-    std::cerr << "Failed to set replica count for service adapter "
-              << _serviceName << " in namespace " << _namespace << std::endl;
+    logger->error(
+        "Failed to set replica count for service adapter {} in namespace {}",
+        _serviceName, _namespace);
   }
   (void)res;
 }
@@ -89,9 +91,7 @@ uint32_t AtlasNet::KubernetesServiceAdapter::GetReplicaCount() const
                      "/apis/apps/v1/namespaces/" + _namespace +
                          "/statefulsets/" + _serviceName,
                      "");
-
-  std::cerr << "GetReplicaCount response: " << res.status << " - " << res.body
-            << std::endl;
+  logger->info("GetReplicaCount response: {} - {}", res.status, res.body);
   if (res.status != 200)
     return 0;
 
@@ -107,7 +107,7 @@ std::string AtlasNet::KubernetesServiceAdapter::DetectNamespace()
   if (f.good())
     std::getline(f, ns);
 
-  std::cerr << "Detected namespace: " << ns << std::endl;
+  logger->info("Detected namespace: {}", ns);
   if (ns.empty())
     return "default";
 
@@ -121,13 +121,12 @@ void AtlasNet::KubernetesServiceAdapter::LoadToken()
     std::getline(f, _token);
   if (_token.empty())
   {
-    std::cerr << "Failed to load Kubernetes token from file, service adapter "
-                 "will not be able to authenticate with the Kubernetes API"
-              << std::endl;
+    logger->error("Failed to load Kubernetes token from file, service adapter "
+                  "will not be able to authenticate with the Kubernetes API");
   }
   else
   {
-    std::cerr << "Successfully loaded Kubernetes token from file" << std::endl;
+    logger->info("Successfully loaded Kubernetes token from file");
   }
 }
 void AtlasNet::KubernetesServiceAdapter::ConfigureTLS()
@@ -185,7 +184,7 @@ AtlasNet::KubernetesServiceAdapter::Request(
     return {0, ""};
   }
 }
-_Json AtlasNet::KubernetesServiceAdapter::BuildStatefulSetJSON() const
+AtlasNet::_Json AtlasNet::KubernetesServiceAdapter::BuildStatefulSetJSON() const
 {
   return {
       {"apiVersion", "apps/v1"},

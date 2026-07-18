@@ -1,9 +1,10 @@
 #pragma once
 
 #include "IServiceAdapter.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/SocketAddress.hpp"
-
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
+#include "spdlog/logger.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
@@ -27,7 +28,7 @@ public:
   };
   KubernetesServiceAdapter(
       const std::string_view& serviceName, const std::string_view& imageName,
-      std::vector<std::pair<PortType, PortType>> portMappings, //internal/external
+      std::vector<std::pair<Network::PortType, Network::PortType>> portMappings, //internal/external
       ImagePullPolicy imagePullPolicy, const std::string& namespaceName = "");
 
   void Create() override;
@@ -56,9 +57,10 @@ private:
 
   std::string _token;
   ImagePullPolicy _imagePullPolicy;
-std::vector<std::pair<PortType, PortType>> portMappings;
+std::vector<std::pair<Network::PortType, Network::PortType>> portMappings;
+std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt("K8sServiceAdapter");
 private:
-  static std::string DetectNamespace();
+  std::string DetectNamespace();
 
   void LoadToken();
 

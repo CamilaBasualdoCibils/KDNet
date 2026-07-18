@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/container/ContainerEnums.hpp"
+#include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "boost/container/static_vector.hpp"
@@ -16,8 +16,8 @@ enum class HandshakeRole : uint8_t
 };
 struct HandshakeServerRequestData
 {
-  ServiceID serviceID;
-  ServiceType serviceType = ServiceType::Invalid;
+  AtlasNetNodeID serviceID;
+  AtlasNetNodeType serviceType = AtlasNetNodeType::Invalid;
 };
 struct HandshakeClientRequestData
 {
@@ -38,7 +38,7 @@ struct HandshakeIdentity
     if (std::holds_alternative<HandshakeServerRequestData>(data))
     {
       const auto& serverData = std::get<HandshakeServerRequestData>(data);
-      writer.uuid(serverData.serviceID);
+      writer(serverData.serviceID);
       writer.u8(static_cast<uint8_t>(serverData.serviceType));
     }
     else if (std::holds_alternative<HandshakeClientRequestData>(data))
@@ -57,10 +57,10 @@ struct HandshakeIdentity
     if (role == HandshakeRole::eServer)
     {
       HandshakeServerRequestData serverData;
-      reader.uuid(serverData.serviceID);
+      reader(serverData.serviceID);
       uint8_t serviceTypeByte;
       reader.u8(serviceTypeByte);
-      serverData.serviceType = static_cast<ServiceType>(serviceTypeByte);
+      serverData.serviceType = static_cast<AtlasNetNodeType>(serviceTypeByte);
       data = serverData;
     }
     else if (role == HandshakeRole::eClient)

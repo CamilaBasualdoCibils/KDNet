@@ -9,7 +9,7 @@
 #include "Global/Serialize/ByteReader.hpp"
 #include "Global/Serialize/ByteWriter.hpp"
 
-using ShardID = UUID;
+using AtlasNetShardID = UUID;
 using ProxyID = UUID;
 struct NetworkIdentity
 {

@@ -17,6 +17,7 @@ services:
       - SYS_PTRACE
     security_opt:
       - seccomp:unconfined
+    tty: true
     deploy:
       #labels:
         #atlasnet.role: controller # REQUIRED
@@ -29,6 +30,7 @@ services:
     image: valkey/valkey:latest
     command: ["valkey-server", "--appendonly", "yes", "--port", "6379"]
     networks: [TankBattleNet]
+    tty: true
     ports:
       - target: 6379
         published: 6379
@@ -43,6 +45,7 @@ services:
   atlasnet-cartograph-frontend:
     image: atlasnet-cartograph-frontend-dev
     networks: [TankBattleNet]
+    tty: true
     ports:
       - target : 80
         published: 80
@@ -60,6 +63,7 @@ services:
   atlasnet-cartograph-backend:
     image: atlasnet-cartograph-backend-dev
     networks: [TankBattleNet]
+    tty: true
     environment:
       - BACKEND_PORT=2000
     deploy:

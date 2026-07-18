@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/RPC/RPCMacros.hpp"
+#include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 namespace AtlasNet
 {
@@ -14,27 +14,18 @@ struct ClientConnectionCompleteData
 {
 
   ClientConnectionResult result;
-  ClientID clientID;
-  EntityID entityID;
+  AtlasNetClientID clientID;
+  AtlasNetEntityID entityID;
 
-  void Serialize(ByteWriter& writer) const
+  template <typename Archive>
+ void serialize(Archive& ar)
   {
-    writer.u8(static_cast<uint8_t>(result));
-    writer.uuid(clientID);
-    writer.uuid(entityID);
-  }
-
-  void Deserialize(ByteReader& reader)
-  {
-    uint8_t result_v;
-    reader.u8(result_v);
-    result = static_cast<ClientConnectionResult>(result_v);
-    reader.uuid(clientID);
-    reader.uuid(entityID);
+    ar(result);
+    ar(clientID);
+    ar(entityID);
   }
 };
-ATLASNET_RPC(
-    ClientRPC,
-    ATLASNET_RPC_METHOD(ClientConnectionCompleteNotification,
-                        ATLASNET_RPC_SIG(void(ClientConnectionCompleteData))));
+using ClientRPC_ClientConnectionCompleteNotification =
+    RPC<"ClientConnectionCompleteNotification", void, ClientConnectionCompleteData>;
+
 }; // namespace AtlasNet

@@ -2,7 +2,7 @@
 #pragma once
 #include "adapter/IServiceAdapter.hpp"
 
-#include "atlasnet/core/container/Container.hpp"
+#include "atlasnet/core/node/AtlasNetNode.hpp"
 
 #include "atlasnet/core/universe/UniverseEvents.hpp"
 #include "atlasnet/core/universe/WorldConcepts.hpp"
@@ -13,7 +13,7 @@
 namespace AtlasNet
 {
 
-class AtlasNetController : public IService
+class AtlasNetController : public IAtlasNetNode
 {
 
 public:
@@ -29,7 +29,7 @@ private:
 
   std::unique_ptr<IServiceAdapter> CreateServiceAdapter(
       const std::string_view& serviceName, const std::string_view& imageName,
-      std::vector<std::pair<PortType, PortType>> portMappings = {});
+      std::vector<std::pair<Network::PortType, Network::PortType>> portMappings = {});
 
   std::shared_mutex _adapterMutex;
   std::unordered_map<WorldID, std::unique_ptr<IServiceAdapter>>

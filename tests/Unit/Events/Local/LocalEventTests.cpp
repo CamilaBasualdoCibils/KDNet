@@ -1,6 +1,6 @@
 
 #include "atlasnet/core/events/IEvent.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include <atlasnet/core/events/LocalEventSystem.hpp>
 #include <atomic>
 #include <chrono>
@@ -16,7 +16,7 @@ int main(int argc, char** argv)
 ATLASNET_EVENT(TestEvent, ATLASNET_EVENT_FIELD(int, value));
 TEST(EventLocalSystemTest, BasicEventEmission)
 {
-  JobSystem jobSystem({});
+  TaskSystem jobSystem({});
   LocalEventSystem eventSystem({LocalEventSystem::Config{&jobSystem}});
   std::atomic_bool callbackInvoked = false;
 
@@ -28,13 +28,13 @@ TEST(EventLocalSystemTest, BasicEventEmission)
       });
 
   TestEvent event(42);
-  eventSystem.Emit(event).wait(std::chrono::seconds(1));
+  eventSystem.Emit(event)->wait_for(std::chrono::seconds(1));
   EXPECT_TRUE(callbackInvoked);
 }
 
 TEST(EventLocalSystemTest, MultipleListeners)
 {
-  JobSystem jobSystem({});
+  TaskSystem jobSystem({});
   LocalEventSystem eventSystem({&jobSystem});
   std::atomic_int callbackCount = 0;
 
@@ -54,18 +54,18 @@ TEST(EventLocalSystemTest, MultipleListeners)
       });
 
   TestEvent event(42);
-  eventSystem.Emit(event).wait(std::chrono::seconds(1));
+  eventSystem.Emit(event)->wait_for(std::chrono::seconds(1));
   EXPECT_EQ(callbackCount.load(), 2);
 }
 TEST(EventLocalSystemTest, NoListeners)
 {
-  JobSystem jobSystem({});
+  TaskSystem jobSystem({});
   LocalEventSystem eventSystem({&jobSystem});
 
 
 
   TestEvent event(42);
   // Should not crash or throw even if there are no listeners
-  eventSystem.Emit(event).wait(std::chrono::seconds(1));
+  eventSystem.Emit(event)->wait_for(std::chrono::seconds(1));
   SUCCEED();
 }

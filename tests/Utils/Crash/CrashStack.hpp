@@ -1,5 +1,5 @@
 #pragma once
-#include "atlasnet/core/Singleton.hpp"
+#include "atlasnet/core/utils/Singleton.hpp"
 #include <csignal>
 #include <execinfo.h>
 #include <filesystem>

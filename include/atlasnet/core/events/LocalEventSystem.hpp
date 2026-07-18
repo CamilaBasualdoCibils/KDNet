@@ -2,11 +2,12 @@
 
 #include "IEvent.hpp"
 #include "atlasnet/core/events/IEventSystem.hpp"
-#include "atlasnet/core/job/JobContext.hpp"
-#include "atlasnet/core/job/JobHandle.hpp"
-#include "atlasnet/core/job/JobOptions.hpp"
-#include "atlasnet/core/job/JobSystem.hpp"
+
+#include "atlasnet/core/tasks/TaskHandle.hpp"
+#include "atlasnet/core/tasks/TaskSystem.hpp"
 #include "enviroment/Enviroment.hpp"
+#include "spdlog/logger.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -23,9 +24,10 @@ class LocalEventSystem : public IEventSystem
 public:
   struct Config
   {
-    JobSystem* jobSystem;
+    TaskSystem* taskSystem;
   };
-  explicit LocalEventSystem(const Config& config) : jobSystem(config.jobSystem)
+  explicit LocalEventSystem(const Config& config)
+      : taskSystem(config.taskSystem)
   {
   }
 
@@ -33,40 +35,43 @@ protected:
   void impl_On(EventID eventID,
                std::function<void(const std::string_view&)> cb) override
   {
-    std::cerr << "Registering Local listener for event ID " << eventID
-              << std::endl;
+    logger->info("Registering Local listener for event ID {}", eventID);
     std::unique_lock lock(mutex);
     listeners[eventID].push_back(std::move(cb));
   }
 
-  JobHandle impl_Emit(EventID eventID, const std::string_view& event) override
-{
-  return jobSystem->Submit(
-      [this, eventID, eventstr = std::string(event)](JobContext&)
-      {
-        std::vector<std::function<void(const std::string_view&)>> callbacks;
-
+  TaskHandle<> impl_Emit(EventID eventID,
+                         const std::string_view& event) override
+  {
+    TaskHandle<> handle = taskSystem->MediumPriority().dependent_async(
+        [this, eventID, eventstr = std::string(event)]()
         {
-          std::shared_lock lock(mutex);
+          std::vector<std::function<void(const std::string_view&)>> callbacks;
 
-          auto it = listeners.find(eventID);
-          if (it == listeners.end())
-            return;
+          {
+            std::shared_lock lock(mutex);
 
-          callbacks = it->second; // COPY OUT
-        }
+            auto it = listeners.find(eventID);
+            if (it == listeners.end())
+              return;
 
-        // lock is released here
+            callbacks = it->second; // COPY OUT
+          }
 
-        for (auto& cb : callbacks)
-        {
-          cb(eventstr);
-        }
-      });
-}
+          // lock is released here
+
+          for (auto& cb : callbacks)
+          {
+            cb(eventstr);
+          }
+        });
+    return handle;
+  }
 
 private:
-  JobSystem* jobSystem;
+  std::shared_ptr<spdlog::logger> logger =
+      spdlog::stdout_color_mt("LocalEventSystem");
+  TaskSystem* taskSystem;
 
   std::shared_mutex mutex;
   std::unordered_map<EventID,

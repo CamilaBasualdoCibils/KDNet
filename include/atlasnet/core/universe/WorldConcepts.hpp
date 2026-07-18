@@ -4,8 +4,8 @@
 /*
 ATLASNET_WORLD_DEFINITION(Name, Space System, Heuristic)*/
 #include "WorldEnums.hpp"
-#include "atlasnet/core/Json.hpp"
-#include "atlasnet/core/UUID.hpp"
+#include "atlasnet/core/CoreDefs.hpp"
+#include "atlasnet/core/utils/UUID.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "boost/describe/enum_from_string.hpp"

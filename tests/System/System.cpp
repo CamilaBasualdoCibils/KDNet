@@ -1,5 +1,5 @@
 #include "DockerStackTest.hpp"
-#include "atlasnet/core/Address.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include <gtest/gtest.h>
 int main(int argc, char** argv)

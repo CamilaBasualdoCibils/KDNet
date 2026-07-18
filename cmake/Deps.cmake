@@ -85,7 +85,7 @@ FetchContent_MakeAvailable(GameNetworkingSockets)
 
 message(STATUS "Fetching Boost")
 set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Use static Boost libraries" FORCE)
-set(BOOST_INCLUDE_LIBRARIES beast bimap describe dynamic_bitset flyweight math multi_array multi_index stacktrace static_string uuid)
+set(BOOST_INCLUDE_LIBRARIES beast bimap describe graph dynamic_bitset flyweight math multi_array multi_index lockfree stacktrace serialization static_string uuid)
 set(BOOST_ENABLE_MPI ON)
 set(BOOST_ENABLE_CMAKE ON)
 FetchContent_Declare(
@@ -98,15 +98,25 @@ FetchContent_Declare(
       )
 FetchContent_MakeAvailable(Boost)
 
-#message(STATUS "TaskFlow")
-#set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-#set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-#FetchContent_Declare(taskflow 
-#URL https://github.com/taskflow/taskflow/archive/refs/tags/v4.0.0.tar.gz
-#)
-#FetchContent_MakeAvailable(taskflow)
+message(STATUS "TaskFlow")
+set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(taskflow 
+URL https://github.com/taskflow/taskflow/archive/refs/tags/v4.0.0.tar.gz
+)
+FetchContent_MakeAvailable(taskflow)
 
 
+message(STATUS "Fetching spdlog")
+FetchContent_Declare(
+    spdlog
+    URL https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
+    USES_TERMINAL_DOWNLOAD TRUE
+    #GIT_TAG v1.17.0
+)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(spdlog)
 # Fetch Kokkos
 # set (Kokkos_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 # FetchContent_Declare(
@@ -128,16 +138,19 @@ FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases
 FetchContent_MakeAvailable(nlohmann_json)
 include(FetchContent)
 
+Set(BUILD_DOC OFF CACHE BOOL "" FORCE)
+Set(BUILD_SANDBOX OFF CACHE BOOL "" FORCE)
+Set(SKIP_PERFORMANCE_COMPARISON ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
-  yaml-cpp
-  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-  GIT_TAG yaml-cpp-0.9.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
+  Cereal
+  GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+  GIT_TAG v1.3.2
 )
-FetchContent_MakeAvailable(yaml-cpp)
+FetchContent_MakeAvailable(Cereal)
 
 FetchContent_Declare(
-  JoltPhysics
-  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
-  GIT_TAG v5.5.0
+  bitsery
+  GIT_REPOSITORY https://github.com/fraillt/bitsery.git
+  
 )
-FetchContent_MakeAvailable(JoltPhysics)
+FetchContent_MakeAvailable(bitsery)

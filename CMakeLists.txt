@@ -64,6 +64,7 @@ hiredis::hiredis_ssl
 uv_a
 Boost::headers
 Boost::beast
+Boost::graph
 Boost::bimap
 Boost::describe
 Boost::dynamic_bitset

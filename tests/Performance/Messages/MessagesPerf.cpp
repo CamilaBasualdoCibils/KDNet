@@ -1,4 +1,4 @@
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
@@ -50,7 +50,8 @@ ATLASNET_MESSAGE(BigMessageTestMessage,
 
 using DataArray = std::array<uint8_t, 100000>;
 ATLASNET_MESSAGE(PerfMessage, ATLASNET_MESSAGE_DATA(DataArray, payload));
-
+using namespace AtlasNet;
+using namespace AtlasNet::Network;
 void ThroughputTest()
 {
   using namespace AtlasNet;

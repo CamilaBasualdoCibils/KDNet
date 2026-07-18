@@ -1,7 +1,7 @@
 #pragma once
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/database/redis/utils/RedisUtils.hpp"
@@ -201,7 +201,7 @@ public:
     } */
 
   std::optional<NodeInfo> RegisterNode(const AtlasNetNodeType type,
-                                       const SocketAddress& address);
+                                       const Network::SocketAddress& address);
 
   template <typename OutputIt> uint64_t GetAllNodeIDs(OutputIt out) const;
 
@@ -209,12 +209,12 @@ public:
   uint64_t GetAllShardIDs(OutputIt out) const;
 
   template <typename IdType>
-  std::optional<SocketAddress> ResolveAddress(const IdType& id);
+  std::optional<Network::SocketAddress> ResolveAddress(const IdType& id);
   template <typename IdType>
   std::optional<AtlasNetNodeID> GetNodeID(const IdType& id);
 
 private:
-  std::optional<AtlasNetNodeID> ClaimNodeID(const SocketAddress& address);
+  std::optional<AtlasNetNodeID> ClaimNodeID(const Network::SocketAddress& address);
   std::optional<AtlasNetShardID> ClaimShardID(AtlasNetNodeID nodeID);
   std::optional<AtlasNetGatewayID> ClaimGatewayID(AtlasNetNodeID nodeID);
   std::optional<AtlasNetControllerID> ClaimControllerID(AtlasNetNodeID nodeID);
@@ -287,7 +287,7 @@ private:
       spdlog::stdout_color_mt("NodeRegistry");
 };
 template <typename IdType>
-inline std::optional<SocketAddress>
+inline std::optional<Network::SocketAddress>
 NodeRegistry::ResolveAddress(const IdType& id)
 {
   // TODO: This can be optimized by a lua script to reduce the number of
@@ -313,7 +313,7 @@ NodeRegistry::ResolveAddress(const IdType& id)
       _redisConn->HashMap().GetSet().HGet(NodeIDLeaseTable, nodeID.to_string());
   if (res.has_value())
   {
-    SocketAddress address;
+    Network::SocketAddress address;
     address.parse_string(*res);
     return address;
   }

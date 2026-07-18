@@ -1,6 +1,6 @@
 #pragma once
 #include "Message.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/utils/assert.hpp"
 
@@ -80,7 +80,7 @@ public:
     ConnectionState connState;
     AuthState authState;
     std::optional<HandshakeIdentity> handshakeIdentity;
-    SocketAddress RequestedAddress, ResolvedAddress;
+    Network::SocketAddress RequestedAddress, ResolvedAddress;
     friend class MessageSystem;
 
   protected:
@@ -99,11 +99,11 @@ public:
     {
       return connState;
     }
-    SocketAddress GetRequestedAddress() const
+    Network::SocketAddress GetRequestedAddress() const
     {
       return RequestedAddress;
     }
-    SocketAddress GetResolvedAddress() const
+    Network::SocketAddress GetResolvedAddress() const
     {
       return ResolvedAddress;
     }
@@ -115,26 +115,26 @@ public:
     MessageSystem& system;
     HSteamListenSocket handle;
     std::shared_mutex socket_mutex;
-    PortType port;
+    Network::PortType port;
     using HandlerFunc =
-        std::function<void(const IMessage&, const SocketAddress&)>;
+        std::function<void(const IMessage&, const Network::SocketAddress&)>;
     std::unordered_map<MessageID, HandlerFunc> _handlers;
     // using DispatchFunc = std::function<void(const IMessage&, MessageID,
-    //                                         const SocketAddress&)>;
+    //                                         const Network::SocketAddress&)>;
     // std::unordered_map<MessageID, DispatchFunc> _dispatchTable;
     friend class MessageSystem;
 
   protected:
     void DispatchCallbacks(const IMessage& message, MessageID typeIdHash,
-                           const SocketAddress& caller_address);
+                           const Network::SocketAddress& caller_address);
 
   public:
     ListenSocketHandle(MessageSystem& system, HSteamListenSocket handle,
-                       PortType port);
+                       Network::PortType port);
     template <typename MessageType>
       requires std::is_base_of_v<IMessage, MessageType>
     ListenSocketHandle&
-    On(std::function<void(const MessageType&, const SocketAddress&)> func);
+    On(std::function<void(const MessageType&, const Network::SocketAddress&)> func);
 
   private:
     /*  template <typename MsgType>
@@ -142,7 +142,7 @@ public:
      void _ensure_socket_message_dispatcher(); */
   };
   using HandshakeHandlerFunc = std::function<HandshakeResponsePacket(
-      const HandshakeIdentity&, const SocketAddress&)>;
+      const HandshakeIdentity&, const Network::SocketAddress&)>;
   struct Config
   {
     TaskSystem* taskSystem = nullptr;
@@ -155,7 +155,7 @@ public:
   ~MessageSystem();
   void Shutdown();
 
-  TaskHandle<MessageConnectionResult> Connect(const SocketAddress& address);
+  TaskHandle<MessageConnectionResult> Connect(const Network::SocketAddress& address);
 
   /**
    * @brief Queues a message to be sent to the specified address. Will connect
@@ -170,7 +170,7 @@ public:
   template <typename MessageType>
     requires std::is_base_of_v<IMessage, MessageType>
   [[nodiscard]] TaskHandle<MessageSendResult>
-  QueueMessage(const MessageType& message, const SocketAddress& address,
+  QueueMessage(const MessageType& message, const Network::SocketAddress& address,
                MessageSendMode mode);
   /**
    * @brief Tries to send a message immidiately, if not connected, will return
@@ -185,28 +185,28 @@ public:
   template <typename MessageType>
     requires std::is_base_of_v<IMessage, MessageType>
   [[nodiscard]] MessageSendResult TrySendMessage(const MessageType& message,
-                                                 const SocketAddress& address,
+                                                 const Network::SocketAddress& address,
                                                  MessageSendMode mode);
 
   template <typename MessageType>
     requires std::is_base_of_v<IMessage, MessageType>
   MessageSystem&
-  On(std::function<void(const MessageType&, const SocketAddress&)> handler);
+  On(std::function<void(const MessageType&, const Network::SocketAddress&)> handler);
 
-  ListenSocketHandle& OpenListenSocket(PortType port);
-  ListenSocketHandle& GetListenSocket(PortType port);
+  ListenSocketHandle& OpenListenSocket(Network::PortType port);
+  ListenSocketHandle& GetListenSocket(Network::PortType port);
 
   void SteamNetConnectionStatusChanged(
       SteamNetConnectionStatusChangedCallback_t* pInfo);
 
-  ConnectionState GetConnectionState(const SocketAddress& address) const;
+  ConnectionState GetConnectionState(const Network::SocketAddress& address) const;
 
-  bool IsConnectingTo(const SocketAddress& address) const;
-  bool IsConnectedTo(const SocketAddress& address) const;
+  bool IsConnectingTo(const Network::SocketAddress& address) const;
+  bool IsConnectedTo(const Network::SocketAddress& address) const;
 
   size_t GetNumConnections() const;
   void GetConnections(std::vector<Connection>& connections) const;
-  std::optional<Connection> GetConnection(const SocketAddress& address) const;
+  std::optional<Connection> GetConnection(const Network::SocketAddress& address) const;
 
 private:
   void SetIdentity(const SteamNetworkingIdentity& identity);
@@ -216,7 +216,7 @@ private:
     AN_ASSERT(_GNS, "GNS is null");
     return *_GNS;
   }
-  HSteamNetConnection GetConnectionHandle(const SocketAddress& address) const;
+  HSteamNetConnection GetConnectionHandle(const Network::SocketAddress& address) const;
   template <typename MsgType>
     requires std::is_base_of_v<IMessage, MsgType>
   void _ensure_message_dispatcher();
@@ -256,7 +256,7 @@ private:
                                                 &ListenSocketHandle::handle>>>>
       _listenSocketList; */
 
-  std::unordered_map<PortType, std::unique_ptr<ListenSocketHandle>>
+  std::unordered_map<Network::PortType, std::unique_ptr<ListenSocketHandle>>
       _listenSockets;
 
   struct ConnectionByRequestedAddress
@@ -270,15 +270,15 @@ private:
       boost::multi_index::indexed_by<
           boost::multi_index::hashed_unique<
               boost::multi_index::tag<ConnectionByRequestedAddress>,
-              boost::multi_index::member<Connection, SocketAddress,
+              boost::multi_index::member<Connection, Network::SocketAddress,
                                          &Connection::RequestedAddress>>,
           boost::multi_index::hashed_unique<
               boost::multi_index::tag<ConnectionByResolvedAddress>,
-              boost::multi_index::member<Connection, SocketAddress,
+              boost::multi_index::member<Connection, Network::SocketAddress,
                                          &Connection::ResolvedAddress>>>>
       _connections;
 
-  std::optional<Connection> __FindByAddress(const SocketAddress& address) const
+  std::optional<Connection> __FindByAddress(const Network::SocketAddress& address) const
   {
     auto it1 = _connections.get<ConnectionByRequestedAddress>().find(address);
     if (it1 != _connections.get<ConnectionByRequestedAddress>().end())
@@ -292,7 +292,7 @@ private:
     }
     return std::nullopt;
   }
-  bool __ModifyByAddress(const SocketAddress& address,
+  bool __ModifyByAddress(const Network::SocketAddress& address,
                          std::function<void(Connection&)> func)
   {
     auto it1 = _connections.get<ConnectionByRequestedAddress>().find(address);
@@ -316,16 +316,16 @@ private:
            "Invalid connection addresses");
     _connections.insert(connection);
   }
-  // std::unordered_map<SocketAddress, Connection> _connections;
-  std::unordered_map<SocketAddress, TaskHandle<MessageConnectionResult>>
+  // std::unordered_map<Network::SocketAddress, Connection> _connections;
+  std::unordered_map<Network::SocketAddress, TaskHandle<MessageConnectionResult>>
       _connectJobs;
   std::vector<TaskHandle<>> _waitingOnConnectionJobs;
   std::vector<TaskHandle<MessageSendResult>> _sendJobs;
   using HandlerFunc =
-      std::function<void(const IMessage&, const SocketAddress&)>;
+      std::function<void(const IMessage&, const Network::SocketAddress&)>;
   std::unordered_map<MessageID, HandlerFunc> _handlers;
-  using DispatchFunc = std::function<void(ByteReader&, const SocketAddress&,
-                                          std::optional<PortType>)>;
+  using DispatchFunc = std::function<void(ByteReader&, const Network::SocketAddress&,
+                                          std::optional<Network::PortType>)>;
   std::unordered_map<MessageID, DispatchFunc> _dispatchTable;
   std::jthread _pollThread;
   std::atomic_bool shutdown = false;
@@ -336,7 +336,7 @@ private:
 template <typename MessageType>
   requires std::is_base_of_v<IMessage, MessageType>
 inline MessageSystem::ListenSocketHandle& MessageSystem::ListenSocketHandle::On(
-    std::function<void(const MessageType&, const SocketAddress&)> func)
+    std::function<void(const MessageType&, const Network::SocketAddress&)> func)
 {
   system._ensure_message_dispatcher<MessageType>();
   //_ensure_socket_message_dispatcher<MessageType>();
@@ -350,7 +350,7 @@ inline MessageSystem::ListenSocketHandle& MessageSystem::ListenSocketHandle::On(
       std::format("Handler already registered for message type with hash {}",
                   typeIdHash));
   _handlers[typeIdHash] =
-      [h = std::move(func)](const IMessage& msg, const SocketAddress& address)
+      [h = std::move(func)](const IMessage& msg, const Network::SocketAddress& address)
   { h(static_cast<const MessageType&>(msg), address); };
 
   return *this;
@@ -374,7 +374,7 @@ MessageSystem::ListenSocketHandle::_ensure_socket_message_dispatcher()
   {
     _handlers[typeIdHash] = [&](const IMessage& message,
 
-                                     const SocketAddress& caller_address)
+                                     const Network::SocketAddress& caller_address)
     {
 
       if (_handlers.contains(typeIdHash))
@@ -385,8 +385,8 @@ MessageSystem::ListenSocketHandle::_ensure_socket_message_dispatcher()
       }
       else
       {
-      logger->error("No handler registered for message type with hash {} on
-listen socket port {}", typeIdHash, port);
+      logger->error("No handler registered for message type with hash {} on "
+                    "listen socket port {}", typeIdHash, port);
 
       }
     };
@@ -396,7 +396,7 @@ listen socket port {}", typeIdHash, port);
 template <typename MessageType>
   requires std::is_base_of_v<IMessage, MessageType>
 inline MessageSystem& MessageSystem::On(
-    std::function<void(const MessageType&, const SocketAddress&)> handler)
+    std::function<void(const MessageType&, const Network::SocketAddress&)> handler)
 {
   _ensure_message_dispatcher<MessageType>();
   logger->info("Registered handler for message type with hash {} on global "
@@ -409,7 +409,7 @@ inline MessageSystem& MessageSystem::On(
       std::format("Handler already registered for message type with hash {}",
                   typeIdHash));
   _handlers[typeIdHash] = [h = std::move(handler)](const IMessage& msg,
-                                                   const SocketAddress& address)
+                                                   const Network::SocketAddress& address)
   { h(static_cast<const MessageType&>(msg), address); };
 
   return *this;
@@ -431,8 +431,8 @@ inline void MessageSystem::_ensure_message_dispatcher()
   if (!_dispatchTable.contains(typeIdHash))
   {
     _dispatchTable[typeIdHash] =
-        [this](ByteReader& reader, const SocketAddress& address,
-               std::optional<PortType> port_received_on)
+        [this](ByteReader& reader, const Network::SocketAddress& address,
+               std::optional<Network::PortType> port_received_on)
     {
       MessageID typeIdHash = MsgType::TypeIdHash;
       MsgType msg;
@@ -489,7 +489,7 @@ template <typename MessageType>
   requires std::is_base_of_v<IMessage, MessageType>
 inline MessageSendResult
 MessageSystem::TrySendMessage(const MessageType& message,
-                              const SocketAddress& address,
+                              const Network::SocketAddress& address,
                               MessageSendMode mode)
 {
   assert(address.IsValid() && "Invalid address provided to TrySendMessage()");
@@ -529,7 +529,7 @@ template <typename MessageType>
   requires std::is_base_of_v<IMessage, MessageType>
 inline TaskHandle<MessageSendResult>
 MessageSystem::QueueMessage(const MessageType& message,
-                            const SocketAddress& address, MessageSendMode mode)
+                            const Network::SocketAddress& address, MessageSendMode mode)
 {
   assert(address.IsValid() && "Invalid address provided to QueueMessage()");
   TaskHandle<MessageConnectionResult> ConnectTask = Connect(address);

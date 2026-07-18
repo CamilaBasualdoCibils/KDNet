@@ -29,7 +29,7 @@ private:
 
   std::unique_ptr<IServiceAdapter> CreateServiceAdapter(
       const std::string_view& serviceName, const std::string_view& imageName,
-      std::vector<std::pair<PortType, PortType>> portMappings = {});
+      std::vector<std::pair<Network::PortType, Network::PortType>> portMappings = {});
 
   std::shared_mutex _adapterMutex;
   std::unordered_map<WorldID, std::unique_ptr<IServiceAdapter>>

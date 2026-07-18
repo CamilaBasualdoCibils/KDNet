@@ -89,6 +89,8 @@ inline bool looks_like_hostname(std::string_view s)
   return true;
 }
 } // namespace Detail
+namespace Network
+{
 class IAddress
 {
 public:
@@ -795,44 +797,45 @@ public:
     throw std::invalid_argument("Invalid HostAddress variant index");
   }
 };
+} // namespace Network
 } // namespace AtlasNet
 namespace std
 {
-template <> struct hash<AtlasNet::IPv4>
+template <> struct hash<AtlasNet::Network::IPv4>
 {
-  std::size_t operator()(const AtlasNet::IPv4& a) const noexcept
+  std::size_t operator()(const AtlasNet::Network::IPv4& a) const noexcept
   {
     return a.hash();
   }
 };
 
-template <> struct hash<AtlasNet::IPv6>
+template <> struct hash<AtlasNet::Network::IPv6>
 {
-  std::size_t operator()(const AtlasNet::IPv6& a) const noexcept
+  std::size_t operator()(const AtlasNet::Network::IPv6& a) const noexcept
   {
     return a.hash();
   }
 };
 
-template <> struct hash<AtlasNet::SteamIDAddress>
+template <> struct hash<AtlasNet::Network::SteamIDAddress>
 {
-  std::size_t operator()(const AtlasNet::SteamIDAddress& a) const noexcept
+  std::size_t operator()(const AtlasNet::Network::SteamIDAddress& a) const noexcept
   {
     return a.hash();
   }
 };
 
-template <> struct hash<AtlasNet::HostName>
+template <> struct hash<AtlasNet::Network::HostName>
 {
-  std::size_t operator()(const AtlasNet::HostName& a) const noexcept
+  std::size_t operator()(const AtlasNet::Network::HostName& a) const noexcept
   {
     return a.hash();
   }
 };
 
-template <> struct hash<AtlasNet::HostAddress>
+template <> struct hash<AtlasNet::Network::HostAddress>
 {
-  std::size_t operator()(const AtlasNet::HostAddress& a) const noexcept
+  std::size_t operator()(const AtlasNet::Network::HostAddress& a) const noexcept
   {
     return a.hash();
   }

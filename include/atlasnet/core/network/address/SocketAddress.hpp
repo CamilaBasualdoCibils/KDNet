@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
-namespace AtlasNet
+namespace AtlasNet::Network
 {
 
 using PortType = uint16_t;
@@ -500,15 +500,15 @@ public:
 } // namespace AtlasNet
 namespace std
 {
-template <> struct hash<AtlasNet::SocketAddress>
+template <> struct hash<AtlasNet::Network::SocketAddress>
 {
-  std::size_t operator()(const AtlasNet::SocketAddress& a) const noexcept
+  std::size_t operator()(const AtlasNet::Network::SocketAddress& a) const noexcept
   {
     return a.hash();
   }
 };
 } // namespace std
-namespace AtlasNet
+namespace AtlasNet::Network
 {
 inline std::size_t hash_value(const SocketAddress& addr) noexcept
 {

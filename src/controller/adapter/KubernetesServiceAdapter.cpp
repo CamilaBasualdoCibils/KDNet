@@ -20,7 +20,7 @@ void AtlasNet::KubernetesServiceAdapter::Create()
 }
 AtlasNet::KubernetesServiceAdapter::KubernetesServiceAdapter(
     const std::string_view& serviceName, const std::string_view& imageName,
-    std::vector<std::pair<PortType, PortType>> portMappings,
+    std::vector<std::pair<Network::PortType, Network::PortType>> portMappings,
     ImagePullPolicy imagePullPolicy, const std::string& namespaceName)
     : IServiceAdapter(serviceName, imageName),
       portMappings(std::move(portMappings)),

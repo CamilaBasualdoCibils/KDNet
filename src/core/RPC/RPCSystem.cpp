@@ -1,10 +1,10 @@
 
 #include "atlasnet/core/RPC/RPCSystem.hpp"
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 
 void AtlasNet::RPCSystem::_SendCallRequest(
-    SocketAddress target, RPC_Internal::RPCRequestContext int_context,
+    Network::SocketAddress target, RPC_Internal::RPCRequestContext int_context,
     std::span<const uint8_t> payload,MessageSendMode mode)
 {
   RPC_Internal::RPCRequestMessage message{
@@ -22,7 +22,7 @@ void AtlasNet::RPCSystem::_SendCallRequest(
          "Failed to send RPC call: message send failed");
 }
 void AtlasNet::RPCSystem::_HandleCall(
-    const RPC_Internal::RPCRequestMessage& request, const SocketAddress& sender)
+    const RPC_Internal::RPCRequestMessage& request, const Network::SocketAddress& sender)
 {
   const RPCID rpcId = request.context.rpcId;
   const RPCCallID callId = request.context.callId;
@@ -82,7 +82,7 @@ void AtlasNet::RPCSystem::_HandleCall(
 
 void AtlasNet::RPCSystem::_HandleResponse(
     const RPC_Internal::RPCResponseMessage& response,
-    const SocketAddress& sender)
+    const Network::SocketAddress& sender)
 {
   logger->info("Received RPC response for RPC {} from {}, {}",
                response.context.rpcId, sender.to_string(),
@@ -114,10 +114,10 @@ AtlasNet::RPCSystem::RPCSystem(const Config& config) : config_(config)
          "RPCSystem requires a MessageSystem in its config");
   config_.messageSystem->On<RPC_Internal::RPCRequestMessage>(
       [this](const RPC_Internal::RPCRequestMessage& request,
-             const SocketAddress& sender) { _HandleCall(request, sender); });
+             const Network::SocketAddress& sender) { _HandleCall(request, sender); });
   config_.messageSystem->On<RPC_Internal::RPCResponseMessage>(
       [this](const RPC_Internal::RPCResponseMessage& response,
-             const SocketAddress& sender)
+             const Network::SocketAddress& sender)
       { _HandleResponse(response, sender); });
 }
 void AtlasNet::RPCSystem::Bind(std::string_view name,
@@ -132,14 +132,14 @@ void AtlasNet::RPCSystem::Bind(RPCID id, RPC_BindCallFunction_Raw func)
   std::unique_lock lock(mutex);
   bindings[id] = std::move(func);
 }
-void AtlasNet::RPCSystem::Call(SocketAddress target,
+void AtlasNet::RPCSystem::Call(Network::SocketAddress target,
                                std::string_view methodName,
                                std::span<const uint8_t> payload, MessageSendMode mode)
 {
   const RPCID methodId = RPC_Internal::HashRPCName(methodName.data());
   Call(target, methodId, payload, mode);
 }
-void AtlasNet::RPCSystem::Call(SocketAddress target, RPCID methodId,
+void AtlasNet::RPCSystem::Call(Network::SocketAddress target, RPCID methodId,
                                std::span<const uint8_t> payload, MessageSendMode mode)
 {
   logger->info("Calling RPC {} on target {}", methodId, target.to_string());
@@ -154,7 +154,7 @@ void AtlasNet::RPCSystem::Call(SocketAddress target, RPCID methodId,
                    payload, mode);
 }
 [[nodiscard]] std::future<AtlasNet::RPCResult>
-AtlasNet::RPCSystem::Call_R(AtlasNet::SocketAddress target,
+AtlasNet::RPCSystem::Call_R(AtlasNet::Network::SocketAddress target,
                             std::string_view methodName,
                             std::span<const uint8_t> payload, MessageSendMode mode)
 {
@@ -162,7 +162,7 @@ AtlasNet::RPCSystem::Call_R(AtlasNet::SocketAddress target,
   return Call_R(target, methodId, payload, mode);
 }
 [[nodiscard]] std::future<AtlasNet::RPCResult>
-AtlasNet::RPCSystem::Call_R(AtlasNet::SocketAddress target, RPCID methodId,
+AtlasNet::RPCSystem::Call_R(AtlasNet::Network::SocketAddress target, RPCID methodId,
                             std::span<const uint8_t> payload, MessageSendMode mode)
 {
   logger->info("Calling RPC {} on target {}, response expected", methodId,

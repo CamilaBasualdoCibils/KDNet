@@ -1,7 +1,7 @@
 #include "atlasnet/core/node/AtlasNetNode.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/events/LocalEventSystem.hpp"
 #include "atlasnet/core/messages/HandshakePacket.hpp"
@@ -85,7 +85,7 @@ void AtlasNet::IAtlasNetNode::Init()
   logger->info("Connecting to Redis database at {}:{}...",
                Env::DatabaseHostName, Env::DatabasePort);
   _redisDatabase = Database::RedisConn::Connect(Database::RedisConn::Settings{
-      .host = HostAddress(Env::DatabaseHostName),
+      .host = Network::HostAddress(Env::DatabaseHostName),
       .port = Env::DatabasePort,
       .Mode = Database::RedisConn::RedisMode::eStandalone,
       .ExceptionOnFailure = true,
@@ -122,7 +122,7 @@ void AtlasNet::IAtlasNetNode::Init()
       .taskSystem = &_taskSystem.value(),
       .localEventSystem = &_eventSystem.value(),
       .handshakeHandler = [this](const HandshakeIdentity& handshakeIdentity,
-                                 const SocketAddress& remoteAddr)
+                                 const Network::SocketAddress& remoteAddr)
       { return HandleHandshake(handshakeIdentity, remoteAddr); },
       .handshakeIdentity =
           HandshakeIdentity{
@@ -161,14 +161,14 @@ void AtlasNet::IAtlasNetNode::Init()
   cv.wait(lock, [this]
           { return shutdown_requested.load(std::memory_order_acquire); });
 }
-AtlasNet::SocketAddress AtlasNet::IAtlasNetNode::GetNetworkAddress() const
+AtlasNet::Network::SocketAddress AtlasNet::IAtlasNetNode::GetNetworkAddress() const
 {
   if (const char* envHost = std::getenv("NODE_IP"))
   {
     logger->info("Using NODE_IP environment variable for hostname: {}",
                  envHost);
-    return SocketAddress(std::string(envHost) + ":" +
-                         std::to_string(Env::InternalMessagePort));
+    return Network::SocketAddress(std::string(envHost) + ":" +
+                                 std::to_string(Env::InternalMessagePort));
   }
   else
   {
@@ -177,8 +177,8 @@ AtlasNet::SocketAddress AtlasNet::IAtlasNetNode::GetNetworkAddress() const
     char actualHost[256];
     if (gethostname(actualHost, sizeof(actualHost)) == 0)
     {
-      return SocketAddress(std::string(actualHost) + ":" +
-                           std::to_string(Env::InternalMessagePort));
+      return Network::SocketAddress(std::string(actualHost) + ":" +
+                                   std::to_string(Env::InternalMessagePort));
     }
     else
     {
@@ -186,5 +186,5 @@ AtlasNet::SocketAddress AtlasNet::IAtlasNetNode::GetNetworkAddress() const
           "Failed to retrieve hostname using gethostname().");
     }
   }
-  return SocketAddress();
+  return Network::SocketAddress();
 }

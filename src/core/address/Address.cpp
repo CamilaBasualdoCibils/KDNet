@@ -1,8 +1,8 @@
-#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
 #include <netdb.h>
 #include <variant>
 
-std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> AtlasNet::HostName::resolve() const
+std::optional<std::variant<AtlasNet::Network::IPv4, AtlasNet::Network::IPv6>> AtlasNet::Network::HostName::resolve() const
 {
 
   if (!dirty)
@@ -25,7 +25,7 @@ std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> AtlasNet::HostName::
     return std::nullopt;
   }
 
-  std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> resolved;
+  std::optional<std::variant<AtlasNet::Network::IPv4, AtlasNet::Network::IPv6>> resolved;
 
   for (addrinfo* p = result; p != nullptr; p = p->ai_next)
   {
@@ -35,7 +35,7 @@ std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> AtlasNet::HostName::
       const uint8_t* bytes =
           reinterpret_cast<const uint8_t*>(&ipv4->sin_addr.s_addr);
 
-      resolved = AtlasNet::IPv4(bytes[0], bytes[1], bytes[2], bytes[3]);
+      resolved = AtlasNet::Network::IPv4(bytes[0], bytes[1], bytes[2], bytes[3]);
       break;
     }
     else if (p->ai_family == AF_INET6)
@@ -44,7 +44,7 @@ std::optional<std::variant<AtlasNet::IPv4, AtlasNet::IPv6>> AtlasNet::HostName::
       const uint8_t* bytes =
           reinterpret_cast<const uint8_t*>(ipv6->sin6_addr.s6_addr);
 
-      resolved = AtlasNet::IPv6((static_cast<uint16_t>(bytes[0]) << 8) | bytes[1],
+      resolved = AtlasNet::Network::IPv6((static_cast<uint16_t>(bytes[0]) << 8) | bytes[1],
                       (static_cast<uint16_t>(bytes[2]) << 8) | bytes[3],
                       (static_cast<uint16_t>(bytes[4]) << 8) | bytes[5],
                       (static_cast<uint16_t>(bytes[6]) << 8) | bytes[7],

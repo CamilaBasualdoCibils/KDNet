@@ -1,7 +1,7 @@
 #pragma once
 
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/BinarySerializer.hpp"
 #include "atlasnet/core/tasks/TaskSystem.hpp"
@@ -84,20 +84,20 @@ public:
     bindings[rpc::Id] = std::move(rawFunc);
   }
 
-  void Call(SocketAddress target, std::string_view methodName,
+  void Call(Network::SocketAddress target, std::string_view methodName,
             std::span<const uint8_t> payload,MessageSendMode mode = MessageSendMode::eReliableBatched);
-  void Call(SocketAddress target, RPCID methodId,
+  void Call(Network::SocketAddress target, RPCID methodId,
             std::span<const uint8_t> payload,MessageSendMode mode = MessageSendMode::eReliableBatched);
 
-  [[nodiscard]] std::future<RPCResult> Call_R(SocketAddress target,
+  [[nodiscard]] std::future<RPCResult> Call_R(Network::SocketAddress target,
                                               std::string_view methodName,
                                               std::span<const uint8_t> payload, MessageSendMode mode = MessageSendMode::eReliableBatched);
-  [[nodiscard]] std::future<RPCResult> Call_R(SocketAddress target,
+  [[nodiscard]] std::future<RPCResult> Call_R(Network::SocketAddress target,
                                               RPCID methodId,
                                               std::span<const uint8_t> payload, MessageSendMode mode = MessageSendMode::eReliableBatched);
 
   template <typename rpc, typename Args = typename rpc::ArgsTuple>
-  void Call(SocketAddress target, const Args& args, MessageSendMode mode = MessageSendMode::eReliableBatched)
+  void Call(Network::SocketAddress target, const Args& args, MessageSendMode mode = MessageSendMode::eReliableBatched)
   {
     logger->info("Calling RPC {} -> {} on target {}", rpc::NameString.value, rpc::Id, target.to_string());
     std::vector<uint8_t> payload;
@@ -110,7 +110,7 @@ public:
   template <typename rpc, typename Args = typename rpc::ArgsTuple>
     requires(!std::is_void<typename rpc::ReturnType>::value)
   [[nodiscard]] std::future<TRPCResult<typename rpc::ReturnType>>
-  Call_R(SocketAddress target, const Args& args, MessageSendMode mode = MessageSendMode::eReliableBatched)
+  Call_R(Network::SocketAddress target, const Args& args, MessageSendMode mode = MessageSendMode::eReliableBatched)
   {
     logger->info("Calling RPC {} -> {} on target {}, response expected", rpc::NameString.value, rpc::Id, target.to_string());
     static_assert(!std::is_void<typename rpc::ReturnType>::value,
@@ -158,13 +158,13 @@ public:
   }
 
 private:
-  void _SendCallRequest(SocketAddress target,
+  void _SendCallRequest(Network::SocketAddress target,
                         RPC_Internal::RPCRequestContext int_context,
                         std::span<const uint8_t> payload, MessageSendMode mode);
   void _HandleCall(const RPC_Internal::RPCRequestMessage& request,
-                   const SocketAddress& sender);
+                   const Network::SocketAddress& sender);
   void _HandleResponse(const RPC_Internal::RPCResponseMessage& response,
-                       const SocketAddress& sender);
+                       const Network::SocketAddress& sender);
   const Config config_;
   std::shared_mutex mutex;
   std::unordered_map<RPCID, RPC_BindCallFunction_Raw> bindings;

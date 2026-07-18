@@ -1,5 +1,5 @@
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 
 #include "atlasnet/core/messages/HandshakePacket.hpp"
 #include "atlasnet/core/messages/Message.hpp"
@@ -54,9 +54,12 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+  using namespace AtlasNet;
+  using namespace AtlasNet::Network;
+
 TEST(MessageSystem, InitAndShutdown)
 {
-  using namespace AtlasNet;
+
   TaskSystem jobsys(TaskSystem::Config{});
   MessageSystem msgsys(MessageSystem::Config{.taskSystem = &jobsys});
 

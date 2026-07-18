@@ -3,7 +3,7 @@
 #include "atlasnet/core/CmdSig/command/Command.hpp"
 #include "atlasnet/core/CmdSig/command/CommandEnums.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include "atlasnet/gateway/GatewayRPC.hpp"
@@ -44,7 +44,7 @@ public:
                               AtlasNetClientError* error = nullptr,
                               std::string* errorMessage = nullptr)
   {
-    SocketAddress serverAddress(HostAddress(std::string(address)), port);
+    Network::SocketAddress serverAddress(Network::HostAddress(std::string(address)), port);
     TaskHandle<MessageConnectionResult> jobHandle =
         messageSystem->Connect(serverAddress);
 
@@ -72,7 +72,7 @@ public:
                    boost::describe::enum_to_string(
                        lastConnectionCompleteData->result, "<INVALID>"));
 
-      _serverAddress = SocketAddress(HostAddress(std::string(address)), port);
+      _serverAddress = Network::SocketAddress(Network::HostAddress(std::string(address)), port);
       return true;
     }
     else
@@ -168,7 +168,7 @@ private:
   std::mutex lastConnectionCompleteDataMutex;
   std::condition_variable lastConnectionCompleteDataCV;
 
-  SocketAddress _serverAddress;
+  Network::SocketAddress _serverAddress;
   std::optional<TaskSystem> taskSystem;
   std::optional<MessageSystem> messageSystem;
   std::optional<RPCSystem> rpcSystem;

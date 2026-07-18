@@ -145,7 +145,7 @@ void AtlasNet::AtlasNetController::LoadStartupWorlds()
 std::unique_ptr<AtlasNet::IServiceAdapter>
 AtlasNet::AtlasNetController::CreateServiceAdapter(
     const std::string_view& serviceName, const std::string_view& imageName,
-    std::vector<std::pair<PortType, PortType>> portMappings)
+    std::vector<std::pair<Network::PortType, Network::PortType>> portMappings)
 {
   std::string ServiceName = std::string(serviceName);
   // try to detect if this is running in kubernetes

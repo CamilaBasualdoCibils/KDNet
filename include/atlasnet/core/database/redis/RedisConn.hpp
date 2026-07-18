@@ -1,7 +1,7 @@
 #pragma once
 
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "boost/describe/enum.hpp"
 #include "sw/redis++/async_redis.h"
 #include "sw/redis++/async_redis_cluster.h"
@@ -49,8 +49,8 @@ public:
   struct Settings
   {
 
-    HostAddress host;
-    PortType port;
+    Network::HostAddress host;
+    Network::PortType port;
     RedisMode Mode = RedisMode::eStandalone;
     bool ExceptionOnFailure = false;
     uint32_t MaxConnectRetries = 0;

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "atlasnet/core/address/Address.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/serialize/ByteReader.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
 #include <boost/describe.hpp>
@@ -91,7 +91,7 @@ struct CartographBackendInfo
 struct NodeInfo
 {
   AtlasNetNodeID id;
-  SocketAddress address;
+  Network::SocketAddress address;
   AtlasNetNodeType containerType;
   std::optional<std::variant<GatewayNodeInfo, ShardNodeInfo, ControllerNodeInfo,
                              CartographBackendInfo>>

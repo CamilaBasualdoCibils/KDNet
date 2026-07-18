@@ -1,6 +1,6 @@
 
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include <gtest/gtest.h>
 #include <unordered_set>
 
@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 }
 
 using namespace AtlasNet;
-
+using namespace AtlasNet::Network;
 // ------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------
@@ -28,21 +28,21 @@ using namespace AtlasNet;
 // or similar.
 // Adjust these in one place if your API differs.
 
-static void ExpectHostAddressIsIPv4(const HostAddress& addr)
+static void ExpectHostAddressIsIPv4(const Network::HostAddress& addr)
 {
   EXPECT_TRUE(addr.IsIPv4());
   EXPECT_FALSE(addr.IsIPv6());
   EXPECT_FALSE(addr.IsHostName());
 }
 
-static void ExpectHostAddressIsIPv6(const HostAddress& addr)
+static void ExpectHostAddressIsIPv6(const Network::HostAddress& addr)
 {
   EXPECT_FALSE(addr.IsIPv4());
   EXPECT_TRUE(addr.IsIPv6());
   EXPECT_FALSE(addr.IsHostName());
 }
 
-static void ExpectHostAddressIsHostName(const HostAddress& addr)
+static void ExpectHostAddressIsHostName(const Network::HostAddress& addr)
 {
   EXPECT_FALSE(addr.IsIPv4());
   EXPECT_FALSE(addr.IsIPv6());
@@ -51,14 +51,14 @@ static void ExpectHostAddressIsHostName(const HostAddress& addr)
 
 // If you do not have string-deducing constructors, replace these with
 // your actual parse helpers.
-static HostAddress ParseHostAddress(const std::string& s)
+static Network::HostAddress ParseHostAddress(const std::string& s)
 {
-  return HostAddress(s);
+  return Network::HostAddress(s);
 }
 
-static SocketAddress ParseSocketAddress(const std::string& s)
+static Network::SocketAddress ParseSocketAddress(const std::string& s)
 {
-  return SocketAddress(s);
+  return Network::SocketAddress(s);
 }
 
 // ------------------------------------------------------------

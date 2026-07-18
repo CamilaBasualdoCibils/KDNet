@@ -1,7 +1,7 @@
 
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/serialize/AtlasSerializer.hpp"
 #include "atlasnet/core/serialize/BinarySerializer.hpp"
@@ -214,11 +214,14 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+  using namespace AtlasNet;
+
+  using namespace AtlasNet::Network;
+
 TEST(Serialization, LoginDataSerialization)
 {
-  using namespace AtlasNet;
   LoginData entry;
-  entry.address = SocketAddress(IPv4(127, 0, 0, 1), 8080);
+  entry.address = SocketAddress(Network::IPv4(127, 0, 0, 1), 8080);
   // entry.clientID;
   // entry.managingGateway = UUID::Generate();
   // entry.entityID = EntityID::Generate();

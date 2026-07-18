@@ -2,7 +2,7 @@
 
 #include "AtlasNetGateway.hpp"
 #include "atlasnet/client/ClientRPC.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/shard/ShardRPC.hpp"
 #include <iterator>
 
@@ -43,7 +43,7 @@ void AtlasNet::AtlasNetGateway::OnInit()
 }
 AtlasNet::HandshakeResponsePacket
 AtlasNet::AtlasNetGateway::HandleHandshake(const HandshakeIdentity& identity,
-                                           const SocketAddress& remoteAddr)
+                                           const Network::SocketAddress& remoteAddr)
 {
   if (identity.role == HandshakeRole::eClient)
   {
@@ -108,7 +108,7 @@ void AtlasNet::AtlasNetGateway::OnClientConnected(
       .clientID = entry->clientID,
       .gatewayRelayID = GetGatewayID(),
   };
-  std::optional<SocketAddress> shardAddress;
+  std::optional<Network::SocketAddress> shardAddress;
   std::optional<AtlasNetShardID> resolvedShardID;
   for (const AtlasNetShardID& shardID : shardIDs)
   {

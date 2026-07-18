@@ -2,7 +2,7 @@
 
 #include "adapter/IServiceAdapter.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/local/stream_protocol.hpp>
@@ -18,7 +18,7 @@ class DockerServiceAdapter : public IServiceAdapter
 public:
   DockerServiceAdapter(const std::string_view& DockerSocketPath, const std::string_view& serviceName,
                        const std::string_view& imageName,
-                       std::vector<std::pair<PortType, PortType>> portMappings)
+                       std::vector<std::pair<Network::PortType, Network::PortType>> portMappings)
       : IServiceAdapter(serviceName, imageName),
         _DockerSocketPath(DockerSocketPath),
         _portMappings(std::move(portMappings))
@@ -141,7 +141,7 @@ private:
 private:
   std::string _DockerSocketPath;
   // namespace asio = boost::asio;
-  std::vector<std::pair<PortType, PortType>> _portMappings;
+  std::vector<std::pair<Network::PortType, Network::PortType>> _portMappings;
   mutable boost::asio::io_context m_io;
   mutable boost::asio::local::stream_protocol::socket m_socket{m_io};
 };

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/node/NodeTypes.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 
@@ -9,7 +9,7 @@ namespace AtlasNet
 {
 struct LoginData
 {
-  SocketAddress address;
+  Network::SocketAddress address;
   AtlasNetGatewayID managingGateway;
   AtlasNetClientID clientID;
   std::optional<AtlasNetEntityID> entityID;

@@ -1,7 +1,7 @@
 
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/BinarySerializer.hpp"
@@ -51,6 +51,7 @@ int pick_available_port()
   return -1; // no free port in range
 }
 using namespace AtlasNet;
+using namespace AtlasNet::Network;
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

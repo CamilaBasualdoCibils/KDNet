@@ -2,7 +2,7 @@
 #include "WebBackend.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
 #include "atlasnet/core/entity/EntityLedgerRPC.hpp"
 

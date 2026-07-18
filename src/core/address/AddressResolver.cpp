@@ -1,1 +1,1 @@
-#include "atlasnet/core/address/AddressResolver.hpp"
+#include "atlasnet/core/network/address/AddressResolver.hpp"

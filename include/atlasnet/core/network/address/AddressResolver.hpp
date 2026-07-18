@@ -1,7 +1,7 @@
 #pragma once
 
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/cache/Cache.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
@@ -49,7 +49,7 @@ public:
     assert(config_.clientRegistry != nullptr &&
            "ClientRegistry must not be nullptr");
   }
-  [[nodiscard]] std::optional<SocketAddress>
+  [[nodiscard]] std::optional<Network::SocketAddress>
   ResolveClientAddress(const AtlasNetClientID& clientID)
   {
     logger->info("Resolving client address for ID: {}", clientID.to_string());
@@ -61,19 +61,19 @@ public:
     logger->info("Resolving client gateway for ID: {}", clientID.to_string());
     return clientGatewayCache_.Get(clientID);
   }
-  [[nodiscard]] std::optional<SocketAddress>
+  [[nodiscard]] std::optional<Network::SocketAddress>
   ResolveShard(const AtlasNetShardID& shardID)
   {
     logger->info("Resolving shard address for ID: {}", shardID.to_string());
     return shardCache_.Get(shardID);
   }
-  [[nodiscard]] std::optional<SocketAddress>
+  [[nodiscard]] std::optional<Network::SocketAddress>
   ResolveNode(const AtlasNetNodeID& nodeID)
   {
     logger->info("Resolving node address for ID: {}", nodeID.to_string());
     return nodeCache_.Get(nodeID);
   }
-  [[nodiscard]] std::optional<SocketAddress>
+  [[nodiscard]] std::optional<Network::SocketAddress>
   ResolveGateway(const AtlasNetGatewayID& gatewayID)
   {
     logger->info("Resolving gateway address for ID: {}", gatewayID.to_string());
@@ -128,15 +128,15 @@ private:
   std::shared_ptr<spdlog::logger> logger =
       spdlog::stdout_color_mt("AddressResolver");
   Config config_;
-  CacheMap<AtlasNetClientID, SocketAddress> clientAddressCache_;
+  CacheMap<AtlasNetClientID, Network::SocketAddress> clientAddressCache_;
   CacheMap<AtlasNetClientID, AtlasNetGatewayID> clientGatewayCache_;
-  CacheMap<AtlasNetShardID, SocketAddress> shardCache_;
-  CacheMap<AtlasNetNodeID, SocketAddress> nodeCache_;
-  CacheMap<AtlasNetGatewayID, SocketAddress> gatewayCache_;
+  CacheMap<AtlasNetShardID, Network::SocketAddress> shardCache_;
+  CacheMap<AtlasNetNodeID, Network::SocketAddress> nodeCache_;
+  CacheMap<AtlasNetGatewayID, Network::SocketAddress> gatewayCache_;
   CacheBiMap<AtlasNetClientID, AtlasNetEntityID> clientEntityCache_;
   CacheMap<AtlasNetEntityID, AtlasNetShardID> entityShardCache_;
 
-  std::optional<SocketAddress>
+  std::optional<Network::SocketAddress>
   GatewayAddressProvider(const AtlasNetGatewayID& gatewayID)
   {
     logger->warn("Retrieving non-cached gateway address for ID: {}",
@@ -144,7 +144,7 @@ private:
     return config_.nodeRegistry->ResolveAddress(gatewayID);
   }
 
-  std::optional<SocketAddress>
+  std::optional<Network::SocketAddress>
   ClientAddressProvider(const AtlasNetClientID& clientID)
   {
     logger->warn("Retrieving non-cached client address for ID: {}",
@@ -158,14 +158,14 @@ private:
                  clientID.to_string());
     return std::nullopt;
   }
-  std::optional<SocketAddress>
+  std::optional<Network::SocketAddress>
   ShardAddressProvider(const AtlasNetShardID& shardID)
   {
     logger->warn("Retrieving non-cached shard address for ID: {}",
                  shardID.to_string());
     return config_.nodeRegistry->ResolveAddress(shardID);
   }
-  std::optional<SocketAddress> NodeAddressProvider(const AtlasNetNodeID& nodeID)
+  std::optional<Network::SocketAddress> NodeAddressProvider(const AtlasNetNodeID& nodeID)
   {
     logger->warn("Retrieving non-cached node address for ID: {}",
                  nodeID.to_string());

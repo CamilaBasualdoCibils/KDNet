@@ -4,8 +4,8 @@
 #include "atlasnet/core/CoreDefs.hpp"
 #include "atlasnet/core/RPC/RPCConcepts.hpp"
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/address/AddressResolver.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/AddressResolver.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/cache/Cache.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 
@@ -43,7 +43,7 @@ public:
   };
   GatewayRelayService(const Config& config)
       : config_(config),
-        clientToAddressCache_([this](const SocketAddress& address)
+        clientToAddressCache_([this](const Network::SocketAddress& address)
                               { return __GetClientIDByAddress(address); },
                               [this](const AtlasNetClientID& id)
                               { return __GetClientAddressByID(id); }),
@@ -64,7 +64,7 @@ public:
 
     /* config_.messageSystem->On<ExternalCommandMessage>(
         [&](const ExternalCommandMessage& message,
-            const SocketAddress& sourceAddress)
+            const Network::SocketAddress& sourceAddress)
         {
           std::optional<AtlasNetClientID> cachedClientID =
               clientToAddressCache_.GetBySecond(sourceAddress);
@@ -86,7 +86,7 @@ public:
   {
   }
   std::optional<AtlasNetGatewayID>
-  GetManagingGateway(const SocketAddress& address)
+  GetManagingGateway(const Network::SocketAddress& address)
   {
   } */
 
@@ -109,7 +109,7 @@ private:
 
   CacheMap<AtlasNetClientID, AtlasNetShardID> clientToShardCache_;
 
-  CacheBiMap<AtlasNetClientID, SocketAddress> clientToAddressCache_;
+  CacheBiMap<AtlasNetClientID, Network::SocketAddress> clientToAddressCache_;
 
   std::string
   GatewayID2ClientIDs_SetKey(const AtlasNetGatewayID& gatewayID) const
@@ -156,7 +156,7 @@ private:
                     clientID->to_string());
       return CommandAck{CommandAckStatus::UnknownError};
     }
-    const std::optional<SocketAddress> shardAddress =
+    const std::optional<Network::SocketAddress> shardAddress =
         config_.addressResolver->ResolveShard(*shardID);
     if (!shardAddress)
     {
@@ -223,13 +223,13 @@ private:
      // shard or handle it as needed.
    } */
 
-  std::optional<SocketAddress>
+  std::optional<Network::SocketAddress>
   __GetClientAddressByID(const AtlasNetClientID& clientID)
   {
     return config_.clientRegistry->GetClientIDAddress(clientID);
   }
   std::optional<AtlasNetClientID>
-  __GetClientIDByAddress(const SocketAddress& address)
+  __GetClientIDByAddress(const Network::SocketAddress& address)
   {
     return config_.clientRegistry->GetAddressClientID(address);
   }

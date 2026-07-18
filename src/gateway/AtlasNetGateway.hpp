@@ -3,7 +3,7 @@
 #include "atlasnet/client/ClientRPC.hpp"
 #include "atlasnet/controller/ControllerRPC.hpp"
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 
 #include "atlasnet/core/entity/Entity.hpp"
@@ -38,7 +38,7 @@ private:
 
   HandshakeResponsePacket
   HandleHandshake(const HandshakeIdentity& identity,
-                  const SocketAddress& remoteAddr) override;
+                  const Network::SocketAddress& remoteAddr) override;
   void OnClientConnected(const ConnectionEstablishedEvent& event);
 
   std::optional<GatewayRelayService> gatewayRelayService_;

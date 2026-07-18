@@ -1,6 +1,6 @@
 #include "atlasnet/core/messages/MessageSystem.hpp"
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/events/MessagingEvents.hpp"
 #include "atlasnet/core/utils/assert.hpp"
 
@@ -99,7 +99,7 @@ AtlasNet::MessageSystem::MessageSystem(const Config& config) : config_(config)
 }
 
 AtlasNet::MessageSystem::ListenSocketHandle&
-AtlasNet::MessageSystem::OpenListenSocket(PortType port)
+AtlasNet::MessageSystem::OpenListenSocket(Network::PortType port)
 {
   std::unique_lock lock(_mutex);
 
@@ -134,7 +134,7 @@ AtlasNet::MessageSystem::OpenListenSocket(PortType port)
 }
 
 AtlasNet::MessageSystem::ListenSocketHandle&
-AtlasNet::MessageSystem::GetListenSocket(PortType port)
+AtlasNet::MessageSystem::GetListenSocket(Network::PortType port)
 {
   std::shared_lock lock(_mutex);
 
@@ -183,7 +183,7 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
   case k_ESteamNetworkingConnectionState_Dead:
   case k_ESteamNetworkingConnectionState__Force32Bit:
   {
-    SocketAddress address(pInfo->m_info.m_addrRemote);
+    Network::SocketAddress address(pInfo->m_info.m_addrRemote);
     throw std::runtime_error(
         std::format("Unexpected connection state {} for {}",
                     (int)pInfo->m_info.m_eState, address.to_string()));
@@ -193,7 +193,7 @@ void AtlasNet::MessageSystem::SteamNetConnectionStatusChanged(
 }
 
 AtlasNet::ConnectionState
-AtlasNet::MessageSystem::GetConnectionState(const SocketAddress& address) const
+AtlasNet::MessageSystem::GetConnectionState(const Network::SocketAddress& address) const
 {
   std::shared_lock lock(_mutex);
   auto connection = __FindByAddress(address);
@@ -211,18 +211,18 @@ AtlasNet::MessageSystem::GetConnectionState(const SocketAddress& address) const
   return ConnectionState::eNone;
 }
 
-bool AtlasNet::MessageSystem::IsConnectingTo(const SocketAddress& address) const
+bool AtlasNet::MessageSystem::IsConnectingTo(const Network::SocketAddress& address) const
 {
   return GetConnectionState(address) == ConnectionState::eConnecting;
 }
 
-bool AtlasNet::MessageSystem::IsConnectedTo(const SocketAddress& address) const
+bool AtlasNet::MessageSystem::IsConnectedTo(const Network::SocketAddress& address) const
 {
   return GetConnectionState(address) == ConnectionState::eConnected;
 }
 
 AtlasNet::TaskHandle<AtlasNet::MessageConnectionResult>
-AtlasNet::MessageSystem::Connect(const SocketAddress& address)
+AtlasNet::MessageSystem::Connect(const Network::SocketAddress& address)
 {
 
   assert(address.IsValid() && "Invalid address provided to Connect()");
@@ -454,7 +454,7 @@ void AtlasNet::MessageSystem::SetIdentity(
 
 void AtlasNet::MessageSystem::ListenSocketHandle::DispatchCallbacks(
     const IMessage& message, MessageID typeIdHash,
-    const SocketAddress& caller_address)
+    const Network::SocketAddress& caller_address)
 {
   HandlerFunc dispatcher;
   bool found = false;
@@ -498,8 +498,8 @@ void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
 
   struct MessageInfo
   {
-    SocketAddress from;
-    std::optional<PortType> port_received_on;
+    Network::SocketAddress from;
+    std::optional<Network::PortType> port_received_on;
   };
   boost::container::small_vector<MessageInfo, 32> messageInfos;
   boost::container::small_vector<std::vector<uint8_t>, 32> MessageBuffers;
@@ -521,7 +521,7 @@ void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
             msg->Release();
             continue;
           }
-          std::optional<PortType> ListenSocketPortReceivedOn = std::nullopt;
+          std::optional<Network::PortType> ListenSocketPortReceivedOn = std::nullopt;
           if (info.m_hListenSocket != k_HSteamListenSocket_Invalid)
           {
             SteamNetworkingIPAddr listenAddr;
@@ -531,16 +531,16 @@ void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
             }
           }
 
-          std::optional<SocketAddress> addressRemote;
+          std::optional<Network::SocketAddress> addressRemote;
           if (info.m_addrRemote.IsIPv4())
           {
             const uint32 ip4Packed = info.m_addrRemote.GetIPv4();
             const uint16 port = info.m_addrRemote.m_port;
-            addressRemote = SocketAddress(IPv4(ip4Packed), port);
+            addressRemote = Network::SocketAddress(Network::IPv4(ip4Packed), port);
           }
           else
           {
-            addressRemote = SocketAddress(IPv6(info.m_addrRemote.m_ipv6),
+            addressRemote = Network::SocketAddress(Network::IPv6(info.m_addrRemote.m_ipv6),
                                           info.m_addrRemote.m_port);
             logger->info("Incoming message from {}",
                          addressRemote->to_string());
@@ -610,7 +610,7 @@ void AtlasNet::MessageSystem::MessageSystem::_Parse_Incoming_Messages()
   }
 }
 HSteamNetConnection
-AtlasNet::MessageSystem::GetConnectionHandle(const SocketAddress& address) const
+AtlasNet::MessageSystem::GetConnectionHandle(const Network::SocketAddress& address) const
 {
   std::shared_lock lock(_mutex);
 
@@ -629,7 +629,7 @@ AtlasNet::MessageSystem::GetConnectionHandle(const SocketAddress& address) const
   throw std::runtime_error("Connection not found");
 }
 std::optional<AtlasNet::MessageSystem::Connection>
-AtlasNet::MessageSystem::GetConnection(const SocketAddress& address) const
+AtlasNet::MessageSystem::GetConnection(const Network::SocketAddress& address) const
 {
   std::shared_lock lock(_mutex);
   auto connection = __FindByAddress(address);
@@ -655,7 +655,7 @@ size_t AtlasNet::MessageSystem::GetNumConnections() const
   return _connections.size();
 }
 AtlasNet::MessageSystem::ListenSocketHandle::ListenSocketHandle(
-    MessageSystem& system, HSteamListenSocket handle, PortType port)
+    MessageSystem& system, HSteamListenSocket handle, Network::PortType port)
     : system(system), handle(handle), port(port)
 {
 }
@@ -691,7 +691,7 @@ bool AtlasNet::MessageSystem::attempt_handshake(
       return false;
     }
     HandshakeResponsePacket response =
-        config_.handshakeHandler(handshakeIdentity, SocketAddress());
+        config_.handshakeHandler(handshakeIdentity, Network::SocketAddress());
     return response.accepted;
   }
   return true; // accept by default if no handler provided
@@ -699,7 +699,7 @@ bool AtlasNet::MessageSystem::attempt_handshake(
 void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
-  SocketAddress address(pInfo->m_info.m_addrRemote);
+  Network::SocketAddress address(pInfo->m_info.m_addrRemote);
   logger->info("k_ESteamNetworkingConnectionState_Connecting: {}",
                address.to_string());
   const bool isIncoming =
@@ -712,7 +712,7 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
     {
       SteamNetworkingIPAddr localAddr;
       GNS().GetListenSocketAddress(pInfo->m_info.m_hListenSocket, &localAddr);
-      SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
+      Network::SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
       ConnectionRequestReceivedEvent event;
       event.remoteAddr = remoteAddr;
       event.localPort = localAddr.m_port;
@@ -721,7 +721,7 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
     else
     {
       ConnectionStartedInternallyEvent event;
-      SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
+      Network::SocketAddress remoteAddr(pInfo->m_info.m_addrRemote);
       event.address = remoteAddr;
       config_.localEventSystem->Emit(event);
     }
@@ -855,7 +855,7 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connecting(
 void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
-  SocketAddress address(pInfo->m_info.m_addrRemote);
+  Network::SocketAddress address(pInfo->m_info.m_addrRemote);
   logger->info("k_ESteamNetworkingConnectionState_Connected: {}",
                address.to_string());
   const bool isIncoming =
@@ -952,7 +952,7 @@ void AtlasNet::MessageSystem::OnConnectionStatus_Connected(
 void AtlasNet::MessageSystem::OnConnectionStatus_ClosedByPeer(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
-  SocketAddress address(pInfo->m_info.m_addrRemote);
+  Network::SocketAddress address(pInfo->m_info.m_addrRemote);
   std::unique_lock lock(_mutex);
   __ModifyByAddress(address, [](Connection& conn)
                     { conn.connState = ConnectionState::eClosedByPeer; });
@@ -964,7 +964,7 @@ void AtlasNet::MessageSystem::OnConnectionStatus_ClosedByPeer(
 void AtlasNet::MessageSystem::OnConnectionStatus_ProblemDetectedLocally(
     SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
-  SocketAddress address(pInfo->m_info.m_addrRemote);
+  Network::SocketAddress address(pInfo->m_info.m_addrRemote);
   std::unique_lock lock(_mutex);
   __ModifyByAddress(
       address, [](Connection& conn)

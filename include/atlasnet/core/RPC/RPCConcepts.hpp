@@ -1,6 +1,6 @@
 #pragma once
 
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/messages/Message.hpp"
 #include "atlasnet/core/messages/MessageSystem.hpp"
 #include "atlasnet/core/serialize/ByteWriter.hpp"
@@ -17,7 +17,7 @@ using RPCID = uint32_t;
 using RPCCallID = uint64_t;
 struct RPCContext
 {
-  SocketAddress sourceAddress;
+  Network::SocketAddress sourceAddress;
 };
 
 enum class RPCError

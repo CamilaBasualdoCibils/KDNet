@@ -1,5 +1,5 @@
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/events/GlobalEventSystem.hpp"
@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 using namespace AtlasNet;
+using namespace AtlasNet::Network;
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

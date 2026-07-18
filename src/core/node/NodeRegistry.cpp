@@ -3,7 +3,7 @@
 
 std::optional<AtlasNet::NodeInfo>
 AtlasNet::NodeRegistry::RegisterNode(const AtlasNetNodeType type,
-                                     const SocketAddress& address)
+                                     const Network::SocketAddress& address)
 {
   NodeInfo info;
   info.containerType = type;
@@ -70,7 +70,7 @@ AtlasNet::NodeRegistry::RegisterNode(const AtlasNetNodeType type,
   return info;
 }
 std::optional<AtlasNet::AtlasNetNodeID>
-AtlasNet::NodeRegistry::ClaimNodeID(const SocketAddress& address)
+AtlasNet::NodeRegistry::ClaimNodeID(const Network::SocketAddress& address)
 {
   if (NodeIdLease.has_value())
   {

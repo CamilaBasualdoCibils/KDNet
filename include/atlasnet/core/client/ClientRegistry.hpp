@@ -1,6 +1,6 @@
 #pragma once
 #include "atlasnet/core/CoreDefs.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientDataEntry.hpp"
 #include "atlasnet/core/database/redis/Redis.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
@@ -29,7 +29,7 @@ public:
            "ClientID generator pointer cannot be null");
   };
 
-  std::optional<AtlasNetClientID> GetAddressClientID(const SocketAddress& address)
+  std::optional<AtlasNetClientID> GetAddressClientID(const Network::SocketAddress& address)
   {
 
     ByteWriter addressWriter;
@@ -48,7 +48,7 @@ public:
     return clientID;
   }
 
-  std::optional<SocketAddress> GetClientIDAddress(const AtlasNetClientID& clientID)
+  std::optional<Network::SocketAddress> GetClientIDAddress(const AtlasNetClientID& clientID)
   {
     ByteWriter clientIDWriter;
     clientIDWriter(clientID);
@@ -61,7 +61,7 @@ public:
     }
     ByteReader reader(std::span<const uint8_t>(
         reinterpret_cast<const uint8_t*>(value->data()), value->size()));
-    SocketAddress address;
+    Network::SocketAddress address;
     address.Deserialize(reader);
     return address;
   }
@@ -110,7 +110,7 @@ public:
                            // given to the shard that spawns the client
   };
   [[nodiscard]] std::optional<LoginResult>
-  LoginClient(const SocketAddress& address,AtlasNetGatewayID managingGatewayID)
+  LoginClient(const Network::SocketAddress& address,AtlasNetGatewayID managingGatewayID)
   {
 
     std::optional<AtlasNetClientID> existingClientID = GetAddressClientID(address);

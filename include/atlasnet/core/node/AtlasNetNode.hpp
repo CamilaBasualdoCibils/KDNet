@@ -1,8 +1,8 @@
 #pragma once
 #include "atlasnet/core/RPC/RPCSystem.hpp"
-#include "atlasnet/core/address/Address.hpp"
-#include "atlasnet/core/address/AddressResolver.hpp"
-#include "atlasnet/core/address/SocketAddress.hpp"
+#include "atlasnet/core/network/address/Address.hpp"
+#include "atlasnet/core/network/address/AddressResolver.hpp"
+#include "atlasnet/core/network/address/SocketAddress.hpp"
 #include "atlasnet/core/client/ClientRegistry.hpp"
 #include "atlasnet/core/database/redis/RedisConn.hpp"
 #include "atlasnet/core/entity/Entity.hpp"
@@ -44,7 +44,7 @@ protected:
 
   virtual HandshakeResponsePacket
   HandleHandshake(const HandshakeIdentity& identity,
-                  const SocketAddress& remoteAddr)
+                  const Network::SocketAddress& remoteAddr)
   {
     return HandshakeResponsePacket{.accepted = true};
     /* if (identity.role == HandshakeRole::eServer)
@@ -72,7 +72,7 @@ protected:
     } */
   }
   // HostAddress GetOverlayAddressOfSelf() const;
-  SocketAddress GetNetworkAddress() const;
+  Network::SocketAddress GetNetworkAddress() const;
   RPCSystem& GetRPCSystem()
   {
     assert(_rpcSystem.has_value() && "RPCSystem not initialized");

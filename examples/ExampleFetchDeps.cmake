@@ -1,0 +1,1 @@
+find_package(GameNetworkingSockets CONFIG REQUIRED)

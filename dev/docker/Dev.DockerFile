@@ -28,44 +28,18 @@ COPY ./src /atlasnet/src
 COPY ./include /atlasnet/include
 
 
-FROM runner AS atlasnet-controller-dev
-COPY --from=atlasnetstage /atlasnet/AtlasNetController /atlasnet/AtlasNetController
+FROM runner AS atlasnet-node-dev
+COPY --from=atlasnetstage /atlasnet/AtlasNetNode /atlasnet/AtlasNetNode
 ARG PRELAUNCH_CMD="{EXE}"
 ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-RUN chmod +x /atlasnet/AtlasNetController
-ENTRYPOINT ["bash", "-c", "EXE=/atlasnet/AtlasNetController; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec bash -c \"$CMD\""]
+RUN chmod +x /atlasnet/AtlasNetNode
+ENTRYPOINT ["bash", "-c", "EXE=/atlasnet/AtlasNetNode; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec bash -c \"$CMD\""]
 
 
-FROM runner AS atlasnet-gateway-dev
-COPY --from=atlasnetstage /atlasnet/AtlasNetGateway /atlasnet/AtlasNetGateway
-ARG PRELAUNCH_CMD="{EXE}"
-ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-RUN chmod +x /atlasnet/AtlasNetGateway
-ENTRYPOINT ["bash", "-c", "EXE=/atlasnet/AtlasNetGateway; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec bash -c \"$CMD\""]
 
+FROM nginx:alpine AS atlasnet-cartograph-dev
 
-#FROM runner AS atlasnet-dummy-dev
-#COPY --from=atlasnetstage /atlasnet/AtlasNetDummy /atlasnet/AtlasNetDummy
-#ARG PRELAUNCH_CMD="{EXE}"
-#ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
-#RUN chmod +x /atlasnet/AtlasNetDummy
-#ENTRYPOINT ["bash", "-c", "EXE=/atlasnet/AtlasNetDummy; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec bash -c \"$CMD\""]
-
-
-FROM runner AS atlasnet-cartograph-backend-dev
-
-WORKDIR /
-
-COPY --from=atlasnetstage /atlasnet/AtlasNetCartographBackend /atlasnet/AtlasNetCartographBackend
-
-RUN chmod +x /atlasnet/AtlasNetCartographBackend
-
-ENTRYPOINT ["/atlasnet/AtlasNetCartographBackend"]
-
-
-FROM nginx:alpine AS atlasnet-cartograph-frontend-dev
-
-COPY --from=atlasnet-src /atlasnet/src/cartograph/frontend /atlasnet/AtlasNetCartographFrontend
+COPY --from=atlasnet-src /atlasnet/src/Cartograph/Frontend /atlasnet/AtlasNetCartographFrontend
 
 WORKDIR /atlasnet/AtlasNetCartographFrontend
 
@@ -73,8 +47,8 @@ RUN apk add --no-cache nodejs npm gettext
 
 RUN npm install && npm run build
 
-COPY --from=atlasnet-src /atlasnet/src/cartograph/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
-COPY --from=atlasnet-src /atlasnet/src/cartograph/nginx/entrypoint.sh /entrypoint.sh
+COPY --from=atlasnet-src /atlasnet/src/Cartograph/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=atlasnet-src /atlasnet/src/Cartograph/nginx/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 

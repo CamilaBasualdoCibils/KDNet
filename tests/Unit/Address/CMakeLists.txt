@@ -10,7 +10,7 @@ target_link_libraries(AtlasNet_tests_Address
 AtlasNetTestCrashUtils
 gtest
 )
-
+set_target_properties(AtlasNet_tests_Address PROPERTIES FOLDER "AtlasNet/Tests/Unit")
 gtest_discover_tests(AtlasNet_tests_Address)
 
 # Optional labels for filtering in ctest

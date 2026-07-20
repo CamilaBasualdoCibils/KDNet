@@ -1,11 +1,14 @@
 
-#include "atlasnet/core/network/transport/SteamNetSock/SteamNetSock.hpp"
+#include "AtlasNet/Core/Network/Transport/SteamNetSock/SteamNetSock.hpp"
 #include <X11/extensions/randr.h>
 
 #include <condition_variable>
 #include <gtest/gtest.h>
 
 #include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <utility>
 using namespace AtlasNet::Network;
 int pick_available_port()
 {
@@ -85,7 +88,7 @@ TEST(SteamNetSock, ListenAndConnect)
         ListenerConnection->OnStateChange(
             [&](SocketConnectionState state)
             {
-              if (state == SocketConnectionState::eConnected)
+              if (state == SocketConnectionState::Connected)
               {
                 std::cout << "Listener connection established with "
                           << ListenerConnection->RemoteAddress().to_string()
@@ -112,7 +115,7 @@ TEST(SteamNetSock, ListenAndConnect)
   connection->OnStateChange(
       [&](SocketConnectionState  state)
       {
-        if (state == SocketConnectionState::eConnected)
+        if (state == SocketConnectionState::Connected)
         {
           clientConnectionEstablished = true;
           std::lock_guard<std::mutex> lock(mtx);
@@ -122,13 +125,13 @@ TEST(SteamNetSock, ListenAndConnect)
   {
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock, [&] { return clientConnectionEstablished.load(); });
-    EXPECT_EQ(connection->GetState(), SocketConnectionState::eConnected)
+    EXPECT_EQ(connection->GetState(), SocketConnectionState::Connected)
         << "Connection did not reach connected state within timeout.";
   }
   {
     std::unique_lock<std::mutex> lock(mtx2);
     cv2.wait(lock, [&] { return serverConnectionEstablished.load(); });
-    EXPECT_EQ(ListenerConnection->GetState(), SocketConnectionState::eConnected)
+    EXPECT_EQ(ListenerConnection->GetState(), SocketConnectionState::Connected)
         << "Listener connection did not reach connected state within timeout.";
   }
 }
@@ -158,7 +161,7 @@ TEST(SteamNetSock, SendRecv)
         serverConnection->OnStateChange(
             [&](SocketConnectionState state)
             {
-              if (state == SocketConnectionState::eConnected)
+              if (state == SocketConnectionState::Connected)
               {
                 std::cout << "Listener connection established with "
                           << serverConnection->RemoteAddress().to_string()
@@ -176,7 +179,7 @@ TEST(SteamNetSock, SendRecv)
   clientConnection->OnStateChange(
       [&](SocketConnectionState state)
       {
-        if (state == SocketConnectionState::eConnected)
+        if (state == SocketConnectionState::Connected)
         {
           clientConnectionEstablished = true;
           std::lock_guard<std::mutex> lock(mtx);
@@ -186,13 +189,13 @@ TEST(SteamNetSock, SendRecv)
   {
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock, [&] { return clientConnectionEstablished.load(); });
-    EXPECT_EQ(clientConnection->GetState(), SocketConnectionState::eConnected)
+    EXPECT_EQ(clientConnection->GetState(), SocketConnectionState::Connected)
         << "Connection did not reach connected state within timeout.";
   }
   {
     std::unique_lock<std::mutex> lock(mtx2);
     cv2.wait(lock, [&] { return serverConnectionEstablished.load(); });
-    EXPECT_EQ(serverConnection->GetState(), SocketConnectionState::eConnected)
+    EXPECT_EQ(serverConnection->GetState(), SocketConnectionState::Connected)
         << "Listener connection did not reach connected state within timeout.";
   }
 
@@ -208,8 +211,8 @@ TEST(SteamNetSock, SendRecv)
 
   serverConnection->Send(std::span<const uint8_t>(
       reinterpret_cast<const uint8_t*>("Hello from server"), 17),
-      SocketSendMode::eReliable);
+      SocketSendMode::Reliable);
   clientConnection->Send(std::span<const uint8_t>(
       reinterpret_cast<const uint8_t*>("Hello from client"), 17),
-      SocketSendMode::eReliable);
+      SocketSendMode::Reliable);
 }

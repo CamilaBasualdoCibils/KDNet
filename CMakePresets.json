@@ -1,0 +1,19 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "linux-vcpkg",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/clang",
+                "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+                "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/.local/share/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/vcpkg-triplets/clang-toolchain.cmake",
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/vcpkg-triplets",
+                "VCPKG_TARGET_TRIPLET": "x64-linux-clang",
+                "VCPKG_MANIFEST_FEATURES" : "cartograph;testing"
+            }
+        }
+    ]
+}

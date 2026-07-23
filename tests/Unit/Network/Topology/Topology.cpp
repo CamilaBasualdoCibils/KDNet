@@ -8,6 +8,7 @@
 #include "AtlasNet/Core/Network/Topology/ITopologyPolicy.hpp"
 #include "AtlasNet/Core/Network/Topology/TopologyCommons.hpp"
 #include "AtlasNet/Core/Network/Topology/TopologyTransitionPlanner.hpp"
+#include "AtlasNet/Core/Network/Transport/SteamNetSock/SteamNetSock.hpp"
 #include "TopologyRenderer.hpp"
 #include "boost/graph/graphviz.hpp"
 #include <boost/graph/connected_components.hpp>

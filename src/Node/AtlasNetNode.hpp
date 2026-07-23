@@ -1,14 +1,19 @@
 #pragma once
 
 #include "AtlasNet/Core/Core.hpp"
+#include "AtlasNet/Core/Lease/ILeaseProvider.hpp"
+#include "AtlasNet/Core/Network/Address/MacAddress.hpp"
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
 #include "AtlasNet/Core/Network/Topology/Assigner/RPCAssigner.hpp"
 #include "AtlasNet/Core/Network/Topology/TopologyAgent.hpp"
+#include "AtlasNet/Core/Network/Transport/IConnection.hpp"
 #include "AtlasNet/Core/Network/Transport/ITransport.hpp"
 #include "AtlasNet/Core/Network/Transport/SteamNetSock/SteamNetSock.hpp"
 #include "AtlasNet/Core/Network/Transport/TransportCommons.hpp"
+#include "AtlasNet/Core/Events/IGlobalEvents.hpp"
+#include "Network/Interface/INetworkInterface.hpp"
 #include "boost/describe/enum_from_string.hpp"
-#include "src/Node/ServiceDiscovery/IServiceDiscovery.hpp"
+#include "Node/ServiceDiscovery/IServiceDiscovery.hpp"
 #include "sw/redis++/connection.h"
 #include "sw/redis++/redis.h"
 #include "sw/redis++/redis_cluster.h"
@@ -30,10 +35,7 @@ private:
 
     uint16_t ingress_port;
     uint16_t network_port;
-    Network::SocketAddress redis_address;
-    uint16_t redis_db;
-    std::string redis_user;
-    std::string redis_password;
+    Network::SocketAddress db_address;
   } options;
   struct Overrides
   {
@@ -44,13 +46,30 @@ private:
 
   std::atomic_bool stop_requested{false};
   
-  //Redis
-  std::shared_ptr<sw::redis::Redis> redis_client;
-  std::shared_ptr<sw::redis::AsyncRedis> redis_async_client;
-  
+  //Network
+  std::shared_ptr<Network::INetworkInterface> network_interface;
   std::shared_ptr<Network::ITransport> transport;
   std::unique_ptr<Network::Topology::TopologyAgent> topology_agent;
+  
+  //DB connection
+  std::shared_ptr<Network::IConnection> DBConnection;
+
+  //Events
+  std::shared_ptr<Events::IGlobalEvents> global_events;
+
+
+  //Service Discovery
   std::unique_ptr<Service::IServiceDiscovery> service_discovery;
+  std::shared_ptr<Service::IServiceLease> service_lease;
+
+  //Lease Provider
+  std::shared_ptr<ILeaseProvider> lease_provider;
+
+  std::unique_ptr<ILease> controller_lease;
+  constexpr static const char* ControllerLeaseKey = "Controller_Lease";
+  
+
+
   std::shared_ptr<spdlog::logger> logger;
   const int signalFd;
   const AtlasNetNodeID nodeID;

@@ -1,7 +1,11 @@
 #include "AtlasNetNode.hpp"
+#include "AtlasNet/Core/Lease/RedisLeaseProvider.hpp"
 #include "AtlasNet/Core/Network/Address/Address.hpp"
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
-#include "src/Node/ServiceDiscovery/RedisServiceDiscovery.hpp"
+#include "AtlasNet/Node/NodeData.hpp"
+#include "Core/Events/RedisGlobalEvents.hpp"
+#include "Network/Interface/LinuxNetworkInterface.hpp"
+#include "Node/ServiceDiscovery/RedisServiceDiscovery.hpp"
 #include <cstdlib>
 #include <unistd.h>
 
@@ -18,20 +22,15 @@ AtlasNet::AtlasNetNode::ParseOptions(int argc, char** argv)
       "network-port", po::value<uint16_t>()->default_value(8888),
       "Port for network communications")
       // Redis
-      ("redis-host",
+      ("db-host",
        po::value<std::string>()->default_value(
-           std::getenv("REDIS_HOST") ? std::getenv("REDIS_HOST") : "localhost"),
-       "Redis host")(
-          "redis-port",
+           std::getenv("DB_HOST") ? std::getenv("DB_HOST") : "localhost"),
+       "Database host")(
+          "db-port",
           po::value<uint16_t>()->default_value(
-              std::getenv("REDIS_PORT") ? std::atoi(std::getenv("REDIS_PORT"))
-                                        : 6379),
-          "Redis port")("redis-db", po::value<uint16_t>()->default_value(0),
-                        "Redis database index")(
-          "redis-user", po::value<std::string>()->default_value("default"),
-          "Redis username")("redis-password",
-                            po::value<std::string>()->default_value(""),
-                            "Redis password");
+              std::getenv("DB_PORT") ? std::atoi(std::getenv("DB_PORT"))
+                                     : 6379),
+          "Database port");
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
@@ -44,12 +43,9 @@ AtlasNet::AtlasNetNode::ParseOptions(int argc, char** argv)
       vm["socket-type"].as<std::string>(), options.socket_type);
   options.ingress_port = vm["ingress-port"].as<uint16_t>();
   options.network_port = vm["network-port"].as<uint16_t>();
-  options.redis_address =
-      Network::SocketAddress(vm["redis-host"].as<std::string>() + ":" +
-                             std::to_string(vm["redis-port"].as<uint16_t>()));
-  options.redis_db = vm["redis-db"].as<uint16_t>();
-  options.redis_user = vm["redis-user"].as<std::string>();
-  options.redis_password = vm["redis-password"].as<std::string>();
+  options.db_address =
+      Network::SocketAddress(vm["db-host"].as<std::string>() + ":" +
+                             std::to_string(vm["db-port"].as<uint16_t>()));
   return options;
 }
 void AtlasNet::AtlasNetNode::Initialize()
@@ -69,6 +65,11 @@ void AtlasNet::AtlasNetNode::Initialize()
     }
   }
 
+  if (!network_interface)
+  {
+    network_interface =
+        std::make_shared<Network::LinuxNetworkInterface>("eno1");
+  }
   if (!transport)
   {
     switch (options.socket_type)
@@ -93,42 +94,58 @@ void AtlasNet::AtlasNetNode::Initialize()
     topology_agent = std::make_unique<Network::Topology::TopologyAgent>(
         transport, std::make_unique<Network::Topology::RPCAssigner>());
   }
+  logger->info("Connecting to database at {}",
+               options.db_address.to_string());
+  DBConnection = transport->Connect(options.db_address);
+  /*
   {
-    sw::redis::ConnectionOptions redis_options;
-    redis_options.host = options.redis_address.to_host_address().to_string();
-    redis_options.port = options.redis_address.get_port();
-    redis_options.db = options.redis_db;
-    redis_options.user = options.redis_user;
-    redis_options.password = options.redis_password;
-    logger->info("Connecting to Redis at {}:{}", redis_options.host,
-                 redis_options.port);
-    redis_client = std::make_shared<sw::redis::Redis>(redis_options);
-    redis_async_client = std::make_shared<sw::redis::AsyncRedis>(redis_options);
-    logger->info("Testing Redis connection... Ping...");
-    std::string ping_response = redis_client->ping();
-    logger->info("Redis ping response: {}", ping_response);
-    if (ping_response.empty())
-    {
-      logger->error("Failed to connect to Redis at {}:{}", redis_options.host,
-                    redis_options.port);
-      throw std::runtime_error("Failed to connect to Redis");
-    }
-    logger->info("Connected to Redis at {}:{}", redis_options.host,
-                 redis_options.port);
+  
+  
+     global_events =
+        std::make_shared<Events::RedisGlobalEvents>(redis_async_client);
 
-    service_discovery = std::make_unique<Service::RedisServiceDiscovery>(redis_client, redis_async_client);
-    Service::ServiceData serviceData;
+    service_discovery =
+        std::make_unique<Service::RedisServiceDiscovery>(redis_client); 
+    NodeData serviceData;
     serviceData.hostID = GetHostID();
-    serviceData.internalAddress = Network::SocketAddress(GetNodeAddress(), options.network_port);
-    
-  }
+    serviceData.internalAddress =
+        Network::SocketAddress(GetNodeAddress(), options.network_port);
+    serviceData.macAddress = network_interface->GetMACAddress();
+    serviceData.nodeID = nodeID;
+    service_lease = service_discovery->RegisterService(serviceData);
+    lease_provider = std::make_shared<RedisLeaseProvider>(nodeID, redis_client);
+    {
+      auto controller_lease_future =
+          lease_provider->ClaimOrGetLeaseAsync(ControllerLeaseKey);
+      auto controller_lease_result = controller_lease_future.get();
+      if (controller_lease_result.has_value())
+      {
+        if (std::holds_alternative<std::unique_ptr<ILease>>(controller_lease_result.value()))
+        {
+          controller_lease = std::move(
+              std::get<std::unique_ptr<ILease>>(controller_lease_result.value()));
+          logger->info("Successfully claimed controller lease");
+        }
+        else if (std::holds_alternative<LeaseInfo>(controller_lease_result.value()))
+        {
+          LeaseInfo info =
+              std::get<LeaseInfo>(controller_lease_result.value());
+          logger->info(
+              "Controller lease is already held by another node: {}",
+              info.Owner.to_string());
+        }
+      }
+    }
+  }*/
 }
 
-std::string AtlasNet::AtlasNetNode::GetHostID() {
+std::string AtlasNet::AtlasNetNode::GetHostID()
+{
   return "INVALID";
 }
-AtlasNet::Network::HostAddress AtlasNet::AtlasNetNode::GetNodeAddress() {
-    char hostname[256];
+AtlasNet::Network::HostAddress AtlasNet::AtlasNetNode::GetNodeAddress()
+{
+  char hostname[256];
   if (gethostname(hostname, sizeof(hostname)) != 0)
   {
     throw std::runtime_error("Failed to get hostname");
@@ -148,7 +165,7 @@ int AtlasNet::AtlasNetNode::SetupSignals()
   if (pthread_sigmask(SIG_BLOCK, &mask, nullptr) != 0)
     throw std::runtime_error("pthread_sigmask failed");
 
-  int signalFd = signalfd(-1, &mask, SFD_CLOEXEC);
+  int signalFd = signalfd(-1, &mask, SFD_CLOEXEC | SFD_NONBLOCK);
 
   if (signalFd == -1)
     throw std::runtime_error("signalfd failed");
@@ -189,6 +206,9 @@ void AtlasNet::AtlasNetNode::MainLoop()
       case SIGQUIT:
         logger->info("SIGQUIT");
         break;
+        default:
+          logger->info("Received signal: {}. Ignoring.", signal.value());
+          break;
       }
       stop_requested.store(true);
       continue;
@@ -197,4 +217,3 @@ void AtlasNet::AtlasNetNode::MainLoop()
     std::this_thread::sleep_for(std::chrono::milliseconds(10)); // 10ms = 100 Hz
   }
 }
-

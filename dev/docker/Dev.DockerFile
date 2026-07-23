@@ -35,6 +35,45 @@ ENV PRELAUNCH_CMD="${PRELAUNCH_CMD}"
 RUN chmod +x /atlasnet/AtlasNetNode
 ENTRYPOINT ["bash", "-c", "EXE=/atlasnet/AtlasNetNode; CMD=$(printf '%s' \"$PRELAUNCH_CMD\" | sed \"s|{EXE}|$EXE|g\"); exec bash -c \"$CMD\""]
 
+FROM archlinux:latest AS valkey-builder
+
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+        base-devel \
+        cmake \
+        git \
+        pkgconf \
+        openssl && \
+    pacman -Scc --noconfirm
+
+WORKDIR /src
+
+RUN git clone https://github.com/valkey-io/valkey.git
+WORKDIR /src/valkey
+
+RUN make -j$(nproc)
+FROM archlinux:latest as atlasnet-db-dev
+
+COPY --from=valkey-builder /src/valkey/src/valkey-server /usr/local/bin/
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+        glibc \
+        gcc-libs \
+        zlib \
+        openssl \
+        c-ares \
+        util-linux-libs \
+        brotli \
+        sqlite \
+        zstd \
+        libatomic \
+        binutils && \
+    pacman -Scc --noconfirm
+COPY --from=atlasnetstage \
+    /atlasnet/libAtlasNetDB.so \
+    /atlasnet/libAtlasNetDB.so
+
+CMD ["valkey-server","--loadmodule","/atlasnet/libAtlasNetDB.so"]
 
 
 FROM nginx:alpine AS atlasnet-cartograph-dev

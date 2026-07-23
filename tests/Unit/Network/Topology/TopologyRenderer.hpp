@@ -11,7 +11,7 @@
 #include "AtlasNet/Core/Network/Topology/TransitionPlan.hpp"
 #include "AtlasNet/Core/Network/Transport/ITransport.hpp"
 #include "raylib.h"
-#include "src/Node/AtlasNetNode.hpp"
+
 #include <glm/ext/vector_int2.hpp>
 #include <gtest/gtest.h>
 #include <list>

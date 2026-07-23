@@ -1,4 +1,4 @@
-FROM debian:latest
+FROM ubuntu:24.04
 
 RUN apt update && apt install -y bash git build-essential libssl-dev libuv1-dev libjsoncpp-dev clang clangd cmake uuid-dev doxygen gdb
 # Install X11 development libraries
@@ -21,29 +21,30 @@ ENV LIBGL_ALWAYS_SOFTWARE=1
 # ETCD deps
 RUN apt-get install -y libboost-all-dev libssl-dev libgrpc-dev libgrpc++-dev libprotobuf-dev protobuf-compiler-grpc libcpprest-dev
 
+RUN apt-get install -y autoconf autoconf-archive automake libtool
 
-ARG USERNAME=dev
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd \
-        --uid $USER_UID \
-        --gid $USER_GID \
-        --create-home \
-        --shell /bin/bash \
-        $USERNAME \
-    && apt install -y sudo \
-    && echo "$USERNAME ALL=(root) NOPASSWD:ALL" \
-        > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME
-
-USER $USERNAME
+#ARG USERNAME=devz
+#ARG USER_UID=1000
+#ARG USER_GID=$USER_UID
+#
+#RUN groupadd --gid $USER_GID $USERNAME \
+#    && useradd \
+#        --uid $USER_UID \
+#        --gid $USER_GID \
+#        --create-home \
+#        --shell /bin/bash \
+#        $USERNAME \
+#    && apt install -y sudo \
+#    && echo "$USERNAME ALL=(root) NOPASSWD:ALL" \
+#        > /etc/sudoers.d/$USERNAME \
+#    && chmod 0440 /etc/sudoers.d/$USERNAME
+#
+#USER $USERNAME
 
 # ********************************************************
 # * Anything else you want to do like clean up goes here *
 # ********************************************************
 
 # [Optional] Set the default user. Omit if you want to keep the default as root.
-USER $USERNAME
+USER ubuntu
 CMD ["/bin/bash"]

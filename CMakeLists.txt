@@ -54,7 +54,7 @@ target_include_directories(AtlasNetCore
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
   PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Core"    
-    "${etcd-cpp-api_SOURCE_DIR}"
+==
 )
 message(STATUS  "${etcd-cpp-api_SOURCE_DIR}/etcd")
 target_link_libraries(AtlasNetCore
@@ -84,8 +84,6 @@ PUBLIC
 # ========= ATLASNET Node ========
 file(GLOB_RECURSE _node_sources CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/Node/*.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/Ingress/*.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/Controller/*.cpp"
 )
 
 add_executable(AtlasNetNode ${_node_sources})
@@ -93,10 +91,26 @@ add_executable(AtlasNetNode ${_node_sources})
 target_include_directories(AtlasNetNode
       PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
 
 )
 target_link_libraries(AtlasNetNode AtlasNetCore)
 
+# ========= ATLASNET DB ========
+file(GLOB_RECURSE _db_sources CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/DB/*.cpp"
+)
+
+add_library(AtlasNetDB SHARED ${_db_sources})
+# Optional, but common: local includes
+target_include_directories(AtlasNetDB
+      PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/valkey/src"
+
+)
+target_link_libraries(AtlasNetDB AtlasNetCore)
 
 # ========= ATLASNET CARTOGRAPH ========
 if (ATLASNET_CARTOGRAPH)

@@ -4,7 +4,8 @@
       "targets": [
 
         "atlasnet-cartograph-dev",
-        "atlasnet-node-dev"
+        "atlasnet-node-dev",
+        "atlasnet-db-dev"
       ]
     }
   },
@@ -26,6 +27,15 @@
       "load": true,
       "tags": [
         "atlasnet-cartograph-dev"
+      ]
+    },
+    "atlasnet-db-dev": {
+      "context": ".",
+      "dockerfile": "dev/docker/Dev.Dockerfile",
+      "target": "atlasnet-db-dev",
+      "load": true,
+      "tags": [
+        "atlasnet-db-dev"
       ]
     }
 

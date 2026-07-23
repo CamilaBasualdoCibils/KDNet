@@ -15,8 +15,8 @@ class ITransport
 public:
   virtual ~ITransport() = default;
 
-  virtual std::shared_ptr<IListener> Listen(const SocketAddress&) = 0;
+  [[nodiscard]]virtual std::shared_ptr<IListener> Listen(const SocketAddress&) = 0;
 
-  virtual std::shared_ptr<IConnection> Connect(const SocketAddress&) = 0;
+  [[nodiscard]] virtual std::shared_ptr<IConnection> Connect(const SocketAddress&) = 0;
 };
 } // namespace AtlasNet

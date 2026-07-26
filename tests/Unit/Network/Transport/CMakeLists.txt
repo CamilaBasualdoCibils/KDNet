@@ -1,5 +1,5 @@
 
-add_executable(AtlasNet_tests_Transport ${CMAKE_CURRENT_SOURCE_DIR}/Transport.cpp)
+add_executable(AtlasNet_tests_Transport ${CMAKE_CURRENT_SOURCE_DIR}/Transport.cpp ${CMAKE_CURRENT_SOURCE_DIR}/UDP.cpp)
 
 target_link_libraries(AtlasNet_tests_Transport
 AtlasNetCore

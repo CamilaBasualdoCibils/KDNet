@@ -23,8 +23,7 @@ public:
 
   void set_port(PortType p)
   {
-    if (p == 0)
-      throw std::invalid_argument("Port number must be greater than 0");
+    
     if (p > 65535)
       throw std::invalid_argument(
           "Port number must be less than or equal to 65535");

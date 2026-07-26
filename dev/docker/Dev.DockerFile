@@ -48,7 +48,7 @@ RUN pacman -Syu --noconfirm && \
 
 WORKDIR /src
 
-RUN git clone https://github.com/valkey-io/valkey.git
+COPY ./external/valkey /src/valkey
 WORKDIR /src/valkey
 
 RUN make -j$(nproc)

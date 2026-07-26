@@ -54,9 +54,9 @@ target_include_directories(AtlasNetCore
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
   PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Core"    
-==
+
 )
-message(STATUS  "${etcd-cpp-api_SOURCE_DIR}/etcd")
+
 target_link_libraries(AtlasNetCore
 PUBLIC
   Boost::beast
@@ -71,6 +71,7 @@ PUBLIC
   Boost::uuid
   Boost::program_options
   spdlog::spdlog
+  Bitsery::bitsery
   GameNetworkingSockets::GameNetworkingSockets_s
   glm::glm
   redis++::redis++_static
@@ -79,7 +80,7 @@ PUBLIC
   $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
   nlohmann_json::nlohmann_json
 )
-
+set_target_properties(AtlasNetCore PROPERTIES FOLDER "AtlasNet")
 
 # ========= ATLASNET Node ========
 file(GLOB_RECURSE _node_sources CONFIGURE_DEPENDS
@@ -95,6 +96,7 @@ target_include_directories(AtlasNetNode
 
 )
 target_link_libraries(AtlasNetNode AtlasNetCore)
+set_target_properties(AtlasNetNode PROPERTIES FOLDER "AtlasNet")
 
 # ========= ATLASNET DB ========
 file(GLOB_RECURSE _db_sources CONFIGURE_DEPENDS
@@ -111,6 +113,7 @@ target_include_directories(AtlasNetDB
 
 )
 target_link_libraries(AtlasNetDB AtlasNetCore)
+set_target_properties(AtlasNetDB PROPERTIES FOLDER "AtlasNet")
 
 # ========= ATLASNET CARTOGRAPH ========
 if (ATLASNET_CARTOGRAPH)
@@ -132,6 +135,7 @@ if (ATLASNET_CARTOGRAPH)
   Drogon::Drogon
   )
   target_compile_definitions(AtlasNetCartographBackend PRIVATE ATLASNET_CARTOGRAPH_BACKEND_BUILD)
+  set_target_properties(AtlasNetCartographBackend PROPERTIES FOLDER "AtlasNet")
 
   add_custom_target(AtlasNetCartographFrontend_DevRun
       COMMAND npm install
@@ -169,6 +173,8 @@ target_include_directories(AtlasNetServerAPI_s
 )
 target_link_libraries(AtlasNetServerAPI AtlasNetCore)
 target_link_libraries(AtlasNetServerAPI_s AtlasNetCore)
+set_target_properties(AtlasNetServerAPI PROPERTIES FOLDER "AtlasNet/SDK")
+set_target_properties(AtlasNetServerAPI_s PROPERTIES FOLDER "AtlasNet/SDK")
 
 # ========= ATLASNET CLIENT API ========
 file(GLOB_RECURSE _API_client_sources CONFIGURE_DEPENDS
@@ -189,16 +195,5 @@ PUBLIC
 )
 target_link_libraries(AtlasNetClientAPI AtlasNetCore)
 target_link_libraries(AtlasNetClientAPI_s AtlasNetCore)
-
-# ========= ATLASNET DUMMY ========
-#file(GLOB_RECURSE _dummy_sources CONFIGURE_DEPENDS
-#  "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy/*.cpp"
-#)
-#add_executable(AtlasNetDummy ${_dummy_sources})
-## Optional, but common: local includes
-#target_include_directories(AtlasNetDummy
-#      PRIVATE
-#    "${CMAKE_CURRENT_SOURCE_DIR}/src/dummy"
-#)
-#target_link_libraries(AtlasNetDummy AtlasNetServerAPI_s)
-#target_compile_definitions(AtlasNetDummy PRIVATE ATLASNET_DUMMY_BUILD)
+set_target_properties(AtlasNetClientAPI PROPERTIES FOLDER "AtlasNet/SDK")
+set_target_properties(AtlasNetClientAPI_s PROPERTIES FOLDER "AtlasNet/SDK")

@@ -5,32 +5,39 @@
 #include <boost/describe.hpp>
 namespace AtlasNet::Network
 {
-enum class SocketConnectionState : uint8_t
+using PacketID = uint64_t;
+enum class PacketSendMode : uint8_t
 {
-  None = 0,
-  Connecting = 1,
-  Connected = 2,
-  ClosedByPeer = 3,
-  ProblemDetectedLocally = 4,
-  INVALID = 5
-};
-BOOST_DESCRIBE_ENUM(SocketConnectionState, None, Connecting, Connected, ClosedByPeer, ProblemDetectedLocally, INVALID)
-enum class SocketSendMode : uint8_t
-{
+  /*Send immediately or drop*/
   NoDelay = 0,
+
+  /*Send unreliably, No ACK*/
   Unreliable = 1,
   UnreliableBatched = 2,
+
+  /*Send reliably, Requires ACK*/
   Reliable = 3,
   ReliableBatched = 4,
+
   INVALID = 5
 };
-BOOST_DESCRIBE_ENUM(SocketSendMode, NoDelay, Unreliable, UnreliableBatched, Reliable, ReliableBatched, INVALID)
-enum class SocketType : uint8_t
+BOOST_DESCRIBE_ENUM(PacketSendMode, NoDelay, Unreliable, UnreliableBatched, Reliable, ReliableBatched, INVALID)
+enum class TransportType : uint8_t
 {
-  TCP = 0,
-  WebSocket = 1,
-  SteamNetSock = 2,
-  INVALID = 3
+  INVALID = 0,
+  UDP = 1,
+  TCP = 2,
+  WebSocket = 3,
+  SteamNetSock = 4,
+  DPDK = 5,
 };
-BOOST_DESCRIBE_ENUM(SocketType, TCP, WebSocket, SteamNetSock, INVALID)
+BOOST_DESCRIBE_ENUM(TransportType, UDP, TCP, WebSocket, SteamNetSock, DPDK, INVALID)
+enum class TransportSide : uint8_t
+{
+  INVALID = 0,
+  Ingress = 1,
+  Internal = 2,
+};
+BOOST_DESCRIBE_ENUM(TransportSide, Ingress, Internal, INVALID)
+
 } // namespace AtlasNet::Network

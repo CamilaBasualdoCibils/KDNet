@@ -16,6 +16,8 @@
     "boost-static-string",
     "boost-beast",
     "boost-program-options",
+    "boost-static-string",
+    "bitsery",
     
     {
       "name" : "spdlog",
@@ -52,6 +54,7 @@
       "description": "AtlasNet testing dependencies",
       "dependencies": [
         "gtest",
+        "glfw3",
         "raylib"
       ]
     }

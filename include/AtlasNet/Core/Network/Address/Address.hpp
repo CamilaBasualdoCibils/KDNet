@@ -216,6 +216,13 @@ public:
   {
     return 4;
   }
+  uint32_t to_uint32() const
+  {
+    return (static_cast<uint32_t>(octets[0]) << 24) |
+           (static_cast<uint32_t>(octets[1]) << 16) |
+           (static_cast<uint32_t>(octets[2]) << 8) |
+           static_cast<uint32_t>(octets[3]);
+  }
 
 };
 
@@ -281,6 +288,10 @@ public:
   static const IPv6 Loopback()
   {
     return IPv6(0, 0, 0, 0, 0, 0, 0, 1);
+  }
+  static const IPv6 Any()
+  {
+    return IPv6(0, 0, 0, 0, 0, 0, 0, 0);
   }
   void parse_string(const std::string& str) override
   {
@@ -370,6 +381,10 @@ public:
     return bytes.size();
   }
 
+  std::array<uint8_t, 16> get_bytes() const
+  {
+    return bytes;
+  }
 
 
 private:

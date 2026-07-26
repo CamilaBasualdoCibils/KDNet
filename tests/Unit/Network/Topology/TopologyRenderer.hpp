@@ -9,7 +9,7 @@
 #include "AtlasNet/Core/Network/Topology/TopologyCommons.hpp"
 #include "AtlasNet/Core/Network/Topology/TopologyTransitionPlanner.hpp"
 #include "AtlasNet/Core/Network/Topology/TransitionPlan.hpp"
-#include "AtlasNet/Core/Network/Transport/ITransport.hpp"
+#include "AtlasNet/Core/Network/Transport/Client/IClientTransport.hpp"
 #include "raylib.h"
 
 #include <glm/ext/vector_int2.hpp>
@@ -72,7 +72,7 @@ class TopologyRenderer : public ::testing::Test
   AtlasNet::Network::Topology::ConnectionGraph nextGraph;
   AtlasNet::Network::Topology::WeightGraph weightGraph;
   std::vector<TestNode> nodes;
-  std::shared_ptr<AtlasNet::Network::ITransport> transport;
+  std::shared_ptr<AtlasNet::Network::IClientTransport> transport;
   std::shared_ptr<AtlasNet::Network::Topology::ITopologyPlanner> planner;
   std::shared_ptr<AtlasNet::Network::Topology::ITopologyDeployer> deployer;
   std::shared_ptr<AtlasNet::Network::Topology::ITopologyPolicy> policy;
@@ -101,7 +101,7 @@ public:
   {
     planner = p;
   }
-  void SetTransport(std::shared_ptr<AtlasNet::Network::ITransport> t)
+  void SetTransport(std::shared_ptr<AtlasNet::Network::IClientTransport> t)
   {
     transport = t;
   }

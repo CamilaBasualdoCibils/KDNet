@@ -34,7 +34,7 @@ target_include_directories(TankBattleClient
       PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/client"
 )
-target_link_libraries(TankBattleClient TankBattleCore AtlasNetClientAPI raylib)
+target_link_libraries(TankBattleClient TankBattleCore AtlasNetClientAPI raylib glfw)
 
 
 add_custom_target(TankBattleStage

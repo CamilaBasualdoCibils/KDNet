@@ -1,12 +1,15 @@
 #include "AtlasNet/Core/Network/Transport/Datagram/UDP/UDPTransport.hpp"
 #include "AtlasNet/Core/Network/Address/Address.hpp"
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
+#include "AtlasNet/Core/Network/NetworkPacket.hpp"
+#include "AtlasNet/Core/Serialization/NetBinarySerializer.hpp"
 #include <cerrno>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
-size_t AtlasNet::Network::UDPTransport::Receive(std::span<Packet> packets)
+size_t
+AtlasNet::Network::UDPTransport::Receive(std::span<DatagramBuffer> packets)
 {
   {
     if (!socket_.has_value())
@@ -28,29 +31,28 @@ size_t AtlasNet::Network::UDPTransport::Receive(std::span<Packet> packets)
     }
   }
 }
-size_t AtlasNet::Network::UDPTransport::TryReceive(std::span<Packet> packets)
+size_t
+AtlasNet::Network::UDPTransport::TryReceive(std::span<DatagramBuffer> datagrams)
 {
   size_t received = 0;
   if (!socket_.has_value())
   {
     throw std::runtime_error("UDPTransport socket not initialized");
   }
-  while (received < packets.size())
+  while (received < datagrams.size())
   {
 
-    Packet& packet = packets[received];
+    DatagramBuffer& datagram = datagrams[received];
 
     sockaddr_storage addr{};
     socklen_t addrLen = sizeof(addr);
-    constexpr size_t MaxDatagramSize = 65536;
 
-    std::array<std::byte, MaxDatagramSize> buffer;
-
-    ssize_t bytes =
-        recvfrom(socket_.value(), buffer.data(), buffer.size(), MSG_DONTWAIT,
-                 reinterpret_cast<sockaddr*>(&addr), &addrLen);
-                 
-
+    UDPBuffer* buffer = GetFreeBuffer();
+    buffer->data.resize(buffer->data.static_capacity);
+    ssize_t bytes = recvfrom(socket_.value(), buffer->data.data(),
+                             buffer->data.static_capacity, MSG_DONTWAIT,
+                             reinterpret_cast<sockaddr*>(&addr), &addrLen);
+    buffer->data.resize(bytes > 0 ? bytes : 0);
     if (bytes < 0)
     {
       if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -59,16 +61,23 @@ size_t AtlasNet::Network::UDPTransport::TryReceive(std::span<Packet> packets)
       logger->error("recvfrom failed: {}", strerror(errno));
       break;
     }
-        packet.payload.clear();
-    packet.payload.resize(bytes);
-    memcpy(packet.payload.data(), buffer.data(), bytes);
-
+    datagram.source = SocketAddress(reinterpret_cast<sockaddr*>(&addr));
+    datagram.data = std::span<const std::byte>(
+        reinterpret_cast<const std::byte*>(buffer->data.data()), bytes);
+    datagram.owner = this;
+    datagram.userdata = buffer;
+    datagram.release = [](void* owner, void* userdata)
+    {
+      auto* buffer = static_cast<UDPBuffer*>(userdata);
+      auto* transport = static_cast<UDPTransport*>(owner);
+      transport->ReleaseBuffer(buffer);
+    };
     if (addr.ss_family == AF_INET)
     {
       auto* a = reinterpret_cast<sockaddr_in*>(&addr);
 
-      packet.sourceAddress =
-          SocketAddress(IPv4(ntohl(a->sin_addr.s_addr)), ntohs(a->sin_port));
+      // packet.sourceAddress =
+      //     SocketAddress(IPv4(ntohl(a->sin_addr.s_addr)), ntohs(a->sin_port));
     }
     else
     {
@@ -77,8 +86,8 @@ size_t AtlasNet::Network::UDPTransport::TryReceive(std::span<Packet> packets)
       std::array<uint8_t, 16> ip;
       std::memcpy(ip.data(), &a->sin6_addr, 16);
 
-      packet.sourceAddress =
-          SocketAddress(IPv6(ip.data()), ntohs(a->sin6_port));
+      // packet.sourceAddress =
+      //     SocketAddress(IPv6(ip.data()), ntohs(a->sin6_port));
     }
 
     ++received;
@@ -176,9 +185,10 @@ AtlasNet::Network::UDPTransport::~UDPTransport()
     close(socket_.value());
   }
 }
-void AtlasNet::Network::UDPTransport::SendMessage(const SocketAddress& address,
-                                                  PacketPayloadView data)
+void AtlasNet::Network::UDPTransport::SendMessage(
+    const SocketAddress& address, const PacketPayloadView& packet)
 {
+
   sockaddr_storage addr{};
   socklen_t addrLen;
 
@@ -205,10 +215,10 @@ void AtlasNet::Network::UDPTransport::SendMessage(const SocketAddress& address,
     addrLen = sizeof(sockaddr_in6);
   }
 
-  ssize_t result = sendto(socket_.value(), data.data(), data.size(), 0,
+  ssize_t result = sendto(socket_.value(), packet.data(), packet.size(), 0,
                           reinterpret_cast<sockaddr*>(&addr), addrLen);
   logger->info("Sent UDP message to {}:{} of {} bytes with result {}",
-               address.to_string(), address.get_port(), data.size(), result);
+               address.to_string(), address.get_port(), packet.size(), result);
 
   if (result < 0)
   {

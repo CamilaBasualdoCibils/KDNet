@@ -8,7 +8,7 @@
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
 #include <bitsery/traits/string.h>
-
+#include <bitsery/traits/vector.h>
 #include <bitsery/brief_syntax.h>
 #include <bitsery/brief_syntax/array.h>
 #include <bitsery/brief_syntax/atomic.h>
@@ -44,6 +44,7 @@ class NetBinaryReader
 {
 
 public:
+using is_saving = std::false_type;
   using Data = const uint8_t*;
   using InputAdapter = bitsery::InputBufferAdapter<Data>;
   using Deserializer = bitsery::Deserializer<InputAdapter>;
@@ -80,6 +81,7 @@ private:
 class NetBinaryWriter
 {
 public:
+using is_saving = std::true_type;
   using Buffer = std::vector<uint8_t>;
   using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
   using Serializer = bitsery::Serializer<OutputAdapter>;

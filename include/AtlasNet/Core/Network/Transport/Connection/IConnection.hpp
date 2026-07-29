@@ -3,6 +3,7 @@
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
 #include "AtlasNet/Core/Network/NetworkPacket.hpp"
 #include "AtlasNet/Core/Network/Transport/Connection/ConnectionCommons.hpp"
+#include "AtlasNet/Core/Network/Transport/DatagramBuffer.hpp"
 #include "AtlasNet/Core/Network/Transport/TransportCommons.hpp"
 #include <atomic>
 #include <chrono>
@@ -19,11 +20,11 @@ class IConnection
   std::atomic<PacketID> nextPacketID{0};
   using StateChangeCallback = std::move_only_function<void(ConnectionState)>;
   StateChangeCallback stateChangeCallback;
-  const SocketAddress localAddress;
+  const SocketAddress remoteAddress;
   ConnectionState state{ConnectionState::None};
 
 public:
-  IConnection(SocketAddress address) : localAddress(address) {}
+  IConnection(SocketAddress address) : remoteAddress(address) {}
   PacketID Send(PacketPayloadView data, PacketSendMode mode)
   {
     PacketID packetID = nextPacketID.fetch_add(1, std::memory_order_relaxed);
@@ -33,13 +34,13 @@ public:
 
   virtual ~IConnection() = default;
 
-  virtual size_t Receive(std::span<Packet> packets) = 0;
+  virtual size_t Receive(std::span<DatagramBuffer> packets) = 0;
 
-  virtual size_t TryReceive(std::span<Packet> packets) = 0;
+  virtual size_t TryReceive(std::span<DatagramBuffer> packets) = 0;
   virtual void Disconnect() = 0;
 
   virtual SocketAddress RemoteAddress() const {
-    return localAddress;
+    return remoteAddress;
   }
   virtual ConnectionState GetState() const
   {

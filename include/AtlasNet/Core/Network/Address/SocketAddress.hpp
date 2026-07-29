@@ -2,8 +2,10 @@
 
 #include "Address.hpp"
 #include <cstdint>
+#include <netinet/in.h>
 #include <stdexcept>
 #include <string>
+#include <sys/socket.h>
 namespace AtlasNet::Network
 {
 
@@ -127,6 +129,26 @@ public:
     else
       throw std::invalid_argument("Invalid HostAddress variant");
     set_port(port);
+  }
+  explicit SocketAddress(const sockaddr* addr)
+  {
+    if (addr->sa_family == AF_INET)
+    {
+      const sockaddr_in* addr_in = reinterpret_cast<const sockaddr_in*>(addr);
+      address = IPv4(ntohl(addr_in->sin_addr.s_addr));
+      set_port(ntohs(addr_in->sin_port));
+    }
+    else if (addr->sa_family == AF_INET6)
+    {
+      const sockaddr_in6* addr_in6 =
+          reinterpret_cast<const sockaddr_in6*>(addr);
+      address = IPv6(addr_in6->sin6_addr.s6_addr);
+      set_port(ntohs(addr_in6->sin6_port));
+    }
+    else
+    {
+      throw std::invalid_argument("Unsupported address family");
+    }
   }
   explicit SocketAddress(const SteamNetworkingIPAddr& steamAddr)
   {

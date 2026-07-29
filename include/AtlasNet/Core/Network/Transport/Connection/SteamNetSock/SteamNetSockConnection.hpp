@@ -1,6 +1,9 @@
 #pragma once
 
+#include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
+#include "AtlasNet/Core/Network/NetworkPacket.hpp"
 #include "AtlasNet/Core/Network/Transport/Connection/IConnection.hpp"
+#include "AtlasNet/Core/Network/Transport/DatagramBuffer.hpp"
 #include "spdlog/logger.h"
 #include <algorithm>
 #include <atomic>
@@ -30,7 +33,7 @@ public:
         connectionHandle(handle)
   {
   }
-  size_t Receive(std::span<Packet> packets) override
+  size_t Receive(std::span<DatagramBuffer> packets) override
   {
     if (packets.empty())
       return 0;
@@ -53,12 +56,17 @@ public:
         for (int i = 0; i < receiveResult; ++i)
         {
           SteamNetworkingMessage_t* msg = messages[i];
-          Packet& packet = packets[i];
-          packet = Packet();
-          const auto* data = static_cast<const uint8_t*>(msg->m_pData);
-          packet.payload.assign(data, data + msg->m_cbSize);
-
-          msg->Release();
+          DatagramBuffer& packet = packets[i];
+          packet.owner = msg;
+          packet.userdata = nullptr;
+          packet.release = [](void* owner, void* userdata)
+          {
+            auto* msg = static_cast<SteamNetworkingMessage_t*>(owner);
+            msg->Release();
+          };
+          packet.data = std::span<const std::byte>(
+              static_cast<const std::byte*>(msg->m_pData), msg->m_cbSize);
+          packet.source = RemoteAddress();
         }
 
         return static_cast<size_t>(receiveResult);
@@ -70,7 +78,7 @@ public:
     }
   }
 
-  size_t TryReceive(std::span<Packet> packets) override
+  size_t TryReceive(std::span<DatagramBuffer> packets) override
   {
     if (packets.empty())
       return 0;
@@ -90,12 +98,17 @@ public:
       {
         SteamNetworkingMessage_t* msg = messages[i];
 
-        Packet& packet = packets[i];
-        packet = Packet();
-        const auto* data = static_cast<const uint8_t*>(msg->m_pData);
-        packet.payload.assign(data, data + msg->m_cbSize);
-
-        msg->Release();
+        DatagramBuffer& packet = packets[i];
+        packet.owner = msg;
+        packet.userdata = nullptr;
+        packet.release = [](void* owner, void* userdata)
+        {
+          auto* msg = static_cast<SteamNetworkingMessage_t*>(owner);
+          msg->Release();
+        };
+        packet.data = std::span<const std::byte>(
+            static_cast<const std::byte*>(msg->m_pData), msg->m_cbSize);
+        packet.source = RemoteAddress();
       }
 
       return static_cast<size_t>(receiveResult);

@@ -45,16 +45,16 @@ class NetBinaryReader
 
 public:
 using is_saving = std::false_type;
-  using Data = const uint8_t*;
+  using Data = const std::byte*;
   using InputAdapter = bitsery::InputBufferAdapter<Data>;
   using Deserializer = bitsery::Deserializer<InputAdapter>;
 
   NetBinaryReader(Data data, size_t size)
-      : deserializer(InputAdapter{data, size})
+      : deserializer(InputAdapter{data, size}), size(size)
   {
   }
-  NetBinaryReader(std::span<const uint8_t> bytes)
-      : deserializer(InputAdapter{bytes.data(), bytes.size()})
+  NetBinaryReader(std::span<const std::byte> bytes)
+      : deserializer(InputAdapter{bytes.data(), bytes.size()}), size(bytes.size())
   {
   }
   template <typename... Args> void Deserialize(Args&&... args)
@@ -70,19 +70,39 @@ using is_saving = std::false_type;
   {
     return &deserializer;
   }
+  size_t Remaining()
+  {
+    auto& a = deserializer.adapter();
+    return size - a.currentReadPos();
+  }
+  void Skip(size_t bytes)
+  {
+     uint8_t tmp[256];
 
+    while (bytes > 0)
+    {
+        const auto chunk = std::min(bytes, sizeof(tmp));
+        deserializer.adapter().readBuffer<sizeof(uint8_t)>(tmp, chunk);
+        bytes -= chunk;
+    }
+  }
+  size_t Position()
+  {
+    return deserializer.adapter().currentReadPos();
+  }
 private:
   template <typename T> void DeserializeOne(T&& value)
   {
     deserializer(value);
   }
   Deserializer deserializer;
+  size_t size;
 };
 class NetBinaryWriter
 {
 public:
 using is_saving = std::true_type;
-  using Buffer = std::vector<uint8_t>;
+  using Buffer = std::vector<std::byte>;
   using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
   using Serializer = bitsery::Serializer<OutputAdapter>;
 
@@ -106,10 +126,17 @@ using is_saving = std::true_type;
   {
     serializer.adapter().flush();
   }
+  auto Release()
+  {
+    Flush();
+    auto released_buffer = std::move(buffer);
+    *this = NetBinaryWriter();
+    return released_buffer;
+  }
   auto GetBytes()
   {
     Flush();
-    return std::span<const uint8_t>(buffer.data(),
+    return std::span<const std::byte>(buffer.data(),
                                     serializer.adapter().writtenBytesCount());
   }
 

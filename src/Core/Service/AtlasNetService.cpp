@@ -2,10 +2,7 @@
 #include "AtlasNet/Core/Core.hpp"
 #include "AtlasNet/Core/Network/Address/Address.hpp"
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
-#include "AtlasNet/Core/Network/Transport/Connection/ConnectionCommons.hpp"
-#include "AtlasNet/Core/Network/Transport/Connection/SteamNetSock/SteamNetSock.hpp"
-#include "AtlasNet/Core/Network/Transport/Connection/SteamNetSock/SteamNetSockConnection.hpp"
-#include "AtlasNet/Core/Network/Transport/TransportCommons.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/UDP/UDPClusterTransport.hpp"
 
 #include <boost/describe/enum_to_string.hpp>
 #include <boost/program_options.hpp>
@@ -17,11 +14,11 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <sys/signalfd.h>
 
-inline std::vector<AtlasNet::AtlasNetService::Options::SocketOption>
+inline std::vector<AtlasNet::AtlasNetService::Options::IngressSocketOption>
 ParseSocketOptions(const std::vector<std::string>& ingressOptions)
 {
   using AN = AtlasNet::AtlasNetService;
-  std::vector<AN::Options::SocketOption> result;
+  std::vector<AN::Options::IngressSocketOption> result;
 
   auto parseEntry = [&](const std::string& entry)
   {
@@ -43,7 +40,7 @@ ParseSocketOptions(const std::vector<std::string>& ingressOptions)
       args = entry.substr(colon + 1);
     }
 
-    AN::Options::SocketOption option{};
+    AN::Options::IngressSocketOption option{};
 
     bool parsedType =
         boost::describe::enum_from_string(typeString, option.type);
@@ -140,11 +137,23 @@ void AtlasNet::AtlasNetService::Run()
   logger->info("Starting {}[{}] - {}...",
                boost::describe::enum_to_string(service_type, "<INVALID>"),
                nodeID.to_short_string(), nodeID.to_string());
-  logger->info("Internal messaging address: {}:{}",
-               options.internalListenAddress.to_host_address().to_string(),
-               options.internalListenAddress.get_port() != 0
-                   ? std::to_string(options.internalListenAddress.get_port())
+  logger->info("cluster messaging: {} -> {}",
+               boost::describe::enum_to_string(options.clusterTransportType,
+                                               "<INVALID>"),
+               options.clusterListenPort != 0
+                   ? std::to_string(options.clusterListenPort)
                    : "ephemeral");
+  switch (options.clusterTransportType)
+  {
+
+  case Network::Cluster::ClusterTransportType::INVALID:
+  case Network::Cluster::ClusterTransportType::UDP:
+    clusterTransport = std::make_shared<Network::Cluster::UDPClusterTransport>(
+        options.clusterListenPort, nullptr);
+    break;
+  case Network::Cluster::ClusterTransportType::DPDK:
+    break;
+  }
   for (const auto& socket : options.ingressSockets)
   {
     logger->info("Ingress Socket: {}:{} {}",
@@ -169,20 +178,19 @@ void AtlasNet::AtlasNetService::AddOptions(
       ("ingress-sockets", po::value<std::vector<std::string>>()->multitoken(),
        "Ingress Socket Types. EX: SteamNetSock:port=8888;UDP:port=1262")
       // Node Sockets
-      ("messaging-port", po::value<uint16_t>(),
-       "Internal messaging port for node-to-node communication. EX: 1925");
+      ("cluster-port", po::value<uint16_t>(),
+       "Internal cluster port for node-to-node communication. EX: 1925");
 }
 void AtlasNet::AtlasNetService::ParseOptions(
     const boost::program_options::variables_map& vm)
 {
-   options.internalListenAddress = Network::SocketAddress(
-      Network::IPv6::Any(),
-      vm.count("messaging-port")
-          ? static_cast<uint16_t>(vm["messaging-port"].as<uint16_t>())
-          : (std::getenv("ATLASNET_MESSAGING_PORT")
+  options.clusterListenPort =
+      vm.count("cluster-port")
+          ? static_cast<uint16_t>(vm["cluster-port"].as<uint16_t>())
+          : (std::getenv("ATLASNET_CLUSTER_PORT")
                  ? static_cast<uint16_t>(
-                       std::stoi(std::getenv("ATLASNET_MESSAGING_PORT")))
-                 : 0)); // Default to any address, port 0 (ephemeral)
+                       std::stoi(std::getenv("ATLASNET_CLUSTER_PORT")))
+                 : 0); // Default to port 0 (ephemeral)
 
   options.ingressSockets = ParseSocketOptions(
       !vm["ingress-sockets"].empty()

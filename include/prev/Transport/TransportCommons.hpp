@@ -22,7 +22,7 @@ enum class PacketSendMode : uint8_t
   INVALID = 5
 };
 BOOST_DESCRIBE_ENUM(PacketSendMode, NoDelay, Unreliable, UnreliableBatched, Reliable, ReliableBatched, INVALID)
-enum class TransportType : uint8_t
+enum class DatagramTransportType : uint8_t
 {
   INVALID = 0,
   UDP = 1,
@@ -31,7 +31,7 @@ enum class TransportType : uint8_t
   SteamNetSock = 4,
   DPDK = 5,
 };
-BOOST_DESCRIBE_ENUM(TransportType, UDP, TCP, WebSocket, SteamNetSock, DPDK, INVALID)
+BOOST_DESCRIBE_ENUM(DatagramTransportType, UDP, TCP, WebSocket, SteamNetSock, DPDK, INVALID)
 enum class TransportSide : uint8_t
 {
   INVALID = 0,

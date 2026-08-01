@@ -5,34 +5,27 @@
 #include <utility>
 int pick_available_port()
 {
-  int Min = 1024;
-  int Max = 65535;
-  if (Min > Max)
-    std::swap(Min, Max);
+    for (int port = 1024; port <= 65535; ++port)
+    {
+        int fd = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+        if (fd < 0)
+            continue;
 
-  auto can_bind = [](int port, int sock_type) -> bool
-  {
-    int fd = ::socket(AF_INET, sock_type, 0);
-    if (fd < 0)
-      return false;
+        sockaddr_in6 addr{};
+        addr.sin6_family = AF_INET6;
+        addr.sin6_addr = in6addr_any;
+        addr.sin6_port = htons(static_cast<uint16_t>(port));
 
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(static_cast<uint16_t>(port));
+        bool ok =
+            (::bind(fd,
+                    reinterpret_cast<sockaddr*>(&addr),
+                    sizeof(addr)) == 0);
 
-    const bool ok =
-        (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
-    ::close(fd);
-    return ok;
-  };
+        ::close(fd);
 
-  for (int port = Min; port <= Max; ++port)
-  {
-    // Consider the port "available" only if both TCP and UDP can bind.
-    if (can_bind(port, SOCK_STREAM) && can_bind(port, SOCK_DGRAM))
-      return port;
-  }
+        if (ok)
+            return port;
+    }
 
-  return -1; // no free port in range
+    return -1;
 }

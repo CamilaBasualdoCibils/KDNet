@@ -8,17 +8,13 @@
         "type": "tabs",
         "children": [
           {
-            "id": "dfea8b896e3df8ae",
+            "id": "dd5e5f8b7d666610",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Islands.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "Islands"
+              "title": "New tab"
             }
           }
         ]
@@ -78,7 +74,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200
   },
   "right": {
     "id": "8865451d29339f39",
@@ -181,15 +177,19 @@
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
       "bases:Create new base": false,
-      "templater-obsidian:Templater": false
+      "templater-obsidian:Templater": false,
+      "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "dfea8b896e3df8ae",
+  "active": "31549bda9c076f76",
   "lastOpenFiles": [
+    "NetworkLab.md",
+    "NetworkLab.md",
+    "Islands.md",
+    "Excalidraw",
     "Main.md",
     "Untitled.canvas",
     "image.png",
-    "Untitled.base",
-    "Islands.md"
+    "Untitled.base"
   ]
 }

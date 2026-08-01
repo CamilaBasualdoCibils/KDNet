@@ -14,14 +14,14 @@
 namespace AtlasNet::Network
 {
 
-class IDatagramTransport : public ITransport
+class IClusterTransport : public ITransport
 {
 public:
-  IDatagramTransport(std::shared_ptr<INodeAddressResolver> resolver)
-      : addressResolver(std::move(resolver))
+  IClusterTransport(std::shared_ptr<INodeAddressResolver> resolver)
+      : nodeResolver(std::move(resolver))
   {
   }
-  virtual ~IDatagramTransport() = default;
+  virtual ~IClusterTransport() = default;
 
   virtual void SendMessage(const AtlasNetNodeID& node,
                            const PacketPayloadView& data) = 0;
@@ -32,10 +32,10 @@ public:
 
   INodeAddressResolver& GetAddressResolver() const
   {
-    return *addressResolver.get();
+    return *nodeResolver.get();
   }
 
 private:
-  std::shared_ptr<INodeAddressResolver> addressResolver;
+  std::shared_ptr<INodeAddressResolver> nodeResolver;
 };
 } // namespace AtlasNet::Network

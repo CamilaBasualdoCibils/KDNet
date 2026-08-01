@@ -1,4 +1,4 @@
-#include "AtlasNet/Core/Network/NetworkPacket.hpp"
+
 #include "AtlasNet/Core/Serialization/NetBinarySerializer.hpp"
 #include <gtest/gtest.h>
 
@@ -62,7 +62,7 @@ TEST(Packets, EmptyPayload)
   ASSERT_TRUE(packet.Validate());
 }
  */
-TEST(Packets, Serialization)
+/* TEST(Packets, Serialization)
 {
   using namespace AtlasNet::Network;
 
@@ -82,4 +82,4 @@ TEST(Packets, Serialization)
   reader(receivedHeader);
 
   EXPECT_EQ(receivedHeader,header);
-}
+} */

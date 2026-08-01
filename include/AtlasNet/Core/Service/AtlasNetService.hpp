@@ -3,11 +3,10 @@
 #include "AtlasNet/Core/Core.hpp"
 #include "AtlasNet/Core/Network/Address/Address.hpp"
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
-#include "AtlasNet/Core/Network/Transport/Connection/IConnection.hpp"
-#include "AtlasNet/Core/Network/Transport/Connection/IConnectionListener.hpp"
-#include "AtlasNet/Core/Network/Transport/Connection/IConnectionTransport.hpp"
-#include "AtlasNet/Core/Network/Transport/ITransport.hpp"
-#include "AtlasNet/Core/Network/Transport/TransportCommons.hpp"
+#include "AtlasNet/Core/Network/Cluster/ClusterCommons.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/IClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Ingress/IngressCommons.hpp"
+#include <boost/describe.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <chrono>
@@ -30,15 +29,15 @@ class AtlasNetService
 public:
   struct Options
   {
-    struct SocketOption
+    struct IngressSocketOption
     {
-      Network::TransportType type;
+      Network::Ingress::IngressTransportType type;
       uint16_t port;
       std::string ExtraArgs;
     };
-    std::vector<SocketOption> ingressSockets;
-
-    Network::SocketAddress internalListenAddress;
+    std::vector<IngressSocketOption> ingressSockets;
+    Network::Cluster::ClusterTransportType clusterTransportType;
+    Network::PortType clusterListenPort;
     Network::SocketAddress dbAddress;
   };
 
@@ -49,11 +48,7 @@ private:
   const int signalFd;
   const AtlasNetNodeID nodeID;
   std::atomic_bool stop_requested{false};
-
-  std::shared_ptr<Network::IConnectionTransport> databaseTransport;
-  std::shared_ptr<Network::IConnection> databaseConnection;
-
-
+  std::shared_ptr<Network::Cluster::IClusterTransport> clusterTransport;
 public:
   AtlasNetService(AtlasNetServiceType service_type, int argc, char** argv);
   void Run();
@@ -64,6 +59,7 @@ public:
   {
     return logger;
   }
+
 protected:
   virtual void AddOptions(boost::program_options::options_description& desc);
   virtual void ParseOptions(const boost::program_options::variables_map& vm);
@@ -77,6 +73,5 @@ private:
   static AtlasNet::Network::HostAddress GetNodeAddress();
   static int SetupSignals();
   std::optional<int> CheckForSignal();
-
 };
 } // namespace AtlasNet

@@ -6,10 +6,11 @@
 #include "AtlasNet/Core/Network/Cluster/Transport/IClusterTransport.hpp"
 namespace AtlasNet::Network::Cluster
 {
+
 struct ChannelOptions
 {
   ChannelID id = 0;
-  std::shared_ptr<IClusterTransport> transport;
+ 
   DeliveryMode delivery = DeliveryMode::Unreliable;
   OrderingMode ordering = OrderingMode::Unordered;
   BatchMode batching = BatchMode::Automatic;
@@ -22,8 +23,7 @@ struct ChannelOptions
     if (id == 0)
     return false;
 
-  if (!transport)
-    return false;
+
 
   if (ordering == OrderingMode::Ordered &&
       delivery != DeliveryMode::Reliable)

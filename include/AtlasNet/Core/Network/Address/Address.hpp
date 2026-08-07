@@ -180,6 +180,8 @@ public:
 
   std::string to_string() const override
   {
+    //if (*this == Loopback())
+    //  return "IPv4::Loopback";
     return std::to_string(octets[0]) + "." + std::to_string(octets[1]) + "." +
            std::to_string(octets[2]) + "." + std::to_string(octets[3]);
   }
@@ -333,6 +335,8 @@ public:
 
   std::string to_string() const override
   {
+    //if (*this == Loopback())
+    //  return "IPv6::Loopback";
     std::ostringstream oss;
     oss << std::hex << std::nouppercase << std::setfill('0');
 

@@ -56,6 +56,9 @@ target_include_directories(AtlasNetCore
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Core"    
 
 )
+target_compile_definitions(AtlasNetCore PUBLIC
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
+)
 
 target_link_libraries(AtlasNetCore
 PUBLIC

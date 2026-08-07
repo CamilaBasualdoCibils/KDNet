@@ -8,6 +8,7 @@ GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main
 raylib
 )
 
+
 gtest_discover_tests(AtlasNet_tests_Channels)
 
 # Optional labels for filtering in ctest

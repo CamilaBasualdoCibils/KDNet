@@ -76,7 +76,11 @@ struct MessageHeader
 class ClusterChannelV1 : public IClusterChannel
 {
 public:
-  ClusterChannelV1(const ChannelOptions& options) : IClusterChannel(options) {
+  ClusterChannelV1(const ChannelOptions& options,
+                   std::shared_ptr<ChannelTransportProxy> transport)
+      : IClusterChannel(options, transport),
+        logger_(spdlog::stdout_color_mt(std::format("ClusterChannelV1-{}", options.id)))
+  {
     logger_->set_level(spdlog::level::trace);
   }
 
@@ -162,8 +166,7 @@ private:
   std::deque<ReadyMessage> readyMessages_;
 
   std::mutex mutex_;
-  std::shared_ptr<spdlog::logger> logger_ =
-      spdlog::stdout_color_mt("ClusterChannelV1");
+  std::shared_ptr<spdlog::logger> logger_;
 
   static constexpr auto RetransmissionTimeout = std::chrono::milliseconds(100);
 

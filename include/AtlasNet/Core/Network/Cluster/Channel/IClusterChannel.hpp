@@ -2,6 +2,7 @@
 
 #include "AtlasNet/Core/Core.hpp"
 #include "AtlasNet/Core/Network/Cluster/Channel/ChannelCommons.hpp"
+#include "AtlasNet/Core/Network/Cluster/Channel/ChannelTransportProxy.hpp"
 #include "AtlasNet/Core/Network/Cluster/Channel/ClusterMessage.hpp"
 #include "AtlasNet/Core/Network/Cluster/Transport/IClusterTransport.hpp"
 namespace AtlasNet::Network::Cluster
@@ -10,7 +11,7 @@ namespace AtlasNet::Network::Cluster
 struct ChannelOptions
 {
   ChannelID id = 0;
- 
+
   DeliveryMode delivery = DeliveryMode::Unreliable;
   OrderingMode ordering = OrderingMode::Unordered;
   BatchMode batching = BatchMode::Automatic;
@@ -21,37 +22,36 @@ struct ChannelOptions
   constexpr bool Validate() const noexcept
   {
     if (id == 0)
-    return false;
+      return false;
 
+    if (ordering == OrderingMode::Ordered && delivery != DeliveryMode::Reliable)
+    {
+      return false;
+    }
 
+    if (ordering == OrderingMode::Sequenced &&
+        delivery != DeliveryMode::Unreliable)
+    {
+      return false;
+    }
 
-  if (ordering == OrderingMode::Ordered &&
-      delivery != DeliveryMode::Reliable)
-  {
-    return false;
-  }
+    if (maxBatchBytes == 0 || maxQueuedMessages == 0)
+    {
+      return false;
+    }
 
-  if (ordering == OrderingMode::Sequenced &&
-      delivery != DeliveryMode::Unreliable)
-  {
-    return false;
-  }
-
-  if (maxBatchBytes == 0 ||
-      maxQueuedMessages == 0)
-  {
-    return false;
-  }
-
-  return true;
+    return true;
   }
 };
 class IClusterChannel
 {
   const ChannelOptions options;
-
+  std::shared_ptr<ChannelTransportProxy> transport;
 public:
-  IClusterChannel(const ChannelOptions& options) : options(options) {
+  IClusterChannel(const ChannelOptions& options,
+                  std::shared_ptr<ChannelTransportProxy> transport)
+      : options(options), transport(transport)
+  {
     if (!options.Validate())
     {
       throw std::invalid_argument("Invalid channel options");
@@ -60,6 +60,10 @@ public:
   const ChannelOptions& GetOptions() const noexcept
   {
     return options;
+  }
+  ChannelTransportProxy* GetTransport() const noexcept
+  {
+    return transport.get();
   }
   virtual ~IClusterChannel() = default;
 

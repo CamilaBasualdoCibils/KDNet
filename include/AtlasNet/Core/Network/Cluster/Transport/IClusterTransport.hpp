@@ -19,9 +19,10 @@ public:
   virtual bool SendMessage(const AtlasNetNodeID& destination,
                            std::span<const std::byte> payload) = 0;
 
-  virtual size_t Receive(std::span<ClusterDatagram> packets) = 0;
+  [[nodiscard]] virtual size_t Receive(std::span<ClusterDatagram> packets) = 0;
 
-  virtual size_t TryReceive(std::span<ClusterDatagram> packets) = 0;
+  [[nodiscard]] virtual size_t
+  TryReceive(std::span<ClusterDatagram> packets) = 0;
 
   PortType GetListenPort() const
   {

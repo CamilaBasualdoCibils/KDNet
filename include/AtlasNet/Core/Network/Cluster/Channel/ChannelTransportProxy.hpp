@@ -6,7 +6,8 @@
 namespace AtlasNet::Network::Cluster
 {
 class ChannelBus;
-class ChannelReceiver
+
+class ChannelTransportProxy
 {
   std::queue<ClusterDatagram> m_ReceiveQueue;
   std::mutex m_ReceiveMutex;
@@ -14,8 +15,8 @@ class ChannelReceiver
   ChannelBus* m_ChannelBus;
   const ChannelID m_ChannelID;
 
-protected:
-  void PushDatagram(ClusterDatagram datagram)
+public:
+  virtual void PushDatagram(ClusterDatagram datagram)
   {
     {
       std::scoped_lock lock(m_ReceiveMutex);
@@ -25,17 +26,12 @@ protected:
 
     m_ReceiveCondition.notify_one();
   }
-
-public:
-  ChannelReceiver(ChannelBus* channelBus, ChannelID channelID)
+  ChannelTransportProxy(ChannelBus* channelBus, ChannelID channelID)
       : m_ChannelBus(channelBus), m_ChannelID(channelID)
   {
   }
   virtual bool SendMessage(const AtlasNetNodeID& destination,
-                   std::span<const std::byte> payload)
-  {
-    return m_ChannelBus->SendMessage(destination, payload);
-  }
+                           std::span<const std::byte> payload);
 
   virtual size_t Receive(std::span<ClusterDatagram> packets)
   {

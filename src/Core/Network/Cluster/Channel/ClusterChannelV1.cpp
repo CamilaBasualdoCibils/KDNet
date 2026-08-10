@@ -212,7 +212,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::FlushPendingAcks()
                    peer.receive.receivedPacketBits);
     std::vector<std::byte> bytes = BuildPacket(peer, {}, 0, true);
 
-    GetOptions().transport->SendMessage(destination, bytes);
+    GetTransport()->SendMessage(destination, bytes);
   }
 }
 void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessTimers()
@@ -248,7 +248,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessTimers()
       logger_->trace("Retransmitting packet {} to {} (attempt {}/{})",
                      packet.packetSequence, destination.to_string(),
                      packet.attempts + 1, MaxRetransmissions);
-      GetOptions().transport->SendMessage(destination, packet.bytes);
+      GetTransport()->SendMessage(destination, packet.bytes);
 
       packet.lastSent = now;
       ++packet.attempts;
@@ -264,8 +264,8 @@ AtlasNet::Network::Cluster::ClusterChannelV1::PumpTransport(bool blocking)
   std::array<ClusterDatagram, MaxDatagramsPerPump> packets;
 
   const size_t received = blocking
-                              ? GetOptions().transport->Receive(packets)
-                              : GetOptions().transport->TryReceive(packets);
+                              ? GetTransport()->Receive(packets)
+                              : GetTransport()->TryReceive(packets);
 
   if (received == 0)
     return 0;
@@ -603,7 +603,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::SendPacket(
     std::vector<std::byte> bytes, uint64_t packetSequence)
 {
 
-  GetOptions().transport->SendMessage(destination, bytes);
+  GetTransport()->SendMessage(destination, bytes);
 
   if (GetOptions().delivery != DeliveryMode::Reliable)
     return;

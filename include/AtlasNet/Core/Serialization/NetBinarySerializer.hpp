@@ -1,14 +1,13 @@
 #pragma once
 
-//#include "SerializationConcepts.hpp"
+// #include "SerializationConcepts.hpp"
+#include "AtlasNet/Core/Serialization/SerializationTraits.hpp"
 #include "bitsery/deserializer.h"
 #include "bitsery/details/brief_syntax_common.h"
 #include "bitsery/serializer.h"
-//#include "boost/static_string/static_string.hpp"
+// #include "boost/static_string/static_string.hpp"
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
-#include <bitsery/traits/string.h>
-#include <bitsery/traits/vector.h>
 #include <bitsery/brief_syntax.h>
 #include <bitsery/brief_syntax/array.h>
 #include <bitsery/brief_syntax/atomic.h>
@@ -29,6 +28,8 @@
 #include <bitsery/brief_syntax/unordered_set.h>
 #include <bitsery/brief_syntax/variant.h>
 #include <bitsery/brief_syntax/vector.h>
+#include <bitsery/traits/string.h>
+#include <bitsery/traits/vector.h>
 #include <boost/container/small_vector.hpp>
 #include <boost/static_string/static_string.hpp>
 #include <cstdint>
@@ -44,7 +45,7 @@ class NetBinaryReader
 {
 
 public:
-using is_saving = std::false_type;
+  using is_saving = std::false_type;
   using Data = const std::byte*;
   using InputAdapter = bitsery::InputBufferAdapter<Data>;
   using Deserializer = bitsery::Deserializer<InputAdapter>;
@@ -54,7 +55,8 @@ using is_saving = std::false_type;
   {
   }
   NetBinaryReader(std::span<const std::byte> bytes)
-      : deserializer(InputAdapter{bytes.data(), bytes.size()}), size(bytes.size())
+      : deserializer(InputAdapter{bytes.data(), bytes.size()}),
+        size(bytes.size())
   {
   }
   template <typename... Args> void Deserialize(Args&&... args)
@@ -77,31 +79,71 @@ using is_saving = std::false_type;
   }
   void Skip(size_t bytes)
   {
-     uint8_t tmp[256];
+    uint8_t tmp[256];
 
     while (bytes > 0)
     {
-        const auto chunk = std::min(bytes, sizeof(tmp));
-        deserializer.adapter().readBuffer<sizeof(uint8_t)>(tmp, chunk);
-        bytes -= chunk;
+      const auto chunk = std::min(bytes, sizeof(tmp));
+      deserializer.adapter().readBuffer<sizeof(uint8_t)>(tmp, chunk);
+      bytes -= chunk;
     }
   }
   size_t Position()
   {
     return deserializer.adapter().currentReadPos();
   }
+
 private:
   template <typename T> void DeserializeOne(T&& value)
   {
-    deserializer(value);
+    using Type = std::remove_cvref_t<T>;
+
+    if constexpr (Serialization::is_std_expected_v<Type>)
+    {
+      DeserializeExpected(value);
+    }
+    else
+    {
+      deserializer(value);
+    }
   }
+   template <typename T, typename E>
+  void DeserializeExpected(std::expected<T, E>& expected)
+  {
+    bool hasValue = false;
+
+    deserializer(hasValue);
+
+    if (hasValue)
+    {
+      if constexpr (std::is_void_v<T>)
+      {
+        expected = std::expected<void, E>{};
+      }
+      else
+      {
+        T value{};
+        DeserializeOne(value);
+
+        expected = std::move(value);
+      }
+    }
+    else
+    {
+      E error{};
+      DeserializeOne(error);
+
+      expected = std::unexpected(std::move(error));
+    }
+  }
+
   Deserializer deserializer;
   size_t size;
 };
 class NetBinaryWriter
 {
 public:
-using is_saving = std::true_type;
+  using is_saving = std::true_type;
   using Buffer = std::vector<std::byte>;
   using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
   using Serializer = bitsery::Serializer<OutputAdapter>;
@@ -137,15 +179,43 @@ using is_saving = std::true_type;
   {
     Flush();
     return std::span<const std::byte>(buffer.data(),
-                                    serializer.adapter().writtenBytesCount());
+                                      serializer.adapter().writtenBytesCount());
   }
 
 private:
   template <typename T> void SerializeOne(T&& value)
   {
+    using Type = std::remove_cvref_t<T>;
 
-    serializer(value);
+    if constexpr (Serialization::is_std_expected_v<Type>)
+    {
+      SerializeExpected(value);
+    }
+    else
+    {
+      serializer(value);
+    }
   }
+   template <typename T, typename E>
+  void SerializeExpected(const std::expected<T, E>& expected)
+  {
+    bool hasValue = expected.has_value();
+
+    serializer(hasValue);
+
+    if (hasValue)
+    {
+      if constexpr (!std::is_void_v<T>)
+      {
+        SerializeOne(expected.value());
+      }
+    }
+    else
+    {
+      SerializeOne(expected.error());
+    }
+  }
+
   Buffer buffer;
   Serializer serializer;
 };

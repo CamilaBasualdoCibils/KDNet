@@ -78,5 +78,7 @@ public:
 
   // Non-blocking.
   virtual size_t TryReceive(std::span<ClusterMessage> messages) = 0;
+
+  virtual void Tick() = 0;
 };
 } // namespace AtlasNet::Network::Cluster

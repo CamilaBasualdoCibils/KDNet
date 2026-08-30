@@ -29,16 +29,10 @@ class AtlasNetService
 public:
   struct Options
   {
-    struct IngressSocketOption
-    {
-      Network::Ingress::IngressTransportType type;
-      uint16_t port;
-      std::string ExtraArgs;
-    };
-    std::vector<IngressSocketOption> ingressSockets;
-    Network::Cluster::ClusterTransportType clusterTransportType;
-    Network::PortType clusterListenPort;
-    Network::SocketAddress dbAddress;
+
+    Network::Cluster::ClusterTransportType clusterTransportType =
+        Network::Cluster::ClusterTransportType::INVALID;
+    Network::PortType clusterListenPort = Network::PORT_EPHEMERAL;
   };
 
 private:
@@ -49,6 +43,7 @@ private:
   const AtlasNetNodeID nodeID;
   std::atomic_bool stop_requested{false};
   std::shared_ptr<Network::Cluster::IClusterTransport> clusterTransport;
+
 public:
   AtlasNetService(AtlasNetServiceType service_type, int argc, char** argv);
   void Run();
@@ -63,6 +58,10 @@ public:
 protected:
   virtual void AddOptions(boost::program_options::options_description& desc);
   virtual void ParseOptions(const boost::program_options::variables_map& vm);
+  Network::Cluster::IClusterTransport& GetClusterTransport() const
+  {
+    return *clusterTransport;
+  }
 
 private:
   void MainLoop();

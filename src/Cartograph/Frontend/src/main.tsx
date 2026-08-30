@@ -1,14 +1,7 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import App from "./App";
-import "@tabler/core/dist/css/tabler.min.css";
+import ReactDOM from 'react-dom/client';
+import { enableFakeBackend } from './__backend';
+import { App } from './app';
 
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
+enableFakeBackend().then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(<App />);
+});

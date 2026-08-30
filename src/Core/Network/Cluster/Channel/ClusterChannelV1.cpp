@@ -28,8 +28,6 @@ bool AtlasNet::Network::Cluster::ClusterChannelV1::Send(
 
   std::scoped_lock lock(mutex_);
 
-  ProcessTimers();
-
   PeerState& peer = peers_[destination];
 
   QueuedMessage message;
@@ -71,13 +69,9 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::Flush()
 {
   std::scoped_lock lock(mutex_);
 
-  ProcessTimers();
-
   logger_->trace("Flushing {} peers", peers_.size());
   for (auto& [destination, peer] : peers_)
     FlushPeer(destination, peer);
-
-  FlushPendingAcks();
 }
 size_t AtlasNet::Network::Cluster::ClusterChannelV1::Receive(
     std::span<ClusterMessage> messages)
@@ -89,8 +83,6 @@ size_t AtlasNet::Network::Cluster::ClusterChannelV1::Receive(
   {
     {
       std::scoped_lock lock(mutex_);
-
-      ProcessTimers();
 
       const size_t count = CopyReadyMessages(messages);
 
@@ -111,25 +103,29 @@ size_t AtlasNet::Network::Cluster::ClusterChannelV1::TryReceive(
   {
     std::scoped_lock lock(mutex_);
 
-    ProcessTimers();
-
     const size_t ready = CopyReadyMessages(messages);
 
     if (ready != 0)
       return ready;
   }
   PumpTransport(false);
-  FlushPendingAcks();
 
   {
     std::scoped_lock lock(mutex_);
 
-    ProcessTimers();
-    FlushPendingAcks();
-
     return CopyReadyMessages(messages);
   }
 }
+void AtlasNet::Network::Cluster::ClusterChannelV1::Tick()
+{
+
+  PumpTransport(false);
+  std::scoped_lock lock(mutex_);
+
+  ProcessTimers();
+  FlushPendingAcks();
+}
+
 bool AtlasNet::Network::Cluster::ClusterChannelV1::FlushPeer(
     const AtlasNetNodeID& destination, PeerState& peer)
 {
@@ -263,9 +259,8 @@ AtlasNet::Network::Cluster::ClusterChannelV1::PumpTransport(bool blocking)
 
   std::array<ClusterDatagram, MaxDatagramsPerPump> packets;
 
-  const size_t received = blocking
-                              ? GetTransport()->Receive(packets)
-                              : GetTransport()->TryReceive(packets);
+  const size_t received = blocking ? GetTransport()->Receive(packets)
+                                   : GetTransport()->TryReceive(packets);
 
   if (received == 0)
     return 0;
@@ -445,7 +440,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessMessage(
   switch (GetOptions().ordering)
   {
   case OrderingMode::Unordered:
-  logger_->trace("Delivered unordered message {}", messageSequence);
+    logger_->trace("Delivered unordered message {}", messageSequence);
     readyMessages_.push_back({
         .source = source,
         .sequence = messageSequence,
@@ -458,9 +453,8 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessMessage(
   case OrderingMode::Sequenced:
     if (messageSequence <= state.highestSequencedMessage)
     {
-logger_->trace("Dropped stale sequenced message {}",
-               messageSequence);
-        return;
+      logger_->trace("Dropped stale sequenced message {}", messageSequence);
+      return;
     }
 
     state.highestSequencedMessage = messageSequence;
@@ -521,8 +515,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::DeliverOrderedMessages(
     BufferedMessage buffered = std::move(iterator->second);
 
     state.reorderBuffer.erase(iterator);
-    logger_->trace("Released buffered ordered message {}",
-               buffered.sequence);
+    logger_->trace("Released buffered ordered message {}", buffered.sequence);
     readyMessages_.push_back({
         .source = source,
         .sequence = buffered.sequence,
@@ -549,7 +542,8 @@ size_t AtlasNet::Network::Cluster::ClusterChannelV1::CopyReadyMessages(
         ClusterMessage(ready.source, GetOptions().id, ready.sequence,
                        std::move(ready.storage), ready.offset, ready.size);
   }
-logger_->trace("Returned {} ready messages", count);
+  if (count > 0)
+    logger_->trace("Returned {} ready messages", count);
   return count;
 }
 std::vector<std::byte>

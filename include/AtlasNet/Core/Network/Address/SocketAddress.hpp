@@ -10,7 +10,7 @@ namespace AtlasNet::Network
 {
 
 using PortType = uint16_t;
-
+const static inline PortType PORT_EPHEMERAL = 0;
 class ISocketAddress
 {
   PortType port = 1;

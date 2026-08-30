@@ -14,102 +14,6 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <sys/signalfd.h>
 
-inline std::vector<AtlasNet::AtlasNetService::Options::IngressSocketOption>
-ParseSocketOptions(const std::vector<std::string>& ingressOptions)
-{
-  using AN = AtlasNet::AtlasNetService;
-  std::vector<AN::Options::IngressSocketOption> result;
-
-  auto parseEntry = [&](const std::string& entry)
-  {
-    if (entry.empty())
-      return;
-
-    auto colon = entry.find(':');
-
-    std::string typeString;
-    std::string args;
-
-    if (colon == std::string::npos)
-    {
-      typeString = entry;
-    }
-    else
-    {
-      typeString = entry.substr(0, colon);
-      args = entry.substr(colon + 1);
-    }
-
-    AN::Options::IngressSocketOption option{};
-
-    bool parsedType =
-        boost::describe::enum_from_string(typeString, option.type);
-
-    if (!parsedType)
-    {
-      throw std::runtime_error("Unknown ingress transport type: " + typeString);
-    }
-
-    option.port = 0;
-
-    // Parse comma-separated args
-    std::stringstream stream(args);
-    std::string arg;
-
-    std::vector<std::string> extraArgs;
-
-    while (std::getline(stream, arg, ','))
-    {
-      auto equals = arg.find('=');
-
-      if (equals == std::string::npos)
-      {
-        extraArgs.push_back(arg);
-        continue;
-      }
-
-      auto key = arg.substr(0, equals);
-      auto value = arg.substr(equals + 1);
-
-      if (key == "port")
-      {
-        option.port = static_cast<uint16_t>(std::stoi(value));
-      }
-      else
-      {
-        extraArgs.push_back(arg);
-      }
-    }
-
-    // Preserve everything transport-specific
-    for (size_t i = 0; i < extraArgs.size(); i++)
-    {
-      if (i)
-        option.ExtraArgs += ",";
-
-      option.ExtraArgs += extraArgs[i];
-    }
-
-    result.push_back(std::move(option));
-  };
-
-  for (const auto& input : ingressOptions)
-  {
-    // Support either:
-    // ["a", "b"]
-    // or:
-    // ["a;b"]
-    std::stringstream stream(input);
-    std::string entry;
-
-    while (std::getline(stream, entry, ';'))
-    {
-      parseEntry(entry);
-    }
-  }
-
-  return result;
-}
 AtlasNet::AtlasNetService::AtlasNetService(AtlasNetServiceType service_type,
                                            int argc, char** argv)
     : signalFd(SetupSignals()), nodeID(AtlasNet::AtlasNetNodeID::Generate()),
@@ -137,7 +41,15 @@ void AtlasNet::AtlasNetService::Run()
   logger->info("Starting {}[{}] - {}...",
                boost::describe::enum_to_string(service_type, "<INVALID>"),
                nodeID.to_short_string(), nodeID.to_string());
-  logger->info("cluster messaging: {} -> {}",
+  if (options.clusterTransportType ==
+      Network::Cluster::ClusterTransportType::INVALID)
+  {
+    logger->warn(
+        "No cluster transport specified. Use --cluster-transport or "
+        "ATLASNET_CLUSTER_TRANSPORT environment variable. defaulting to UDP.");
+    options.clusterTransportType = Network::Cluster::ClusterTransportType::UDP;
+  }
+  logger->info("cluster messaging: {}:{}",
                boost::describe::enum_to_string(options.clusterTransportType,
                                                "<INVALID>"),
                options.clusterListenPort != 0
@@ -147,6 +59,9 @@ void AtlasNet::AtlasNetService::Run()
   {
 
   case Network::Cluster::ClusterTransportType::INVALID:
+throw std::runtime_error(
+        "Invalid cluster transport type. Use --cluster-transport or "
+        "ATLASNET_CLUSTER_TRANSPORT environment variable.");
   case Network::Cluster::ClusterTransportType::UDP:
     clusterTransport = std::make_shared<Network::Cluster::UDPClusterTransport>(
         options.clusterListenPort, nullptr);
@@ -154,13 +69,8 @@ void AtlasNet::AtlasNetService::Run()
   case Network::Cluster::ClusterTransportType::DPDK:
     break;
   }
-  for (const auto& socket : options.ingressSockets)
-  {
-    logger->info("Ingress Socket: {}:{} {}",
-                 boost::describe::enum_to_string(socket.type, "<INVALID>"),
-                 socket.port, socket.ExtraArgs);
-  }
-
+  GetLogger()->info("Cluster transport listening on port {}",
+                    clusterTransport->GetListenPort());
   // Initialize the service
   Initialize();
 
@@ -174,9 +84,7 @@ void AtlasNet::AtlasNetService::AddOptions(
   namespace po = boost::program_options;
 
   desc.add_options()
-      // Ingress Sockets
-      ("ingress-sockets", po::value<std::vector<std::string>>()->multitoken(),
-       "Ingress Socket Types. EX: SteamNetSock:port=8888;UDP:port=1262")
+
       // Node Sockets
       ("cluster-port", po::value<uint16_t>(),
        "Internal cluster port for node-to-node communication. EX: 1925");
@@ -191,22 +99,6 @@ void AtlasNet::AtlasNetService::ParseOptions(
                  ? static_cast<uint16_t>(
                        std::stoi(std::getenv("ATLASNET_CLUSTER_PORT")))
                  : 0); // Default to port 0 (ephemeral)
-
-  options.ingressSockets = ParseSocketOptions(
-      !vm["ingress-sockets"].empty()
-          ? vm["ingress-sockets"].as<std::vector<std::string>>()
-          : (std::getenv("ATLASNET_INGRESS_SOCKETS")
-                 ? std::vector<std::string>{std::getenv(
-                       "ATLASNET_INGRESS_SOCKETS")}
-                 : std::vector<std::string>{}));
-  if (options.ingressSockets.empty())
-  {
-    logger->warn("AtlasNetService: No ingress sockets specified.\n Use "
-                 "--ingress-sockets "
-                 "or ATLASNET_INGRESS_SOCKETS environment variable.\n This "
-                 "service will not "
-                 "accept any incoming client connections.");
-  }
 }
 
 void AtlasNet::AtlasNetService::MainLoop()

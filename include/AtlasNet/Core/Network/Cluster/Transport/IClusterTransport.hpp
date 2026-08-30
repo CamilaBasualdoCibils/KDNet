@@ -34,6 +34,10 @@ protected:
   {
     return *nodeResolver;
   }
+  void SetListenPort(PortType port)
+  {
+    listenPort = port;
+  }
 
 private:
   PortType listenPort;

@@ -1,10 +1,7 @@
 #pragma once
 
-#include "atlasnet/core/RPC/RPCConcepts.hpp"
-#include "atlasnet/core/network/address/SocketAddress.hpp"
-#include "atlasnet/core/messages/MessageSystem.hpp"
-#include "atlasnet/core/serialize/BinarySerializer.hpp"
-#include "atlasnet/core/tasks/TaskSystem.hpp"
+#include "AtlasNet/Core/Network/Intent/ClusterIntentChannel.hpp"
+#include "RPCConcepts.hpp"
 #include "spdlog/sinks/stdout_color_sinks-inl.h"
 #include <future>
 #include <shared_mutex>
@@ -19,8 +16,7 @@ class RPCSystem
 public:
   struct Config
   {
-    TaskSystem* taskSystem = nullptr;
-    MessageSystem* messageSystem = nullptr;
+    std::shared_ptr<Network::Intent::ClusterIntentChannel> intentChannel;
     std::chrono::milliseconds timeout = std::chrono::seconds(5);
   };
   RPCSystem(const Config& config);

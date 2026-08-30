@@ -1,16 +1,12 @@
 #pragma once
 
-#include "atlasnet/core/network/address/SocketAddress.hpp"
-#include "atlasnet/core/messages/Message.hpp"
-#include "atlasnet/core/messages/MessageSystem.hpp"
-#include "atlasnet/core/serialize/ByteWriter.hpp"
-#include "atlasnet/core/utils/FixedString.hpp"
-#include "atlasnet/core/utils/MacroConcepts.hpp"
+#include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
+#include <boost/describe.hpp>
 #include <cstdint>
 #include <expected>
 #include <span>
 #include <type_traits>
-#include <boost/describe.hpp>
+#include <variant>
 namespace AtlasNet
 {
 using RPCID = uint32_t;
@@ -36,34 +32,9 @@ using RPCResult = TRPCResult<std::vector<uint8_t>>;
 struct RPCResultW
 {
   RPCResult result;
-  void Serialize(ByteWriter& ar) const
+  template <typename Archive> void serialize(Archive& ar) const
   {
-    ar(result.has_value());
-    if (result.has_value())
-    {
-      ar(result.value());
-    }
-    else
-    {
-      ar(static_cast<uint8_t>(result.error()));
-    }
-  }
-  void Deserialize(ByteReader& ar)
-  {
-    bool hasValue;
-    ar(hasValue);
-    if (hasValue)
-    {
-      std::vector<uint8_t> value;
-      ar(value);
-      result = std::move(value);
-    }
-    else
-    {
-      uint8_t errorCode;
-      ar(errorCode);
-      result = std::unexpected(static_cast<RPCError>(errorCode));
-    }
+    ar(result);
   }
 };
 using RPC_BindCallFunction_Raw =
@@ -78,45 +49,47 @@ struct RPCRequestContext
   RPCCallID callId;
   bool responseExpected;
 
-  void Serialize(ByteWriter& ar) const
+  template <typename Archive> void serialize(Archive& ar) const
   {
-    ar(rpcId);
-    ar(callId);
-    ar(responseExpected);
-  }
-  void Deserialize(ByteReader& ar)
-  {
-    ar(rpcId);
-    ar(callId);
-    ar(responseExpected);
+    ar(rpcId, callId, responseExpected);
   }
 };
 struct RPCResponseContext
 {
   RPCID rpcId;
   RPCCallID callId;
-  void Serialize(ByteWriter& ar) const
+  template <typename Archive> void serialize(Archive& ar) const
   {
-    ar(rpcId);
-    ar(callId);
-  }
-  void Deserialize(ByteReader& ar)
-  {
-    ar(rpcId);
-    ar(callId);
+    ar(rpcId, callId);
   }
 };
-/* using RPCRequestMessage = Message<"RPCRequestMessage", RPCRequestContext, std::vector<uint8_t>>;
-using RPCResponseMessage = Message<"RPCResponseMessage", RPCResponseContext, RPCResultW>;
+/* using RPCRequestMessage = Message<"RPCRequestMessage", RPCRequestContext,
+std::vector<uint8_t>>; using RPCResponseMessage = Message<"RPCResponseMessage",
+RPCResponseContext, RPCResultW>;
  */
-ATLASNET_MESSAGE(RPCRequestMessage,
+enum class RPCMessageType : uint8_t
+{
+  Request = 0,
+  Response = 1,
+};
+struct RPCHeader
+{
+  RPCMessageType type;
+  std::variant<RPCRequestContext, RPCResponseContext> context;
+
+  template <typename Archive> void serialize(Archive& ar) const
+  {
+    ar(type, context);
+  }
+};
+/* ATLASNET_MESSAGE(RPCRequestMessage,
                  ATLASNET_MESSAGE_DATA(RPCRequestContext, context),
                  ATLASNET_MESSAGE_DATA(MessageSendMode, sendMode),
                  ATLASNET_MESSAGE_DATA(std::vector<uint8_t>, payload));
 ATLASNET_MESSAGE(RPCResponseMessage,
                  ATLASNET_MESSAGE_DATA(RPCResponseContext, context),
                  ATLASNET_MESSAGE_DATA(RPCResultW, result));
-
+ */
 constexpr RPCID HashRPCName(const char* str)
 {
   RPCID hash = 2166136261u;
@@ -133,8 +106,7 @@ template <typename Archive, typename... Ts>
 concept DefaultRPCSerializable =
     requires(Archive& ar, Ts&&... args) { ar(std::forward<Ts>(args)...); };
 
-template <FixedString Name, typename Return, typename... Args>
-struct RPC
+template <FixedString Name, typename Return, typename... Args> struct RPC
 {
   using ReturnType = Return;
   using ArgsTuple = std::tuple<Args...>;

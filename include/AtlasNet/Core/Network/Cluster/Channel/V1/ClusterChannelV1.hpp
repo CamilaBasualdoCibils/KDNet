@@ -92,6 +92,7 @@ public:
   size_t Receive(std::span<ClusterMessage> messages) override;
 
   size_t TryReceive(std::span<ClusterMessage> messages) override;
+  void Tick() override;
 
 private:
   using Clock = std::chrono::steady_clock;
@@ -168,7 +169,7 @@ private:
   std::mutex mutex_;
   std::shared_ptr<spdlog::logger> logger_;
 
-  static constexpr auto RetransmissionTimeout = std::chrono::milliseconds(100);
+  static constexpr auto RetransmissionTimeout = std::chrono::milliseconds(1000);
 
   static constexpr uint32_t MaxRetransmissions = 10;
 

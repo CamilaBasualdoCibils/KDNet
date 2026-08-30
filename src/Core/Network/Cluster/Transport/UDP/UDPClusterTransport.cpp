@@ -32,52 +32,85 @@ AtlasNet::Network::Cluster::UDPClusterTransport::UDPClusterTransport(
     PortType listenPort, std::shared_ptr<IClusterResolver> resolver)
     : IClusterTransport(listenPort, std::move(resolver))
 {
-  socket_ = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    socket_ = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 
-  if (socket_ < 0)
-  {
-    throw std::runtime_error("Failed to create UDP socket: " +
-                             std::string(std::strerror(errno)));
-  }
+    if (socket_ < 0)
+    {
+        throw std::runtime_error(
+            "Failed to create UDP socket: " +
+            std::string(std::strerror(errno)));
+    }
 
-  // Allow IPv4 mapped addresses too
-  int v6Only = 0;
-  if (setsockopt(socket_, IPPROTO_IPV6, IPV6_V6ONLY, &v6Only, sizeof(v6Only)) <
-      0)
-  {
-    close(socket_);
-    throw std::runtime_error("Failed to disable IPV6_V6ONLY");
-  }
+    // Allow IPv4 mapped addresses too
+    int v6Only = 0;
+    if (setsockopt(socket_, IPPROTO_IPV6, IPV6_V6ONLY,
+                   &v6Only, sizeof(v6Only)) < 0)
+    {
+        close(socket_);
+        throw std::runtime_error("Failed to disable IPV6_V6ONLY");
+    }
 
-  // Allow fast restart after crashes
-  int reuse = 1;
-  setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    // Allow fast restart after crashes
+    int reuse = 1;
+    setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 
-  sockaddr_in6 addr{};
-  addr.sin6_family = AF_INET6;
-  addr.sin6_port = htons(GetListenPort());
+    sockaddr_in6 addr{};
+    addr.sin6_family = AF_INET6;
+    addr.sin6_addr = in6addr_any;
 
-  // Bind all interfaces
-  addr.sin6_addr = in6addr_any;
+    // Port 0 tells the OS to choose an ephemeral port.
+    addr.sin6_port =
+        htons(listenPort == PORT_EPHEMERAL ? 0 : listenPort);
 
-  if (::bind(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0)
-  {
-    close(socket_);
-    logger->error("Failed to bind UDP socket on port {}: {}",
-                  GetListenPort(), std::strerror(errno));
-    throw std::runtime_error("Failed to bind UDP socket: " +
-                             std::string(std::strerror(errno)));
-  }
+    if (::bind(socket_,
+               reinterpret_cast<sockaddr*>(&addr),
+               sizeof(addr)) < 0)
+    {
+        const auto error = std::string(std::strerror(errno));
+        close(socket_);
 
-  // Non-blocking
-  int flags = fcntl(socket_, F_GETFL, 0);
+        logger->error("Failed to bind UDP socket: {}", error);
+        throw std::runtime_error("Failed to bind UDP socket: " + error);
+    }
 
-  if (flags < 0 || fcntl(socket_, F_SETFL, flags | O_NONBLOCK) < 0)
-  {
-    close(socket_);
+    // If we requested an ephemeral port, find out which one
+    // the OS actually assigned.
+    if (listenPort == PORT_EPHEMERAL)
+    {
+        sockaddr_in6 boundAddr{};
+        socklen_t boundAddrLen = sizeof(boundAddr);
 
-    throw std::runtime_error("Failed to set UDP socket non-blocking");
-  }
+        if (::getsockname(
+                socket_,
+                reinterpret_cast<sockaddr*>(&boundAddr),
+                &boundAddrLen) < 0)
+        {
+            const auto error = std::string(std::strerror(errno));
+            close(socket_);
+
+            throw std::runtime_error(
+                "Failed to get assigned UDP port: " + error);
+        }
+
+        SetListenPort(ntohs(boundAddr.sin6_port));
+
+        logger->debug(
+            "UDP socket assigned ephemeral port {}",
+            GetListenPort());
+    }
+
+    // Non-blocking
+    int flags = fcntl(socket_, F_GETFL, 0);
+
+    if (flags < 0 ||
+        fcntl(socket_, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+        const auto error = std::string(std::strerror(errno));
+        close(socket_);
+
+        throw std::runtime_error(
+            "Failed to set UDP socket non-blocking: " + error);
+    }
 }
 
 bool AtlasNet::Network::Cluster::UDPClusterTransport::SendMessage(
@@ -176,6 +209,7 @@ size_t AtlasNet::Network::Cluster::UDPClusterTransport::TryReceive(
       logger->error("recvfrom failed: {}", strerror(errno));
       break;
     }
+    
     std::optional<AtlasNetNodeID> nodeID = GetResolver().ResolveNodeID(SocketAddress(reinterpret_cast<sockaddr*>(&addr)));
     if (!nodeID.has_value())
     {

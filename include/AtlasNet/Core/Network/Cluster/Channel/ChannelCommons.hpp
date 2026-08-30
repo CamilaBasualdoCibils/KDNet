@@ -34,4 +34,9 @@ enum class BatchMode : uint8_t
     Manual,
 };
 
+enum class ReservedChannels
+{
+    DB_FAST = 0, //reliable, no batching
+    DB_BATCH = 1, //reliable, batching
+};
 } // namespace AtlasNet::Network::Cluster

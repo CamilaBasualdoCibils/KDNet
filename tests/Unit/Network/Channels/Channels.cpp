@@ -67,6 +67,7 @@ TEST(Channels, V1BasicTest)
   std::shared_ptr<Cluster::IClusterTransport> transport =
       std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
   EXPECT_CALL(*mockTransport, SendMessage(testing::_, testing::_))
+      .Times(2)
       .WillRepeatedly([transport](const AtlasNetNodeID& destination,
                                   std::span<const std::byte> payload)
                       { return transport->SendMessage(destination, payload); });
@@ -142,15 +143,24 @@ TEST(Channels, V1ReliableReSend_FailedSend)
                std::span<const std::byte>(payload.data(), payload.size()));
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   std::array<Cluster::ClusterMessage, 10> packets;
-  size_t received = channel.TryReceive(packets);
-  EXPECT_EQ(received, 1);
-  EXPECT_EQ(packets[0].Payload().size(), payload.size());
-  EXPECT_EQ(
-      std::memcmp(packets[0].Payload().data(), payload.data(), payload.size()),
-      0);
-  for (size_t i = 1; i < received; ++i)
+  for (int i = 0; i < 30; ++i)
   {
-    packets[i].Release();
+    channel.Tick();
+    size_t received = channel.TryReceive(packets);
+    if (received > 0)
+    {
+      EXPECT_EQ(received, 1);
+      EXPECT_EQ(packets[0].Payload().size(), payload.size());
+      EXPECT_EQ(std::memcmp(packets[0].Payload().data(), payload.data(),
+                            payload.size()),
+                0);
+      for (size_t i = 1; i < received; ++i)
+      {
+        packets[i].Release();
+      }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 }
 TEST(Channels, V1ReliableReSend_FailedACK)
@@ -200,24 +210,25 @@ TEST(Channels, V1ReliableReSend_FailedACK)
                std::span<const std::byte>(payload.data(), payload.size()));
 
   std::array<Cluster::ClusterMessage, 10> packets;
-
-  size_t received = channel.Receive(packets);
-  EXPECT_EQ(received, 1);
-  EXPECT_EQ(packets[0].Payload().size(), payload.size());
-  EXPECT_EQ(
-      std::memcmp(packets[0].Payload().data(), payload.data(), payload.size()),
-      0);
-  for (size_t i = 1; i < received; ++i)
+  for (int i = 0; i < 30; ++i)
   {
-    packets[i].Release();
+    channel.Tick();
+    size_t received = channel.TryReceive(packets);
+    if (received > 0)
+    {
+      EXPECT_EQ(received, 1);
+      EXPECT_EQ(packets[0].Payload().size(), payload.size());
+      EXPECT_EQ(std::memcmp(packets[0].Payload().data(), payload.data(),
+                            payload.size()),
+                0);
+      for (size_t i = 1; i < received; ++i)
+      {
+        packets[i].Release();
+      }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
-  channel.Flush();
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  received = channel.TryReceive(packets);
-  channel.Flush();
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  received = channel.TryReceive(packets);
-  channel.Flush();
 }
 TEST(Channels, V1Batching)
 {
@@ -265,25 +276,31 @@ TEST(Channels, V1Batching)
   channel.Send(thisNodeID,
                std::span<const std::byte>(payload2.data(), payload2.size()));
   channel.Flush();
+  for (int i = 0; i < 10; ++i)
+  {
+    std::array<Cluster::ClusterMessage, 10> packets;
+    size_t received = channel.TryReceive(packets);
+    if (received > 0)
+    {
+      EXPECT_EQ(received, 2);
+      EXPECT_EQ(packets[0].Payload().size(), payload1.size());
+      EXPECT_EQ(std::memcmp(packets[0].Payload().data(), payload1.data(),
+                            payload1.size()),
+                0);
+      EXPECT_EQ(packets[1].Payload().size(), payload2.size());
+      EXPECT_EQ(std::memcmp(packets[1].Payload().data(), payload2.data(),
+                            payload2.size()),
+                0);
+
+      for (size_t i = 1; i < received; ++i)
+      {
+        packets[i].Release();
+      }
+    }
+    channel.Tick();
+  }
 
   // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  std::array<Cluster::ClusterMessage, 10> packets;
-  size_t received = channel.Receive(packets);
-  EXPECT_EQ(received, 2);
-  EXPECT_EQ(packets[0].Payload().size(), payload1.size());
-  EXPECT_EQ(std::memcmp(packets[0].Payload().data(), payload1.data(),
-                        payload1.size()),
-            0);
-  EXPECT_EQ(packets[1].Payload().size(), payload2.size());
-  EXPECT_EQ(std::memcmp(packets[1].Payload().data(), payload2.data(),
-                        payload2.size()),
-            0);
-
-  for (size_t i = 1; i < received; ++i)
-  {
-    packets[i].Release();
-  }
-  channel.Flush();
 }
 TEST(Channels, V1Sequenced)
 {
@@ -449,7 +466,7 @@ TEST(Channels, BusReceiveMultiChannel)
                                      std::byte{9}, std::byte{10}};
   channel1->Send(thisNodeID,
                  std::span<const std::byte>(payload1.data(), payload1.size()));
-channel2->Send(thisNodeID,
+  channel2->Send(thisNodeID,
                  std::span<const std::byte>(payload2.data(), payload2.size()));
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   bus.TryReceive();

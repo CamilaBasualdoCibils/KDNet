@@ -5,6 +5,8 @@
 #include "AtlasNet/Core/Network/Cluster/Channel/IClusterChannel.hpp"
 #include "AtlasNet/Core/Network/Intent/ClusterIntentChannel.hpp"
 #include "AtlasNet/Core/Network/Intent/IntentRecepient.hpp"
+#include "AtlasNet/Core/Network/Transport/INetworkTransport.hpp"
+#include "AtlasNet/Core/Network/Transport/UDP/UDPNetworkTransport.hpp"
 #include "gmock/gmock.h"
 #include <gtest/gtest.h>
 #include <spdlog/common.h>
@@ -37,7 +39,7 @@ public:
       : Cluster::ChannelTransportProxy(channelBus, channelID)
   {
   }
-  MOCK_METHOD(bool, SendMessage,
+  MOCK_METHOD(bool, Send,
               (const AtlasNetNodeID& destination,
                std::span<const std::byte> payload),
               (override));
@@ -62,11 +64,14 @@ TEST(IntentChannel, Self)
   EXPECT_CALL(*clusterResolver, ResolveNodeAddress(testing::_))
       .WillRepeatedly(testing::Return(
           Network::SocketAddress(Network::IPv6::Loopback(), listenPort)));
-EXPECT_CALL(*clusterResolver,
+  EXPECT_CALL(*clusterResolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  std::shared_ptr<Cluster::IClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort,
+  std::shared_ptr<INetworkTransport> baseTransport =
+      std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+          Network::SocketAddress(Network::IPv6::Loopback(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(baseTransport,
                                                      clusterResolver);
   Cluster::ChannelBus bus({.transport = transport});
   Cluster::ChannelOptions options{
@@ -111,7 +116,7 @@ EXPECT_CALL(*clusterResolver,
   }
   EXPECT_TRUE(received) << "Failed to receive the message after 15 attempts";
 }
-TEST(IntentChannel,Redirect)
+TEST(IntentChannel, Redirect)
 {
   /* spdlog::set_level(spdlog::level::trace);
   const AtlasNetNodeID thisNodeID = AtlasNetNodeID::Generate();

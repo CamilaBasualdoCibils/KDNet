@@ -5,8 +5,10 @@
 #include "AtlasNet/Core/Network/Cluster/Channel/ChannelTransportProxy.hpp"
 #include "AtlasNet/Core/Network/Cluster/Channel/IClusterChannel.hpp"
 #include "AtlasNet/Core/Network/Cluster/Channel/V1/ClusterChannelV1.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/ClusterTransport.hpp"
 #include "AtlasNet/Core/Network/Cluster/Transport/IClusterResolver.hpp"
-#include "AtlasNet/Core/Network/Cluster/Transport/UDP/UDPClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Transport/INetworkTransport.hpp"
+#include "AtlasNet/Core/Network/Transport/UDP/UDPNetworkTransport.hpp"
 #include "gmock/gmock.h"
 #include <gtest/gtest.h>
 int main(int argc, char** argv)
@@ -37,7 +39,7 @@ public:
       : Cluster::ChannelTransportProxy(channelBus, channelID)
   {
   }
-  MOCK_METHOD(bool, SendMessage,
+  MOCK_METHOD(bool, Send,
               (const AtlasNetNodeID& destination,
                std::span<const std::byte> payload),
               (override));
@@ -63,14 +65,16 @@ TEST(Channels, V1BasicTest)
       .WillRepeatedly(testing::Return(thisNodeID));
   std::shared_ptr<MockChannelTransport> mockTransport =
       std::make_shared<MockChannelTransport>(nullptr, 0);
-
-  std::shared_ptr<Cluster::IClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
-  EXPECT_CALL(*mockTransport, SendMessage(testing::_, testing::_))
+  std::shared_ptr<INetworkTransport> networkTransport =
+      std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+          Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
+  EXPECT_CALL(*mockTransport, Send(testing::_, testing::_))
       .Times(2)
       .WillRepeatedly([transport](const AtlasNetNodeID& destination,
                                   std::span<const std::byte> payload)
-                      { return transport->SendMessage(destination, payload); });
+                      { return transport->Send(destination, payload); });
   EXPECT_CALL(*mockTransport, TryReceive(testing::_))
       .WillRepeatedly([transport](std::span<Cluster::ClusterDatagram> packets)
                       { return transport->TryReceive(packets); });
@@ -105,8 +109,10 @@ TEST(Channels, V1ReliableReSend_FailedSend)
   const PortType listenPort = 12345;
   std::shared_ptr<MockClusterResolver> resolver =
       std::make_shared<MockClusterResolver>();
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+  std::shared_ptr<INetworkTransport> networkTransport =
+      std::make_shared<Network::UDPNetworkTransport>("NetworkTransport", Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   std::shared_ptr<MockChannelTransport> mockTransport =
       std::make_shared<MockChannelTransport>(nullptr, 0);
 
@@ -117,12 +123,12 @@ TEST(Channels, V1ReliableReSend_FailedSend)
   EXPECT_CALL(*resolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  EXPECT_CALL(*mockTransport, SendMessage(testing::_, testing::_))
+  EXPECT_CALL(*mockTransport, Send(testing::_, testing::_))
       .Times(3) // 1. send  fail 2.retry 3. ACK
       .WillOnce(testing::Return(false))
       .WillRepeatedly([transport](const AtlasNetNodeID& destination,
                                   std::span<const std::byte> payload)
-                      { return transport->SendMessage(destination, payload); });
+                      { return transport->Send(destination, payload); });
   EXPECT_CALL(*mockTransport, TryReceive(testing::_))
       .WillRepeatedly([transport](std::span<Cluster::ClusterDatagram> packets)
                       { return transport->TryReceive(packets); });
@@ -169,8 +175,11 @@ TEST(Channels, V1ReliableReSend_FailedACK)
   const PortType listenPort = 12345;
   std::shared_ptr<MockClusterResolver> resolver =
       std::make_shared<MockClusterResolver>();
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+  std::shared_ptr<INetworkTransport> networkTransport =
+      std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+          Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   std::shared_ptr<MockChannelTransport> mockTransport =
       std::make_shared<MockChannelTransport>(nullptr, 0);
 
@@ -181,15 +190,15 @@ TEST(Channels, V1ReliableReSend_FailedACK)
   EXPECT_CALL(*resolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  EXPECT_CALL(*mockTransport, SendMessage(testing::_, testing::_))
+  EXPECT_CALL(*mockTransport, Send(testing::_, testing::_))
       .Times(4) // 1. send 2.ACK fail 3.retry 4. ACK
       .WillOnce([transport](const AtlasNetNodeID& destination,
                             std::span<const std::byte> payload)
-                { return transport->SendMessage(destination, payload); })
+                { return transport->Send(destination, payload); })
       .WillOnce(testing::Return(false))
       .WillRepeatedly([transport](const AtlasNetNodeID& destination,
                                   std::span<const std::byte> payload)
-                      { return transport->SendMessage(destination, payload); });
+                      { return transport->Send(destination, payload); });
   EXPECT_CALL(*mockTransport, TryReceive(testing::_))
       .WillRepeatedly([transport](std::span<Cluster::ClusterDatagram> packets)
                       { return transport->TryReceive(packets); });
@@ -236,8 +245,11 @@ TEST(Channels, V1Batching)
   const PortType listenPort = 12345;
   std::shared_ptr<MockClusterResolver> resolver =
       std::make_shared<MockClusterResolver>();
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+      std::shared_ptr<INetworkTransport> networkTransport =
+          std::make_shared<Network::UDPNetworkTransport>(
+              "NetworkTransport", Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   std::shared_ptr<MockChannelTransport> mockTransport =
       std::make_shared<MockChannelTransport>(nullptr, 0);
 
@@ -248,11 +260,11 @@ TEST(Channels, V1Batching)
   EXPECT_CALL(*resolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  EXPECT_CALL(*mockTransport, SendMessage(testing::_, testing::_))
+  EXPECT_CALL(*mockTransport, Send(testing::_, testing::_))
       .Times(2)
       .WillRepeatedly([transport](const AtlasNetNodeID& destination,
                                   std::span<const std::byte> payload)
-                      { return transport->SendMessage(destination, payload); });
+                      { return transport->Send(destination, payload); });
   EXPECT_CALL(*mockTransport, TryReceive(testing::_))
       .WillRepeatedly([transport](std::span<Cluster::ClusterDatagram> packets)
                       { return transport->TryReceive(packets); });
@@ -308,8 +320,11 @@ TEST(Channels, V1Sequenced)
   const PortType listenPort = 12345;
   std::shared_ptr<MockClusterResolver> resolver =
       std::make_shared<MockClusterResolver>();
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+      std::shared_ptr<INetworkTransport> networkTransport =
+          std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+              Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   std::shared_ptr<MockChannelTransport> mockTransport =
       std::make_shared<MockChannelTransport>(nullptr, 0);
 
@@ -320,10 +335,10 @@ TEST(Channels, V1Sequenced)
   EXPECT_CALL(*resolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  EXPECT_CALL(*mockTransport, SendMessage(testing::_, testing::_))
+  EXPECT_CALL(*mockTransport, Send(testing::_, testing::_))
       .WillRepeatedly([transport](const AtlasNetNodeID& destination,
                                   std::span<const std::byte> payload)
-                      { return transport->SendMessage(destination, payload); });
+                      { return transport->Send(destination, payload); });
   EXPECT_CALL(*mockTransport, TryReceive(testing::_))
       .WillRepeatedly([transport](std::span<Cluster::ClusterDatagram> packets)
                       { return transport->TryReceive(packets); });
@@ -370,8 +385,11 @@ TEST(Channels, BusSend)
   const PortType listenPort = 12345;
   std::shared_ptr<MockClusterResolver> resolver =
       std::make_shared<MockClusterResolver>();
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+      std::shared_ptr<INetworkTransport> networkTransport =
+          std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+              Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   Cluster::ChannelBus bus({.transport = transport});
   Cluster::ChannelOptions options{
       .id = 1,
@@ -399,8 +417,11 @@ TEST(Channels, BusReceive)
   EXPECT_CALL(*resolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+      std::shared_ptr<INetworkTransport> networkTransport =
+          std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+              Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   Cluster::ChannelBus bus({.transport = transport});
   Cluster::ChannelOptions options{
       .id = 1,
@@ -442,8 +463,11 @@ TEST(Channels, BusReceiveMultiChannel)
   EXPECT_CALL(*resolver,
               ResolveNodeID(testing::A<const Network::SocketAddress&>()))
       .WillRepeatedly(testing::Return(thisNodeID));
-  std::shared_ptr<Cluster::UDPClusterTransport> transport =
-      std::make_shared<Cluster::UDPClusterTransport>(listenPort, resolver);
+      std::shared_ptr<INetworkTransport> networkTransport =
+          std::make_shared<Network::UDPNetworkTransport>("NetworkTransport",
+              Network::SocketAddress(Network::IPv6::Any(), listenPort));
+  std::shared_ptr<Cluster::ClusterTransport> transport =
+      std::make_shared<Cluster::ClusterTransport>(networkTransport, resolver);
   Cluster::ChannelBus bus({.transport = transport});
   auto channel1 = bus.MakeChannel({
       .id = 1,

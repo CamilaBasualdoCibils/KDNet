@@ -8,19 +8,11 @@ namespace Network
 {
 
 
-struct NetworkNodeInfo
+enum class PollType
 {
-  AtlasNetNodeID nodeID;
-  float BaseWeight = 0.0f;
-  std::string serverID;
-  std::string rack;
-  std::string region;
-  uint32_t DesiredConnections;
+  Blocking,
+  NonBlocking
 };
-struct NetworkEdge
-{
-};
-
 
 } // namespace Network
 } // namespace AtlasNet

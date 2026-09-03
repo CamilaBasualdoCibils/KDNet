@@ -1,4 +1,5 @@
 #pragma once
+#include "AtlasNet/Core/Network/NetworkCommons.hpp"
 #include "AtlasNet/Core/Network/RPC/RPCCommons.hpp"
 #include "AtlasNet/Core/Serialization/NetBinarySerializer.hpp"
 #include <atomic>
@@ -73,7 +74,7 @@ public:
   void Call(const Target& target, std::string_view methodName,
             std::span<const std::byte> payload)
   {
-    logger->info("Calling RPC {} on target {}[ResponseExpected={}]", methodName,
+    logger->debug("Calling RPC {} on target {}[ResponseExpected={}]", methodName,
                  target.to_string(), false);
     RPCMethodID methodId = HashRPC(methodName);
 
@@ -84,7 +85,7 @@ public:
   Call_R(const Target& target, std::string_view methodName,
          std::span<const std::byte> payload)
   {
-    logger->info("Calling RPC {} on target {}[ResponseExpected={}]", methodName,
+    logger->debug("Calling RPC {} on target {}[ResponseExpected={}]", methodName,
                  target.to_string(), true);
     RPCMethodID methodId = HashRPC(methodName);
 
@@ -117,7 +118,7 @@ public:
     }
     else
     {
-      logger->info("Calling RPC {} on target {}[ResponseExpected={}]",
+      logger->debug("Calling RPC {} on target {}[ResponseExpected={}]",
                    (std::string_view)rpc::NameString, target.to_string(), true);
       RPCMethodID methodId = HashRPC(rpc::NameString);
 
@@ -143,9 +144,9 @@ public:
       return future;
     }
   }
-  void Poll()
+  void Poll(PollType pollType)
   {
-    _ImplPoll();
+    _ImplPoll(pollType);
   }
 
 protected:
@@ -167,7 +168,7 @@ protected:
   }
   virtual void _ImplSendPacket(const Target& target,
                                std::span<const std::byte> packetdata) = 0;
-  virtual void _ImplPoll() = 0;
+  virtual void _ImplPoll(PollType pollType) = 0;
   void HandleIncomingPacket(const Caller& caller, const Target& intendedTarget,
                             std::span<const std::byte> data)
   {
@@ -193,6 +194,8 @@ protected:
       RPCResult result;
       CallContext callContext{.intendedTarget = intendedTarget,
                               .caller = caller};
+                              logger->debug("Calling RPC method ID {} from caller {} with intended target {}",
+                      header.methodId, CallerToString(caller), TargetToString(intendedTarget));
       result = it->second(callContext, payload);
       NetBinaryWriter resultWriter;
       resultWriter(result);

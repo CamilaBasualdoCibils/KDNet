@@ -78,17 +78,17 @@ CMD ["valkey-server","--loadmodule","/atlasnet/libAtlasNetDB.so"]
 
 FROM nginx:alpine AS atlasnet-cartograph-dev
 
-COPY --from=atlasnet-src /atlasnet/src/Cartograph/Frontend /atlasnet/AtlasNetCartographFrontend
-
-WORKDIR /atlasnet/AtlasNetCartographFrontend
-
-RUN apk add --no-cache nodejs npm gettext
-
-RUN npm install && npm run build
-
-COPY --from=atlasnet-src /atlasnet/src/Cartograph/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
-COPY --from=atlasnet-src /atlasnet/src/Cartograph/nginx/entrypoint.sh /entrypoint.sh
-
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+#COPY --from=atlasnet-src /atlasnet/src/Cartograph/Frontend /atlasnet/AtlasNetCartographFrontend
+#
+#WORKDIR /atlasnet/AtlasNetCartographFrontend
+#
+#RUN apk add --no-cache nodejs npm gettext
+#
+#RUN npm install && npm run build
+#
+#COPY --from=atlasnet-src /atlasnet/src/Cartograph/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+#COPY --from=atlasnet-src /atlasnet/src/Cartograph/nginx/entrypoint.sh /entrypoint.sh
+#
+#RUN chmod +x /entrypoint.sh
+#
+#ENTRYPOINT ["/entrypoint.sh"]

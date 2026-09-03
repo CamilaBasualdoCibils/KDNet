@@ -20,7 +20,7 @@ public:
       std::string ExtraArgs;
     };
     std::vector<IngressSocketOption> ingressSockets;
-    Network::SocketAddress dbAddress;
+    Network::SocketAddress dbHandshakeAddress;
   };
 
   AtlasNetNode(int argc, char** argv)
@@ -36,6 +36,8 @@ private:
   void Tick() override {}
 
   NodeConfig nodeConfig;
+
+
 
 };
 } // namespace AtlasNet

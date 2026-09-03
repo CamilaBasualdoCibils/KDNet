@@ -4,8 +4,7 @@
 #include "AtlasNet/Core/Network/Cluster/Channel/V1/ClusterChannelV1.hpp"
 #include "AtlasNet/Core/Network/Cluster/Transport/ClusterDatagram.hpp"
 #include "AtlasNet/Core/Network/Cluster/Transport/IClusterResolver.hpp"
-#include "AtlasNet/Core/Network/Cluster/Transport/IClusterTransport.hpp"
-#include "AtlasNet/Core/Network/Cluster/Transport/UDP/UDPClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/ClusterTransport.hpp"
 #include <memory>
 #include <spdlog/logger.h>
 #include <unordered_map>
@@ -14,7 +13,7 @@ namespace AtlasNet::Network::Cluster
 class ChannelBus
 {
 
-  std::shared_ptr<IClusterTransport> m_Transport;
+  std::shared_ptr<ClusterTransport> m_Transport;
   std::unordered_map<ChannelID,
                      std::pair<std::shared_ptr<ChannelTransportProxy>,
                                std::shared_ptr<IClusterChannel>>>
@@ -25,7 +24,7 @@ class ChannelBus
 public:
   struct ChannelBusOptions
   {
-    std::shared_ptr<IClusterTransport> transport;
+    std::shared_ptr<ClusterTransport> transport;
   };
   ChannelBus(const ChannelBusOptions& options) : m_Transport(options.transport)
   {
@@ -43,7 +42,7 @@ public:
   bool SendMessage(ChannelID channelID, const AtlasNetNodeID& destination,
                    std::span<const std::byte> payload)
   {
-    return m_Transport->SendMessage(destination, payload);
+    return m_Transport->Send(destination, payload);
   }
   void Receive()
   {
@@ -70,7 +69,7 @@ private:
       ChannelV1::PacketHeader header;
       try
       {
-        NetBinaryReader reader(datagram.payload);
+        NetBinaryReader reader(datagram.GetPayload());
         header.serialize(reader);
       }
       catch (const std::exception& e)

@@ -20,6 +20,10 @@ set(ATLASNET_EXAMPLES ON CACHE BOOL "Build AtlasNet examples")
 set(ATLASNET_TESTS ON CACHE BOOL "Build AtlasNet tests")
 set(ATLASNET_DEV ON CACHE BOOL "Build AtlasNet dev")
 set(ATLASNET_CARTOGRAPH ON CACHE BOOL "Build AtlasNet web interface")
+add_compile_definitions(
+    $<$<CONFIG:Debug>:DEBUG>
+    ATLASNET_DB_DEBUG_HANDSHAKE_PORT=5000
+)
 
 add_custom_target(AtlasNetDocs
     COMMAND doxygen docs/Doxyfile
@@ -98,6 +102,7 @@ target_include_directories(AtlasNetNode
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 
 )
+
 target_link_libraries(AtlasNetNode AtlasNetCore)
 set_target_properties(AtlasNetNode PROPERTIES FOLDER "AtlasNet")
 
@@ -117,6 +122,26 @@ target_include_directories(AtlasNetDB
 )
 target_link_libraries(AtlasNetDB AtlasNetCore)
 set_target_properties(AtlasNetDB PROPERTIES FOLDER "AtlasNet")
+
+# DB Debug
+add_custom_target(Valkey-Server-Compile
+    COMMAND make -j${NPROC} valkey-server
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/external/valkey
+    COMMENT "Compiling Valkey Server for AtlasNetDB debugging"
+    VERBATIM
+)
+add_executable(Valkey-Server-Debug IMPORTED GLOBAL)
+
+set_target_properties(Valkey-Server-Debug PROPERTIES
+    IMPORTED_LOCATION
+        "${CMAKE_SOURCE_DIR}/external/valkey/src/valkey-server"
+)
+
+add_dependencies(
+    Valkey-Server-Debug
+    Valkey-Server-Compile
+    AtlasNetDB
+)
 
 # ========= ATLASNET CARTOGRAPH ========
 if (ATLASNET_CARTOGRAPH)

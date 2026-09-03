@@ -8,7 +8,7 @@ add_executable(AtlasNet_tests_Address ${CMAKE_CURRENT_SOURCE_DIR}/Address.cpp)
 
 target_link_libraries(AtlasNet_tests_Address
 AtlasNetCore
-gtest
+GTest::gtest
 )
 set_target_properties(AtlasNet_tests_Address PROPERTIES FOLDER "AtlasNet/Tests/Unit")
 gtest_discover_tests(AtlasNet_tests_Address)

@@ -1,4 +1,5 @@
 #include "AtlasNet/Core/Core.hpp"
+#include "AtlasNet/Core/Network/NetworkCommons.hpp"
 #include "AtlasNet/Core/Network/RPC/RPC.hpp"
 #include "AtlasNet/Core/Network/RPC/RPCCommons.hpp"
 #include "AtlasNet/Core/Network/RPC/RPCMethod.hpp"
@@ -60,7 +61,7 @@ protected:
                .data = {packetdata.begin(), packetdata.end()}});
   }
 
-  void _ImplPoll() override
+  void _ImplPoll(AtlasNet::Network::PollType pollType) override
   {
     std::unique_lock lock(sentPacketsMutex);
     std::vector<Packet> packets = std::move(sentPackets[nodeID]);
@@ -95,7 +96,7 @@ TEST(RPC, Call_Raw)
   rpc1.Bind("MockRPC.MockFunction", boundHandler);
   rpc2.Call(rpc1.GetNodeID(), "MockRPC.MockFunction", data);
 
-  rpc1.Poll();
+  rpc1.Poll(AtlasNet::Network::PollType::NonBlocking);
   EXPECT_TRUE(callCompleted);
   // Add your assertions here
 }
@@ -122,8 +123,8 @@ TEST(RPC, CallResponse_Raw)
   rpc1.Bind("MockRPC.MockFunction", boundHandler);
   auto future = rpc2.Call_R(rpc1.GetNodeID(), "MockRPC.MockFunction", data);
 
-  rpc1.Poll();
-  rpc2.Poll();
+  rpc1.Poll(AtlasNet::Network::PollType::NonBlocking);
+  rpc2.Poll(AtlasNet::Network::PollType::NonBlocking);
   EXPECT_TRUE(callCompleted);
   auto result = future.get();
   EXPECT_TRUE(result.has_value());
@@ -151,7 +152,7 @@ TEST(RPC, Call)
   rpc1.Bind<SimpleCallMethod>(boundHandler);
   rpc2.Call<SimpleCallMethod>(rpc1.GetNodeID(), data);
 
-  rpc1.Poll();
+  rpc1.Poll( AtlasNet::Network::PollType::NonBlocking);
   EXPECT_TRUE(callCompleted);
 }
 using SimpleCallResponseMethod =
@@ -174,8 +175,8 @@ TEST(RPC, CallResponse)
   rpc1.Bind<SimpleCallResponseMethod>(boundHandler);
   auto future = rpc2.Call<SimpleCallResponseMethod>(rpc1.GetNodeID(), data);
 
-  rpc1.Poll();
-  rpc2.Poll();
+  rpc1.Poll(AtlasNet::Network::PollType::NonBlocking);
+  rpc2.Poll(AtlasNet::Network::PollType::NonBlocking);
   EXPECT_TRUE(callCompleted);
   auto result = future.get();
   EXPECT_TRUE(result.has_value());

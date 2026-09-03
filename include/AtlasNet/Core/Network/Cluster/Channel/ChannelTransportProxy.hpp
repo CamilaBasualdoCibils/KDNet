@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AtlasNet/Core/Network/Cluster/Channel/ChannelCommons.hpp"
-#include "AtlasNet/Core/Network/Cluster/Transport/IClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/ClusterTransport.hpp"
 #include <queue>
 namespace AtlasNet::Network::Cluster
 {
@@ -30,7 +30,7 @@ public:
       : m_ChannelBus(channelBus), m_ChannelID(channelID)
   {
   }
-  virtual bool SendMessage(const AtlasNetNodeID& destination,
+  virtual bool Send(const AtlasNetNodeID& destination,
                            std::span<const std::byte> payload);
 
   virtual size_t Receive(std::span<ClusterDatagram> packets)

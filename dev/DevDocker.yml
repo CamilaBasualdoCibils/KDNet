@@ -8,9 +8,8 @@ services:
     image: atlasnet-node-dev
     networks: [AtlasNet]
     environment:
-    - INGRESS_PORT=5000
-    - REDIS_HOST=AtlasNet-DB
-    - REDIS_PORT=6379
+      - ATLASNET_DB_HOST=AtlasNet-DB
+      - ATLASNET_DB_PORT=3373
     cap_add:
       - SYS_PTRACE
     security_opt:
@@ -18,13 +17,15 @@ services:
     tty: true
     deploy:
       mode: replicated
-      replicas: 5
+      replicas: 1
       restart_policy:
         condition: on-failure
   AtlasNet-DB:
     image: atlasnet-db-dev
     networks: [AtlasNet]
     tty: true
+    environment:
+      - ATLASNET_CLUSTER_PORT=3373
     ports:
       - target: 6379
         published: 6379

@@ -208,7 +208,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::FlushPendingAcks()
                    peer.receive.receivedPacketBits);
     std::vector<std::byte> bytes = BuildPacket(peer, {}, 0, true);
 
-    GetTransport()->SendMessage(destination, bytes);
+    GetTransport()->Send(destination, bytes);
   }
 }
 void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessTimers()
@@ -244,7 +244,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessTimers()
       logger_->trace("Retransmitting packet {} to {} (attempt {}/{})",
                      packet.packetSequence, destination.to_string(),
                      packet.attempts + 1, MaxRetransmissions);
-      GetTransport()->SendMessage(destination, packet.bytes);
+      GetTransport()->Send(destination, packet.bytes);
 
       packet.lastSent = now;
       ++packet.attempts;
@@ -279,7 +279,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::ProcessDatagram(
     const ClusterDatagram& datagram)
 {
   auto storage = std::make_shared<std::vector<std::byte>>(
-      datagram.payload.begin(), datagram.payload.end());
+      datagram.GetPayload().begin(), datagram.GetPayload().end());
 
   NetBinaryReader reader(*storage);
 
@@ -597,7 +597,7 @@ void AtlasNet::Network::Cluster::ClusterChannelV1::SendPacket(
     std::vector<std::byte> bytes, uint64_t packetSequence)
 {
 
-  GetTransport()->SendMessage(destination, bytes);
+  GetTransport()->Send(destination, bytes);
 
   if (GetOptions().delivery != DeliveryMode::Reliable)
     return;

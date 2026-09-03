@@ -11,6 +11,7 @@ namespace AtlasNet::Network
 
 using PortType = uint16_t;
 const static inline PortType PORT_EPHEMERAL = 0;
+const static inline PortType PORT_INVALID = 0xFFFF;
 class ISocketAddress
 {
   PortType port = 1;
@@ -283,8 +284,10 @@ public:
 
     throw std::runtime_error("Invalid SocketAddress variant");
   }
-  SocketAddress EnsureResolved() const
+  SocketAddress Resolve() const
   {
+    if (!IsValid())
+      throw std::runtime_error("Cannot resolve an invalid SocketAddress");
     SocketAddress resolvedAddress = *this;
     if (IsHostName())
     {
@@ -302,6 +305,7 @@ public:
     }
     return resolvedAddress;
   }
+
   std::string to_string() const override
   {
     const std::string addrStr = std::visit(
@@ -309,7 +313,7 @@ public:
         {
           using T = std::decay_t<decltype(addr)>;
           if constexpr (std::is_same_v<T, std::monostate>)
-            throw std::runtime_error("SocketAddress is not initialized");
+            return "<uninitialized>";
           else
             return addr.to_string();
         },

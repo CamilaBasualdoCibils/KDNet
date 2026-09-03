@@ -4,13 +4,13 @@
 #include "AtlasNet/Core/Network/Cluster/Channel/ChannelCommons.hpp"
 #include "AtlasNet/Core/Network/Cluster/Channel/ChannelTransportProxy.hpp"
 #include "AtlasNet/Core/Network/Cluster/Channel/ClusterMessage.hpp"
-#include "AtlasNet/Core/Network/Cluster/Transport/IClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/ClusterTransport.hpp"
 namespace AtlasNet::Network::Cluster
 {
 
 struct ChannelOptions
 {
-  ChannelID id = 0;
+  ChannelID id = -1;
 
   DeliveryMode delivery = DeliveryMode::Unreliable;
   OrderingMode ordering = OrderingMode::Unordered;
@@ -21,7 +21,7 @@ struct ChannelOptions
 
   constexpr bool Validate() const noexcept
   {
-    if (id == 0)
+    if (id <= 0)
       return false;
 
     if (ordering == OrderingMode::Ordered && delivery != DeliveryMode::Reliable)

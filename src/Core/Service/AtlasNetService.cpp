@@ -2,25 +2,42 @@
 #include "AtlasNet/Core/Core.hpp"
 #include "AtlasNet/Core/Network/Address/Address.hpp"
 #include "AtlasNet/Core/Network/Address/SocketAddress.hpp"
-#include "AtlasNet/Core/Network/Cluster/Transport/UDP/UDPClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Cluster/Transport/ClusterTransport.hpp"
+#include "AtlasNet/Core/Network/Transport/UDP/UDPNetworkTransport.hpp"
 
 #include <boost/describe/enum_to_string.hpp>
 #include <boost/program_options.hpp>
 #include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <spdlog/common.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 #include <sys/signalfd.h>
 
 AtlasNet::AtlasNetService::AtlasNetService(AtlasNetServiceType service_type,
                                            int argc, char** argv)
-    : signalFd(SetupSignals()), nodeID(AtlasNet::AtlasNetNodeID::Generate()),
-      service_type(service_type),
+    : argc(argc), argv(argv), signalFd(SetupSignals()),
+      nodeID(AtlasNet::AtlasNetNodeID::Generate()), service_type(service_type),
       logger(spdlog::stdout_color_mt(
           "AtlasNet:" + std::string(boost::describe::enum_to_string(
                             service_type, "<INVALID>"))))
+{
+  #ifdef DEBUG
+  spdlog::set_level(spdlog::level::debug);
+  #endif 
+  auto UnexpectedHandler = [](int signal)
+  {
+    std::cerr << "Unexpected signal: " << signal << std::endl;
+    std::cerr << boost::stacktrace::stacktrace() << std::endl;
+  };
+  std::signal(SIGSEGV, UnexpectedHandler);
+  std::signal(SIGABRT, UnexpectedHandler);
+}
+void AtlasNet::AtlasNetService::Run()
 {
   namespace po = boost::program_options;
   po::options_description desc{"AtlasNetService Options"};
@@ -35,42 +52,53 @@ AtlasNet::AtlasNetService::AtlasNetService(AtlasNetServiceType service_type,
   }
 
   ParseOptions(vm);
-}
-void AtlasNet::AtlasNetService::Run()
-{
   logger->info("Starting {}[{}] - {}...",
                boost::describe::enum_to_string(service_type, "<INVALID>"),
                nodeID.to_short_string(), nodeID.to_string());
-  if (options.clusterTransportType ==
+  if (options.networkTransportType ==
       Network::Cluster::ClusterTransportType::INVALID)
   {
     logger->warn(
-        "No cluster transport specified. Use --cluster-transport or "
-        "ATLASNET_CLUSTER_TRANSPORT environment variable. defaulting to UDP.");
-    options.clusterTransportType = Network::Cluster::ClusterTransportType::UDP;
+        "Use --network-transport or "
+        "ATLASNET_NETWORK_TRANSPORT environment variable. defaulting to UDP.");
+    options.networkTransportType = Network::Cluster::ClusterTransportType::UDP;
   }
-  logger->info("cluster messaging: {}:{}",
-               boost::describe::enum_to_string(options.clusterTransportType,
-                                               "<INVALID>"),
-               options.clusterListenPort != 0
-                   ? std::to_string(options.clusterListenPort)
-                   : "ephemeral");
-  switch (options.clusterTransportType)
+
+
+  switch (options.networkTransportType)
   {
 
   case Network::Cluster::ClusterTransportType::INVALID:
-throw std::runtime_error(
+    throw std::runtime_error(
         "Invalid cluster transport type. Use --cluster-transport or "
-        "ATLASNET_CLUSTER_TRANSPORT environment variable.");
+        "ATLASNET_NETWORK_TRANSPORT environment variable.");
   case Network::Cluster::ClusterTransportType::UDP:
-    clusterTransport = std::make_shared<Network::Cluster::UDPClusterTransport>(
-        options.clusterListenPort, nullptr);
+    baseTransport = std::make_shared<Network::UDPNetworkTransport>(
+        "ChannelBusNetworkTransport",
+        Network::SocketAddress(Network::IPv6::Any(),
+                               options.clusterListenPort));
     break;
   case Network::Cluster::ClusterTransportType::DPDK:
+    throw std::runtime_error("DPDK cluster transport is not yet implemented.");
     break;
   }
-  GetLogger()->info("Cluster transport listening on port {}",
-                    clusterTransport->GetListenPort());
+  logger->info("Channel Bus listening on {}",
+               baseTransport->GetListenPort());
+  /* clusterTransport = std::make_shared<Network::Cluster::ClusterTransport>(
+      baseTransport, nullptr); */
+
+  HandshakeTransport = std::make_shared<Network::UDPNetworkTransport>(
+      "HandshakeTransport",
+      Network::SocketAddress(
+          Network::IPv6::Any(),
+          options.handshakeListenPort)); // Use ephemeral port for handshake
+                                         // transport
+  HandshakeRPC = std::make_shared<Network::RPC::NetworkTransportRPC>(
+      "HandshakeRPC", Network::RPC::NetworkTransportRPC::Config{
+                          .networkTransport = HandshakeTransport});
+  logger->info("Handshake port: {}",
+               HandshakeTransport->GetListenPort());
+  InitializeChannels();
   // Initialize the service
   Initialize();
 
@@ -87,18 +115,36 @@ void AtlasNet::AtlasNetService::AddOptions(
 
       // Node Sockets
       ("cluster-port", po::value<uint16_t>(),
-       "Internal cluster port for node-to-node communication. EX: 1925");
+       "Internal cluster port for node-to-node communication. EX: 1925, "
+       "Optional")
+      // Handshake port
+      ("handshake-port", po::value<uint16_t>(),
+       "Handshake port for node-to-node communication. EX: 1926");
 }
 void AtlasNet::AtlasNetService::ParseOptions(
     const boost::program_options::variables_map& vm)
 {
+
   options.clusterListenPort =
       vm.count("cluster-port")
           ? static_cast<uint16_t>(vm["cluster-port"].as<uint16_t>())
           : (std::getenv("ATLASNET_CLUSTER_PORT")
                  ? static_cast<uint16_t>(
                        std::stoi(std::getenv("ATLASNET_CLUSTER_PORT")))
-                 : 0); // Default to port 0 (ephemeral)
+                 : Network::PORT_EPHEMERAL); // Default to port 0 (ephemeral)
+  options.handshakeListenPort =
+      vm.count("handshake-port")
+          ? static_cast<uint16_t>(vm["handshake-port"].as<uint16_t>())
+          : (std::getenv("ATLASNET_HANDSHAKE_PORT")
+                 ? static_cast<uint16_t>(
+                       std::stoi(std::getenv("ATLASNET_HANDSHAKE_PORT")))
+                 : Network::PORT_EPHEMERAL); // Default to port 0 (ephemeral)
+  if (options.handshakeListenPort == Network::PORT_INVALID)
+  {
+    logger->error("Handshake port must be specified via --handshake-port or "
+                  "ATLASNET_HANDSHAKE_PORT environment variable.");
+    throw std::invalid_argument("Handshake port must be specified");
+  }
 }
 
 void AtlasNet::AtlasNetService::MainLoop()
@@ -135,6 +181,13 @@ void AtlasNet::AtlasNetService::MainLoop()
     Tick();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+}
+void AtlasNet::AtlasNetService::InitializeChannels()
+{
+  channelBus = std::make_shared<Network::Cluster::ChannelBus>(
+      Network::Cluster::ChannelBus::ChannelBusOptions{.transport =
+                                                          clusterTransport});
+  GetLogger()->info("Channel bus initialized");
 }
 std::string AtlasNet::AtlasNetService::GetHostID()
 {

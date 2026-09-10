@@ -192,6 +192,7 @@ void AtlasNet::AtlasNetNode::Initialize()
       }
     }
     DB::RegisterNodeRequest registerRequest;
+    registerRequest.nodeID = GetNodeID();
     std::future<Network::RPC::TRPCResult<DB::RegisterNodeResponse>> response =
         GetHandshakeRPC().Call<DB::RPC_DB_RegisterNode>(
             nodeConfig.dbHandshakeAddress, registerRequest);

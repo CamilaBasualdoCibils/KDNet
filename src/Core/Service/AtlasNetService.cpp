@@ -193,15 +193,6 @@ std::string AtlasNet::AtlasNetService::GetHostID()
 {
   return "INVALID";
 }
-AtlasNet::Network::HostAddress AtlasNet::AtlasNetService::GetNodeAddress()
-{
-  char hostname[256];
-  if (gethostname(hostname, sizeof(hostname)) != 0)
-  {
-    throw std::runtime_error("Failed to get hostname");
-  }
-  return Network::HostAddress(hostname);
-}
 int AtlasNet::AtlasNetService::SetupSignals()
 {
   sigset_t mask;

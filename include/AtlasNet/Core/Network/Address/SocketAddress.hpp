@@ -14,7 +14,9 @@ const static inline PortType PORT_EPHEMERAL = 0;
 const static inline PortType PORT_INVALID = 0xFFFF;
 class ISocketAddress
 {
-  PortType port = 1;
+  protected:
+
+  PortType port = PORT_INVALID;
 
 public:
   virtual ~ISocketAddress() = default;
@@ -87,7 +89,7 @@ public:
 
 class SocketAddress : public ISocketAddress
 {
-  std::variant<std::monostate, IPv4, IPv6, HostName, SteamIDAddress> address;
+  std::variant<std::monostate, IPv4, IPv6, HostName> address;
 
 public:
   SocketAddress() = default;
@@ -112,10 +114,10 @@ public:
     set_port(port);
   }
 
-  SocketAddress(const SteamIDAddress& steamID, PortType port) : address(steamID)
+/*   SocketAddress(const SteamIDAddress& steamID, PortType port) : address(steamID)
   {
     set_port(port);
-  }
+  } */
 
   SocketAddress(const HostAddress& hostAddr, PortType port)
   {
@@ -125,8 +127,8 @@ public:
       address = hostAddr.get_ipv6();
     else if (hostAddr.IsHostName())
       address = hostAddr.get_hostname();
-    else if (hostAddr.IsSteamID())
-      address = hostAddr.get_steam_id();
+/*     else if (hostAddr.IsSteamID())
+      address = hostAddr.get_steam_id(); */
     else
       throw std::invalid_argument("Invalid HostAddress variant");
     set_port(port);
@@ -201,10 +203,10 @@ public:
   {
     return std::holds_alternative<HostName>(address);
   }
-  bool IsSteamID() const
+/*   bool IsSteamID() const
   {
     return std::holds_alternative<SteamIDAddress>(address);
-  }
+  } */
   bool IsValid() const
   {
     return !std::holds_alternative<std::monostate>(address);
@@ -231,12 +233,12 @@ public:
     return std::get<HostName>(address);
   }
 
-  const SteamIDAddress& get_steam_id() const
+/*   const SteamIDAddress& get_steam_id() const
   {
     if (!IsSteamID())
       throw std::bad_variant_access();
     return std::get<SteamIDAddress>(address);
-  }
+  } */
 
   SteamNetworkingIPAddr ToSteamAddr() const
   {
@@ -428,8 +430,8 @@ public:
       return *a == std::get<IPv6>(other.address);
     if (const auto* a = std::get_if<HostName>(&address))
       return *a == std::get<HostName>(other.address);
-    if (const auto* a = std::get_if<SteamIDAddress>(&address))
-      return *a == std::get<SteamIDAddress>(other.address);
+  /*     if (const auto* a = std::get_if<SteamIDAddress>(&address))
+        return *a == std::get<SteamIDAddress>(other.address); */
 
     return std::holds_alternative<std::monostate>(address) &&
            std::holds_alternative<std::monostate>(other.address);
@@ -463,9 +465,14 @@ public:
       return HostAddress(get_ipv6());
     if (IsHostName())
       return HostAddress(get_hostname());
-    if (IsSteamID())
-      return HostAddress(get_steam_id());
+/*     if (IsSteamID())
+      return HostAddress(get_steam_id()); */
     throw std::runtime_error("Invalid SocketAddress variant");
+  }
+  template <typename Archive>
+  void serialize(Archive& ar)
+  {
+    ar(address, port);
   }
 };
 } // namespace AtlasNet

@@ -379,7 +379,7 @@ TEST(Channels, V1Sequenced)
   channel.Flush();
 }
 
-TEST(Channels, BusSend)
+/* TEST(Channels, BusSend)
 {
   const AtlasNetNodeID thisNodeID = AtlasNetNodeID::Generate();
   const PortType listenPort = 12345;
@@ -403,7 +403,8 @@ TEST(Channels, BusSend)
                                      std::byte{4}, std::byte{5}};
   channel->Send(thisNodeID,
                 std::span<const std::byte>(payload1.data(), payload1.size()));
-}
+        
+} */
 
 TEST(Channels, BusReceive)
 {

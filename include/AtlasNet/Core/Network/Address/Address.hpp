@@ -225,6 +225,11 @@ public:
            (static_cast<uint32_t>(octets[2]) << 8) |
            static_cast<uint32_t>(octets[3]);
   }
+  template <typename Archive>
+  void serialize(Archive& ar)
+  {
+    ar(octets);
+  }
 
 };
 
@@ -388,6 +393,11 @@ public:
   std::array<uint8_t, 16> get_bytes() const
   {
     return bytes;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar)
+  {
+    ar(bytes);
   }
 
 
@@ -570,6 +580,11 @@ public:
     }
 
     return true;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar)
+  {
+    ar(hostname);
   }
 
 };

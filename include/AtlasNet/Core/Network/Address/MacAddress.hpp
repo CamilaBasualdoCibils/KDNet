@@ -87,6 +87,12 @@ public:
 
     bool operator==(const MACAddress&) const = default;
 
+    template <typename Archive>
+    void serialize(Archive& ar)
+    {
+        ar(m_bytes);
+    }
+
 private:
     std::array<uint8_t, Size> m_bytes{};
 };

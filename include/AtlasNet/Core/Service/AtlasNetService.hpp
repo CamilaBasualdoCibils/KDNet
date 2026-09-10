@@ -92,7 +92,10 @@ protected:
     assert(HandshakeRPC != nullptr);
     return *HandshakeRPC;
   }
-
+  AtlasNetNodeID GetNodeID() const
+  {
+    return nodeID;
+  }
 private:
   void MainLoop();
   virtual void Initialize() = 0;
@@ -100,13 +103,9 @@ private:
   void InitializeChannels();
 
   static std::string GetHostID();
-  static AtlasNet::Network::HostAddress GetNodeAddress();
   static int SetupSignals();
   std::optional<int> CheckForSignal();
-  AtlasNetNodeID GetNodeID() const
-  {
-    return nodeID;
-  }
+
 
   const int argc;
   char const* const* argv;
